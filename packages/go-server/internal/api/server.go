@@ -1,7 +1,10 @@
 package api
 
 import (
+	"bytes"
+	"io"
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -38,6 +41,7 @@ func NewServer() *echo.Echo {
 
 	// Settings
 	v1.GET("/settings", getSettings)
+	v1.POST("/settings/webhook/test", testWebhook)
 
 	return e
 }
@@ -64,4 +68,35 @@ func getSettings(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]any{"data": map[string]string{
 		"project_name": "Pulse",
 	}})
+}
+
+func testWebhook(c echo.Context) error {
+	var req struct {
+		URL  string `json:"url"`
+		Body string `json:"body"`
+	}
+	if err := c.Bind(&req); err != nil || req.URL == "" {
+		return c.JSON(http.StatusBadRequest, map[string]any{
+			"error": map[string]string{"code": "INVALID_REQUEST", "message": "url is required"},
+		})
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(req.URL, "application/json", bytes.NewBufferString(req.Body))
+	if err != nil {
+		return c.JSON(http.StatusOK, map[string]any{
+			"success":    false,
+			"error":      err.Error(),
+			"status_code": 0,
+		})
+	}
+	defer resp.Body.Close()
+	// Read up to 1KB of response body for debugging
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+
+	return c.JSON(http.StatusOK, map[string]any{
+		"success":       resp.StatusCode == http.StatusOK,
+		"status_code":   resp.StatusCode,
+		"response_body": string(bodyBytes),
+	})
 }

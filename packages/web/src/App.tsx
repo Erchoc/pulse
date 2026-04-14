@@ -1999,24 +1999,28 @@ function SettingsPage({ projectName, setProjectName }) {
     if (!webhookUrl) return
     setWebhookTested('testing')
     setWebhookError('')
-    fetch(webhookUrl, {
+    fetch('/api/v1/settings/webhook/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: WEBHOOK_PAYLOAD_SAMPLE,
+      body: JSON.stringify({ url: webhookUrl, body: WEBHOOK_PAYLOAD_SAMPLE }),
     })
-      .then((res) => {
-        if (res.ok) {
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
           setWebhookTested('success')
+          setTimeout(() => setWebhookTested(null), 4000)
         } else {
           setWebhookTested('fail')
-          setWebhookError(i18n.webhookFailDetail.replace('{status}', String(res.status)))
+          setWebhookError(
+            data.status_code
+              ? i18n.webhookFailDetail.replace('{status}', String(data.status_code))
+              : data.error || i18n.webhookFailNetwork,
+          )
         }
-        setTimeout(() => setWebhookTested(null), 4000)
       })
       .catch(() => {
         setWebhookTested('fail')
         setWebhookError(i18n.webhookFailNetwork)
-        setTimeout(() => setWebhookTested(null), 4000)
       })
   }, [webhookUrl, i18n.webhookFailDetail, i18n.webhookFailNetwork])
 
@@ -2158,20 +2162,68 @@ function SettingsPage({ projectName, setProjectName }) {
             {webhookTested === 'success' && (
               <div
                 style={{
-                  marginTop: 8,
+                  marginTop: 10,
+                  padding: '8px 12px',
                   fontSize: 12,
                   color: t.status.up,
+                  backgroundColor: `${t.status.up}0a`,
+                  border: `1px solid ${t.status.up}22`,
+                  borderRadius: 8,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: 6,
+                  animation: 'fadeSlide .2s ease',
                 }}
               >
-                ✓ {i18n.webhookSuccess}
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <title>OK</title>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                {i18n.webhookSuccess}
               </div>
             )}
             {webhookTested === 'fail' && (
-              <div style={{ marginTop: 8, fontSize: 12, color: t.status.down }}>
-                ✕ {webhookError || i18n.webhookFail}
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: '8px 12px',
+                  fontSize: 12,
+                  color: t.status.down,
+                  backgroundColor: `${t.status.down}0a`,
+                  border: `1px solid ${t.status.down}22`,
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 6,
+                  lineHeight: 1.5,
+                }}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ flexShrink: 0, marginTop: 2 }}
+                >
+                  <title>Error</title>
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="15" y1="9" x2="9" y2="15" />
+                  <line x1="9" y1="9" x2="15" y2="15" />
+                </svg>
+                <span>{webhookError || i18n.webhookFail}</span>
               </div>
             )}
 

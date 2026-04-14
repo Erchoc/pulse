@@ -2865,7 +2865,7 @@ export default function App() {
         @keyframes checkPop{0%{transform:scale(0) rotate(-45deg);opacity:0}50%{transform:scale(1.2) rotate(0deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}
         @keyframes savedPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 10px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
         .settings-row{display:grid;grid-template-columns:280px 1fr;gap:32px;align-items:start}
-        @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{display:flex!important;flex-wrap:wrap!important;gap:6px 12px!important}.svc-row>:nth-child(1){flex:1 1 auto;min-width:120px}.svc-row>:nth-child(3){margin-left:auto;white-space:nowrap}.svc-row>:nth-child(5){white-space:nowrap}}
+        @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr 80px 76px!important;gap:8px!important}}
         @media(max-width:600px){.resp-cols{grid-template-columns:1fr!important}.stat-grid{grid-template-columns:1fr 1fr!important}}
       `}</style>
 

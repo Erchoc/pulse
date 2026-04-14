@@ -85,11 +85,12 @@ const msg = {
     webhookUrl: 'Webhook Notification URL',
     webhookHint: 'Sends POST requests when probe anomalies are detected',
     testWebhook: 'Test',
-    webhookSuccess: 'Webhook test sent successfully!',
-    webhookFail: 'Webhook test failed',
-    samplePayload: 'Sample Payload',
-    successPayload: 'Success Response Example',
-    errorPayload: 'Error Response Example',
+    webhookSuccess: 'Endpoint returned 200 — receiving normally',
+    webhookFail: 'Endpoint did not return 200',
+    webhookFailDetail: 'HTTP {status} — please check that the URL is reachable and returns 200',
+    webhookFailNetwork: 'Request failed — please check that the URL is reachable',
+    samplePayload: 'Request Body Example',
+    payloadHint: 'POST request body sent by Pulse when a probe anomaly is detected',
     apiIntegration: 'API Integration',
     apiHint:
       'Use this API key to integrate with the Pulse REST API. Include it in the X-API-Key header for all requests. The API provides endpoints for querying probe status, SLA metrics, and managing probes programmatically.',
@@ -188,11 +189,12 @@ const msg = {
     webhookUrl: 'Webhook 通知地址',
     webhookHint: '探测异常时会发送 POST 请求到此地址',
     testWebhook: '测试',
-    webhookSuccess: 'Webhook 测试发送成功！',
-    webhookFail: 'Webhook 测试失败',
-    samplePayload: '示例数据',
-    successPayload: '成功响应示例',
-    errorPayload: '异常响应示例',
+    webhookSuccess: '对端返回 200 — 接收正常',
+    webhookFail: '对端未返回 200',
+    webhookFailDetail: 'HTTP {status} — 请检查地址是否可达且返回 200',
+    webhookFailNetwork: '请求失败 — 请检查地址是否可达',
+    samplePayload: '请求体示例',
+    payloadHint: '探测异常时 Pulse 向此地址发送的 POST 请求体',
     apiIntegration: 'API 集成',
     apiHint:
       '使用此 API Key 对接 Pulse REST API。在所有请求的 X-API-Key 请求头中传入此密钥。API 提供探针状态查询、SLA 指标获取、探针管理等接口。',
@@ -1890,32 +1892,22 @@ function ProbesPage() {
 /* ================================================================
    SETTINGS PAGE — fully interactive
    ================================================================ */
-const WEBHOOK_SUCCESS_SAMPLE = JSON.stringify(
+const WEBHOOK_PAYLOAD_SAMPLE = JSON.stringify(
   {
-    event: 'status_change',
+    event: 'probe_anomaly',
     probe_id: 'prod-api-health',
+    probe_name: 'prod-api-health',
     from: 'up',
     to: 'down',
-    timestamp: '2026-04-14T13:22:01+08:00',
+    timestamp: '2026-04-14T13:22:01Z',
     latency_ms: 5023,
     status_code: 503,
     message: 'Health check failed: HTTP 503',
-  },
-  null,
-  2,
-)
-
-const WEBHOOK_ERROR_SAMPLE = JSON.stringify(
-  {
-    event: 'status_change',
-    probe_id: 'ws-ping-pong',
-    from: 'up',
-    to: 'degraded',
-    timestamp: '2026-04-14T13:22:01+08:00',
-    latency_ms: 3200,
-    status_code: null,
-    message: 'WebSocket ping timeout after 3000ms',
-    error: { type: 'TIMEOUT', retry_count: 3, last_error: 'connection reset by peer' },
+    error: {
+      type: 'HTTP_ERROR',
+      retry_count: 3,
+      last_error: 'status 503 Service Unavailable',
+    },
   },
   null,
   2,
@@ -1992,18 +1984,35 @@ function SettingsPage({ projectName, setProjectName }) {
     }, 1200)
   }, [])
 
+  const [webhookError, setWebhookError] = useState('')
   const handleTestWebhook = useCallback(() => {
-    if (!webhookUrl) {
-      setWebhookTested('fail')
-      setTimeout(() => setWebhookTested(null), 2000)
-      return
-    }
+    if (!webhookUrl) return
     setWebhookTested('testing')
-    setTimeout(() => {
-      setWebhookTested('success')
-      setTimeout(() => setWebhookTested(null), 2500)
-    }, 1000)
-  }, [webhookUrl])
+    setWebhookError('')
+    fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: WEBHOOK_PAYLOAD_SAMPLE,
+      mode: 'no-cors',
+    })
+      .then((res) => {
+        if (res.type === 'opaque') {
+          // no-cors: can't read status, treat as success (request was sent)
+          setWebhookTested('success')
+        } else if (res.ok) {
+          setWebhookTested('success')
+        } else {
+          setWebhookTested('fail')
+          setWebhookError(i18n.webhookFailDetail.replace('{status}', String(res.status)))
+        }
+        setTimeout(() => setWebhookTested(null), 4000)
+      })
+      .catch(() => {
+        setWebhookTested('fail')
+        setWebhookError(i18n.webhookFailNetwork)
+        setTimeout(() => setWebhookTested(null), 4000)
+      })
+  }, [webhookUrl, i18n.webhookFailDetail, i18n.webhookFailNetwork])
 
   const handleRegen = useCallback(() => {
     setApiKey(genApiKey())
@@ -2123,7 +2132,7 @@ function SettingsPage({ projectName, setProjectName }) {
             )}
             {webhookTested === 'fail' && (
               <div style={{ marginTop: 8, fontSize: 12, color: t.status.down }}>
-                ✕ {i18n.webhookFail}
+                ✕ {webhookError || i18n.webhookFail}
               </div>
             )}
 
@@ -2144,65 +2153,32 @@ function SettingsPage({ projectName, setProjectName }) {
               {showPayload ? '▾' : '▸'} {i18n.samplePayload}
             </button>
             {showPayload && (
-              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: t.status.up,
-                      fontWeight: 600,
-                      marginBottom: 4,
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {i18n.successPayload}
-                  </div>
-                  <pre
-                    style={{
-                      backgroundColor: t.bg.input,
-                      padding: 12,
-                      borderRadius: R.sm,
-                      fontSize: 11,
-                      fontFamily: F.mono,
-                      color: t.text.secondary,
-                      overflow: 'auto',
-                      margin: 0,
-                      border: `1px solid ${t.border}`,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {WEBHOOK_SUCCESS_SAMPLE}
-                  </pre>
+              <div style={{ marginTop: 10 }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: t.text.muted,
+                    marginBottom: 6,
+                  }}
+                >
+                  {i18n.payloadHint}
                 </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: t.status.down,
-                      fontWeight: 600,
-                      marginBottom: 4,
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {i18n.errorPayload}
-                  </div>
-                  <pre
-                    style={{
-                      backgroundColor: t.bg.input,
-                      padding: 12,
-                      borderRadius: R.sm,
-                      fontSize: 11,
-                      fontFamily: F.mono,
-                      color: t.text.secondary,
-                      overflow: 'auto',
-                      margin: 0,
-                      border: `1px solid ${t.border}`,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {WEBHOOK_ERROR_SAMPLE}
-                  </pre>
-                </div>
+                <pre
+                  style={{
+                    backgroundColor: t.bg.input,
+                    padding: 12,
+                    borderRadius: R.sm,
+                    fontSize: 11,
+                    fontFamily: F.mono,
+                    color: t.text.secondary,
+                    overflow: 'auto',
+                    margin: 0,
+                    border: `1px solid ${t.border}`,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {WEBHOOK_PAYLOAD_SAMPLE}
+                </pre>
               </div>
             )}
           </div>

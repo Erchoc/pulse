@@ -2311,77 +2311,81 @@ function SettingsPage({ projectName, setProjectName }) {
             <div style={{ fontSize: 11, color: t.text.muted, fontWeight: 500, marginBottom: 6 }}>
               {i18n.apiKey}
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <code
                 style={{
-                  flex: 1,
+                  flex: '1 1 200px',
+                  minWidth: 0,
                   padding: '8px 12px',
                   backgroundColor: t.bg.input,
                   borderRadius: 8,
                   fontFamily: F.mono,
                   fontSize: 12,
-                  color: t.text.secondary,
+                  color: t.text.muted,
                   border: `1px solid ${t.border}`,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
+                  letterSpacing: '.05em',
                 }}
               >
-                {apiKey}
+                {`${apiKey.slice(0, 7)}${'•'.repeat(20)}${apiKey.slice(-4)}`}
               </code>
-              <button
-                type="button"
-                onClick={() => handleCopy(apiKey)}
-                title={i18n.copy}
-                style={{
-                  background: 'none',
-                  border: `1px solid ${copied ? `${t.status.up}55` : t.border}`,
-                  borderRadius: 6,
-                  padding: '6px 8px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all .2s',
-                  color: copied ? t.status.up : t.text.muted,
-                  backgroundColor: copied ? `${t.status.up}10` : 'transparent',
-                }}
-              >
-                {copied ? (
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{ animation: 'checkPop .3s ease-out' }}
-                  >
-                    <title>Copied</title>
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                ) : (
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <title>Copy</title>
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                  </svg>
-                )}
-              </button>
-              <Btn small variant="danger" onClick={() => setRegenConfirm(true)}>
-                {i18n.regenerate}
-              </Btn>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(apiKey)}
+                  title={i18n.copy}
+                  style={{
+                    background: 'none',
+                    border: `1px solid ${copied ? `${t.status.up}55` : t.border}`,
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all .2s',
+                    color: copied ? t.status.up : t.text.muted,
+                    backgroundColor: copied ? `${t.status.up}10` : 'transparent',
+                  }}
+                >
+                  {copied ? (
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ animation: 'checkPop .3s ease-out' }}
+                    >
+                      <title>Copied</title>
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <title>Copy</title>
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                    </svg>
+                  )}
+                </button>
+                <Btn small variant="danger" onClick={() => setRegenConfirm(true)}>
+                  {i18n.regenerate}
+                </Btn>
+              </div>
             </div>
             {oldApiKey && (
               <div style={{ marginTop: 10 }}>

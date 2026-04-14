@@ -1254,14 +1254,10 @@ function ServiceRow({ svc, selected, onSelect }) {
   const [hov, setHov] = useState(false)
   const dn = lang === 'zh' ? svc.nameZh : svc.name
   return (
-    // biome-ignore lint/a11y/useSemanticElements: grid layout requires div, not button
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
+      className="svc-row"
       onClick={() => onSelect(svc.id)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onSelect(svc.id)
-      }}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -1274,7 +1270,11 @@ function ServiceRow({ svc, selected, onSelect }) {
         borderRadius: R.sm,
         cursor: 'pointer',
         transition: 'background-color .15s',
+        border: 'none',
         borderLeft: selected ? `2px solid ${t.accent}` : '2px solid transparent',
+        width: '100%',
+        textAlign: 'left',
+        font: 'inherit',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -1310,7 +1310,7 @@ function ServiceRow({ svc, selected, onSelect }) {
           fontSize: 13,
           color: c,
           fontFeatureSettings: "'tnum'",
-          textAlign: 'right',
+          textAlign: 'center',
         }}
       >
         {fmtSLA(svc.sla)}
@@ -1347,7 +1347,7 @@ function ServiceRow({ svc, selected, onSelect }) {
           {label}
         </span>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -2673,6 +2673,7 @@ function ListHeader() {
   const { t, i18n } = useApp()
   return (
     <div
+      className="svc-row"
       style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(140px,1.2fr) minmax(160px,2fr) 80px 70px 76px',
@@ -2687,7 +2688,7 @@ function ListHeader() {
     >
       <span>{i18n.service}</span>
       <span className="hide-mobile">{i18n.availability90}</span>
-      <span style={{ textAlign: 'right' }}>{i18n.sla}</span>
+      <span style={{ textAlign: 'center' }}>{i18n.sla}</span>
       <span className="hide-mobile" style={{ textAlign: 'right' }}>
         {i18n.latency}
       </span>
@@ -2791,7 +2792,7 @@ export default function App() {
         @keyframes checkPop{0%{transform:scale(0) rotate(-45deg);opacity:0}50%{transform:scale(1.2) rotate(0deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}
         @keyframes savedPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 10px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
         .settings-row{display:grid;grid-template-columns:280px 1fr;gap:32px;align-items:start}
-        @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}}
+        @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr auto auto!important}}
         @media(max-width:600px){.resp-cols{grid-template-columns:1fr!important}.stat-grid{grid-template-columns:1fr 1fr!important}}
       `}</style>
 

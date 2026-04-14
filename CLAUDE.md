@@ -64,6 +64,8 @@ packages/
 - Conventional Commits: `feat:` / `fix:` / `chore:`
 - **禁止** `git add && git commit` 链式操作（RTK hook 导致 index.lock 竞态）
 - `git add` 和 `git commit` 分成两个独立的 Bash tool call
+- **git 命令必须从 repo 根目录执行**（`cd /Users/longye/AgentRun/pulse && git add ...`），从子目录执行容易路径不匹配或触发 RTK 异常
+- git 操作失败后等 1-2 秒再重试，给 RTK 进程释放 lock 的时间；如遇 index.lock 残留，`rm -f .git/index.lock` 后重试
 - Co-Author 行: `Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>`
 
 ## 踩坑记录

@@ -63,6 +63,8 @@ const msg = {
     probeInterval: 'Interval',
     probeTimeout: 'Timeout',
     probeDesc: 'Description',
+    probeMode: 'Probe Mode',
+    nameTooLong: 'Name must be 6 characters or less',
     edit: 'Edit',
     duplicate: 'Duplicate',
     delete: 'Delete',
@@ -182,6 +184,8 @@ const msg = {
     probeInterval: '间隔',
     probeTimeout: '超时',
     probeDesc: '描述',
+    probeMode: '探测模式',
+    nameTooLong: '名称不超过 6 个字符',
     edit: '编辑',
     duplicate: '复制',
     delete: '删除',
@@ -1683,14 +1687,17 @@ function ProbeForm({ probe, onSave, onCancel }) {
       timeout: '5s',
       desc: '',
       mode: 'server',
+      target: 99,
     },
   )
   const upd = (k, v) => setForm((p) => ({ ...p, [k]: v }))
-  const typeOpts = [
+  const nameError = form.name.length > 6
+  const isClient = form.mode === 'client'
+
+  const serverTypeOpts = [
     { value: 'http', label: 'HTTP(S)' },
     { value: 'websocket', label: 'WebSocket' },
     { value: 'tcp', label: 'TCP' },
-    { value: 'push', label: 'Push' },
   ]
   const intervalOpts = [
     { value: '10s', label: '10s' },
@@ -1714,26 +1721,62 @@ function ProbeForm({ probe, onSave, onCancel }) {
     { value: 'server', label: i18n.serverProbes },
     { value: 'client', label: i18n.clientProbes },
   ]
+
+  // When switching to client mode, force type to push
+  const handleModeChange = (v: string) => {
+    upd('mode', v)
+    if (v === 'client') upd('type', 'push')
+    else if (form.type === 'push') upd('type', 'http')
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+        <span
+          style={{
+            fontSize: 12,
+            color: nameError ? t.status.down : t.text.muted,
+            display: 'block',
+            marginBottom: 4,
+          }}
+        >
           {i18n.probeName}
         </span>
-        <Input value={form.name} onChange={(v) => upd('name', v)} placeholder="prod-api-health" />
+        <Input value={form.name} onChange={(v) => upd('name', v)} placeholder="api-gw" />
+        {nameError && (
+          <span style={{ fontSize: 11, color: t.status.down, marginTop: 4, display: 'block' }}>
+            {i18n.nameTooLong}
+          </span>
+        )}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
           <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
-            {i18n.probeType}
+            {i18n.probeMode}
           </span>
-          <Select value={form.type} onChange={(v) => upd('type', v)} options={typeOpts} />
+          <Select value={form.mode} onChange={handleModeChange} options={modeOpts} />
         </div>
         <div>
           <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
-            Mode
+            {i18n.probeType}
           </span>
-          <Select value={form.mode} onChange={(v) => upd('mode', v)} options={modeOpts} />
+          {isClient ? (
+            <div
+              style={{
+                padding: '8px 12px',
+                backgroundColor: t.bg.input,
+                border: `1px solid ${t.border}`,
+                borderRadius: 8,
+                fontSize: 13,
+                color: t.text.muted,
+                fontFamily: F.sans,
+              }}
+            >
+              Push
+            </div>
+          ) : (
+            <Select value={form.type} onChange={(v) => upd('type', v)} options={serverTypeOpts} />
+          )}
         </div>
       </div>
       <div>
@@ -1743,10 +1786,10 @@ function ProbeForm({ probe, onSave, onCancel }) {
         <Input
           value={form.url}
           onChange={(v) => upd('url', v)}
-          placeholder="https://api.example.com/health"
+          placeholder={isClient ? '—' : 'https://api.example.com/health'}
         />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
         <div>
           <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
             {i18n.probeInterval}
@@ -1763,6 +1806,16 @@ function ProbeForm({ probe, onSave, onCancel }) {
           </span>
           <Select value={form.timeout} onChange={(v) => upd('timeout', v)} options={timeoutOpts} />
         </div>
+        <div>
+          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+            {i18n.slaTarget}
+          </span>
+          <Input
+            value={String(form.target ?? 99)}
+            onChange={(v) => upd('target', Number(v) || 0)}
+            placeholder="99.9"
+          />
+        </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
         <Btn variant="ghost" onClick={onCancel}>
@@ -1770,6 +1823,7 @@ function ProbeForm({ probe, onSave, onCancel }) {
         </Btn>
         <Btn
           variant="primary"
+          disabled={nameError || !form.name}
           onClick={() =>
             onSave({ ...form, id: form.id || uid(), status: form.status || 'up', desc: form.type })
           }

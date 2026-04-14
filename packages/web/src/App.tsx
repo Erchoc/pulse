@@ -89,8 +89,8 @@ const msg = {
     testWebhook: 'Test',
     webhookSuccess: 'Endpoint returned 200 — receiving normally',
     webhookFail: 'Endpoint did not return 200',
-    webhookFailDetail: 'HTTP {status} — please check that the URL is reachable and returns 200',
-    webhookFailNetwork: 'Request failed — please check that the URL is reachable',
+    webhookFailDetail: 'Endpoint returned HTTP {status} — expected 200',
+    webhookFailNetwork: 'Could not reach endpoint — check that the URL is accessible',
     samplePayload: 'Request Body Example',
     payloadHint: 'POST request body sent by Pulse when a probe anomaly is detected',
     apiIntegration: 'API Integration',
@@ -198,8 +198,8 @@ const msg = {
     testWebhook: '测试',
     webhookSuccess: '对端返回 200 — 接收正常',
     webhookFail: '对端未返回 200',
-    webhookFailDetail: 'HTTP {status} — 请检查地址是否可达且返回 200',
-    webhookFailNetwork: '请求失败 — 请检查地址是否可达',
+    webhookFailDetail: '对端返回 HTTP {status}，预期 200',
+    webhookFailNetwork: '无法连接对端，请确认地址可达',
     samplePayload: '请求体示例',
     payloadHint: '探测异常时 Pulse 向此地址发送的 POST 请求体',
     apiIntegration: 'API 集成',
@@ -671,17 +671,10 @@ function Input({
 }) {
   const { t } = useApp()
   const ref = useRef<HTMLInputElement>(null)
-  // Sync external value changes (e.g. from settings load) without breaking undo
-  useEffect(() => {
-    if (ref.current && ref.current.value !== value) {
-      ref.current.value = value
-    }
-  }, [value])
   return (
     <input
       ref={ref}
       defaultValue={value}
-      onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       style={{
         width: '100%',
@@ -701,6 +694,7 @@ function Input({
       }}
       onBlur={(e) => {
         e.target.style.borderColor = t.border
+        if (ref.current) onChange(ref.current.value)
       }}
     />
   )

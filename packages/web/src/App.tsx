@@ -81,10 +81,11 @@ const msg = {
     slaWindowHint:
       'Rolling window for SLA calculation. The dashboard shows both the current window and the previous period for comparison.',
     slaTimezone: 'SLA Timezone',
-    slaTimezoneHint:
-      "Determines when each SLA period starts/ends. Example: if set to Asia/Shanghai (UTC+8), a monthly SLA period runs from the 1st 00:00 to the last day 23:59 in Shanghai time. A 01:00 outage on the 1st counts in the current month. If switched to UTC, that same outage (17:00 UTC the previous day) would count in the prior month's SLA.",
+    slaTimezoneHint: 'Defines period boundaries for SLA calculation.',
     webhookUrl: 'Webhook Notification URL',
     webhookHint: 'Sends POST requests when probe anomalies are detected',
+    webhookLocalWarn:
+      'localhost/127.0.0.1 is only reachable from the server host, not from external networks.',
     testWebhook: 'Test',
     webhookSuccess: 'Endpoint returned 200 — receiving normally',
     webhookFail: 'Endpoint did not return 200',
@@ -97,7 +98,10 @@ const msg = {
       'Use this API key to integrate with the Pulse REST API. Include it in the X-API-Key header for all requests. The API provides endpoints for querying probe status, SLA metrics, and managing probes programmatically.',
     apiKey: 'API Key',
     regenerate: 'Regenerate',
-    regenerateConfirm: 'Regenerate API key? The old key will be invalidated immediately.',
+    regenerateConfirm:
+      'A new API Key will be generated. The old key remains valid for 24 hours to allow migration.',
+    regenerated: 'New key generated. Old key expires in 24h.',
+    oldKey: 'Previous Key (valid 24h)',
     saveSettings: 'Save Settings',
     saving: 'Saving...',
     saved: 'Saved!',
@@ -111,6 +115,8 @@ const msg = {
     w7d: 'Last 7 days',
     w30d: 'Last 30 days',
     w90d: 'Last 90 days',
+    w180d: 'Last 180 days',
+    w365d: 'Last 365 days',
   },
   zh: {
     brand: 'Pulse',
@@ -185,10 +191,10 @@ const msg = {
     slaWindow: 'SLA 统计口径',
     slaWindowHint: 'SLA 计算的滚动窗口。仪表盘同时展示当前窗口与上一周期的对比数据。',
     slaTimezone: 'SLA 时区',
-    slaTimezoneHint:
-      '决定每个 SLA 统计周期的起止时间。举例：如果设为 Asia/Shanghai（UTC+8），月度 SLA 周期为每月 1 日 00:00 至月末 23:59（上海时间）。若某服务在 1 日凌晨 01:00 发生故障，该故障计入当月 SLA。但如果切换为 UTC 时区，同一故障（UTC 前一天 17:00）则会被计入上月的 SLA 统计。',
+    slaTimezoneHint: '决定 SLA 统计周期的起止边界。',
     webhookUrl: 'Webhook 通知地址',
     webhookHint: '探测异常时会发送 POST 请求到此地址',
+    webhookLocalWarn: 'localhost/127.0.0.1 仅服务器本机可达，外部网络无法接收通知。',
     testWebhook: '测试',
     webhookSuccess: '对端返回 200 — 接收正常',
     webhookFail: '对端未返回 200',
@@ -201,7 +207,9 @@ const msg = {
       '使用此 API Key 对接 Pulse REST API。在所有请求的 X-API-Key 请求头中传入此密钥。API 提供探针状态查询、SLA 指标获取、探针管理等接口。',
     apiKey: 'API Key',
     regenerate: '重新生成',
-    regenerateConfirm: '确认重新生成 API Key？旧密钥将立即失效。',
+    regenerateConfirm: 'API Key 将重新生成，旧密钥在 24 小时内仍然有效，便于迁移。',
+    regenerated: '新密钥已生成，旧密钥 24 小时后失效。',
+    oldKey: '旧密钥（24h 内有效）',
     saveSettings: '保存设置',
     saving: '保存中...',
     saved: '已保存！',
@@ -215,6 +223,8 @@ const msg = {
     w7d: '近 7 天',
     w30d: '近 30 天',
     w90d: '近 90 天',
+    w180d: '近 180 天',
+    w365d: '近 365 天',
   },
 }
 
@@ -1973,6 +1983,7 @@ function SettingsPage({ projectName, setProjectName }) {
   const [timezone, setTimezone] = useState('UTC')
   const [webhookUrl, setWebhookUrl] = useState('')
   const [apiKey, setApiKey] = useState(() => genApiKey())
+  const [oldApiKey, setOldApiKey] = useState<string | null>(null)
   const [saveState, setSaveState] = useState('idle')
   const [webhookTested, setWebhookTested] = useState<string | null>(null)
   const [showPayload, setShowPayload] = useState(false)
@@ -2025,10 +2036,11 @@ function SettingsPage({ projectName, setProjectName }) {
   }, [webhookUrl, i18n.webhookFailDetail, i18n.webhookFailNetwork])
 
   const handleRegen = useCallback(() => {
+    setOldApiKey(apiKey)
     setApiKey(genApiKey())
     setRegenConfirm(false)
-    flash(i18n.saved)
-  }, [flash, i18n.saved])
+    flash(i18n.regenerated)
+  }, [apiKey, flash, i18n.regenerated])
   const handleCopy = useCallback((text: string) => {
     navigator.clipboard?.writeText(text)
     setCopied(true)
@@ -2050,6 +2062,8 @@ function SettingsPage({ projectName, setProjectName }) {
       { value: '7d', label: i18n.w7d },
       { value: '30d', label: i18n.w30d },
       { value: '90d', label: i18n.w90d },
+      { value: '180d', label: i18n.w180d },
+      { value: '365d', label: i18n.w365d },
     ],
     [i18n],
   )
@@ -2070,9 +2084,7 @@ function SettingsPage({ projectName, setProjectName }) {
     hint,
     children: ctrl,
   }: { label: string; hint: string; children: React.ReactNode }) => (
-    <div
-      style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 32, alignItems: 'start' }}
-    >
+    <div className="settings-row">
       <div>
         <SettingsLabel t={t}>{label}</SettingsLabel>
         <SettingsHint t={t}>{hint}</SettingsHint>
@@ -2159,6 +2171,22 @@ function SettingsPage({ projectName, setProjectName }) {
                 {i18n.testWebhook}
               </Btn>
             </div>
+            {/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(webhookUrl) && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: '6px 10px',
+                  fontSize: 12,
+                  color: t.status.degraded,
+                  backgroundColor: `${t.status.degraded}0a`,
+                  border: `1px solid ${t.status.degraded}22`,
+                  borderRadius: 8,
+                  lineHeight: 1.5,
+                }}
+              >
+                {i18n.webhookLocalWarn}
+              </div>
+            )}
             {webhookTested === 'success' && (
               <div
                 style={{
@@ -2355,6 +2383,37 @@ function SettingsPage({ projectName, setProjectName }) {
                 {i18n.regenerate}
               </Btn>
             </div>
+            {oldApiKey && (
+              <div style={{ marginTop: 10 }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: t.status.degraded,
+                    fontWeight: 500,
+                    marginBottom: 4,
+                  }}
+                >
+                  {i18n.oldKey}
+                </div>
+                <code
+                  style={{
+                    display: 'block',
+                    padding: '6px 10px',
+                    backgroundColor: t.bg.input,
+                    borderRadius: 6,
+                    fontFamily: F.mono,
+                    fontSize: 11,
+                    color: t.text.muted,
+                    border: `1px dashed ${t.status.degraded}33`,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {oldApiKey}
+                </code>
+              </div>
+            )}
           </div>
         </SettingsRow>
       </SettingsSection>
@@ -2732,7 +2791,8 @@ export default function App() {
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes checkPop{0%{transform:scale(0) rotate(-45deg);opacity:0}50%{transform:scale(1.2) rotate(0deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}
         @keyframes savedPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 10px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
-        @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important}.resp-cols{grid-template-columns:1fr!important}}
+        .settings-row{display:grid;grid-template-columns:280px 1fr;gap:32px;align-items:start}
+        @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}}
         @media(max-width:600px){.resp-cols{grid-template-columns:1fr!important}.stat-grid{grid-template-columns:1fr 1fr!important}}
       `}</style>
 

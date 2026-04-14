@@ -76,8 +76,9 @@ const msg = {
     dataRetention: 'Data Retention',
     dataRetentionHint:
       'How long raw probe data is kept. Older data is downsampled to hourly/daily aggregates.',
-    slaWindow: 'SLA Calculation Window',
-    slaWindowHint: 'The rolling time period used to compute SLA percentage.',
+    slaWindow: 'SLA Reporting Period',
+    slaWindowHint:
+      'The default period for SLA reporting. Weekly = rolling 7 days, Monthly = rolling 30 days, Quarterly = rolling 90 days. Both current and previous periods are available in the dashboard.',
     slaTimezone: 'SLA Timezone',
     slaTimezoneHint:
       "Determines when each SLA period starts/ends. Example: if set to Asia/Shanghai (UTC+8), a monthly SLA period runs from the 1st 00:00 to the last day 23:59 in Shanghai time. A 01:00 outage on the 1st counts in the current month. If switched to UTC, that same outage (17:00 UTC the previous day) would count in the prior month's SLA.",
@@ -105,9 +106,9 @@ const msg = {
     r180d: '180 Days',
     r1y: '1 Year',
     r2y: '2 Years',
-    w7d: '7 Days',
-    w30d: '30 Days',
-    w90d: '90 Days',
+    w7d: 'Weekly (7d)',
+    w30d: 'Monthly (30d)',
+    w90d: 'Quarterly (90d)',
   },
   zh: {
     brand: 'Pulse',
@@ -178,8 +179,9 @@ const msg = {
     projectNameHint: '显示在顶部导航栏和状态页',
     dataRetention: '数据保留时长',
     dataRetentionHint: '原始探测数据的保留周期。超期数据会被降采样为小时/天粒度的聚合数据。',
-    slaWindow: 'SLA 计算窗口',
-    slaWindowHint: '用于计算 SLA 百分比的滚动时间段。',
+    slaWindow: 'SLA 统计口径',
+    slaWindowHint:
+      '默认的 SLA 报告周期。周报 = 滚动 7 天，月报 = 滚动 30 天，季报 = 滚动 90 天。仪表盘同时展示当前周期与上一周期的数据。',
     slaTimezone: 'SLA 时区',
     slaTimezoneHint:
       '决定每个 SLA 统计周期的起止时间。举例：如果设为 Asia/Shanghai（UTC+8），月度 SLA 周期为每月 1 日 00:00 至月末 23:59（上海时间）。若某服务在 1 日凌晨 01:00 发生故障，该故障计入当月 SLA。但如果切换为 UTC 时区，同一故障（UTC 前一天 17:00）则会被计入上月的 SLA 统计。',
@@ -207,9 +209,9 @@ const msg = {
     r180d: '180 天',
     r1y: '1 年',
     r2y: '2 年',
-    w7d: '7 天',
-    w30d: '30 天',
-    w90d: '90 天',
+    w7d: '周报 (7天)',
+    w30d: '月报 (30天)',
+    w90d: '季报 (90天)',
   },
 }
 
@@ -2147,35 +2149,6 @@ function SettingsPage({ projectName, setProjectName }) {
                   <div
                     style={{
                       fontSize: 11,
-                      color: t.status.down,
-                      fontWeight: 600,
-                      marginBottom: 4,
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {i18n.errorPayload}
-                  </div>
-                  <pre
-                    style={{
-                      backgroundColor: t.bg.input,
-                      padding: 12,
-                      borderRadius: R.sm,
-                      fontSize: 11,
-                      fontFamily: F.mono,
-                      color: t.text.secondary,
-                      overflow: 'auto',
-                      margin: 0,
-                      border: `1px solid ${t.border}`,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {WEBHOOK_ERROR_SAMPLE}
-                  </pre>
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: 11,
                       color: t.status.up,
                       fontWeight: 600,
                       marginBottom: 4,
@@ -2199,6 +2172,35 @@ function SettingsPage({ projectName, setProjectName }) {
                     }}
                   >
                     {WEBHOOK_SUCCESS_SAMPLE}
+                  </pre>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: t.status.down,
+                      fontWeight: 600,
+                      marginBottom: 4,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {i18n.errorPayload}
+                  </div>
+                  <pre
+                    style={{
+                      backgroundColor: t.bg.input,
+                      padding: 12,
+                      borderRadius: R.sm,
+                      fontSize: 11,
+                      fontFamily: F.mono,
+                      color: t.text.secondary,
+                      overflow: 'auto',
+                      margin: 0,
+                      border: `1px solid ${t.border}`,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {WEBHOOK_ERROR_SAMPLE}
                   </pre>
                 </div>
               </div>
@@ -2232,8 +2234,13 @@ function SettingsPage({ projectName, setProjectName }) {
               >
                 {apiKey}
               </code>
-              <Btn small variant="ghost" onClick={() => handleCopy(apiKey)}>
-                {copied ? i18n.copied : i18n.copy}
+              <Btn
+                small
+                variant="ghost"
+                onClick={() => handleCopy(apiKey)}
+                style={copied ? { color: t.status.up, borderColor: `${t.status.up}44` } : {}}
+              >
+                {i18n.copy}
               </Btn>
               <Btn small variant="danger" onClick={() => setRegenConfirm(true)}>
                 {i18n.regenerate}

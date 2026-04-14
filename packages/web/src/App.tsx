@@ -2044,193 +2044,203 @@ function SettingsPage({ projectName, setProjectName }) {
     [],
   )
 
+  const SettingsRow = ({
+    label,
+    hint,
+    children: ctrl,
+  }: { label: string; hint: string; children: React.ReactNode }) => (
+    <div
+      style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 32, alignItems: 'start' }}
+    >
+      <div>
+        <SettingsLabel t={t}>{label}</SettingsLabel>
+        <SettingsHint t={t}>{hint}</SettingsHint>
+      </div>
+      <div>{ctrl}</div>
+    </div>
+  )
+
   return (
     <div>
       {/* Project Name */}
       <SettingsSection t={t}>
-        <SettingsLabel t={t}>{i18n.projectName}</SettingsLabel>
-        <SettingsHint t={t}>{i18n.projectNameHint}</SettingsHint>
-        <div style={{ marginTop: 10 }}>
+        <SettingsRow label={i18n.projectName} hint={i18n.projectNameHint}>
           <Input value={projectName} onChange={setProjectName} />
-        </div>
+        </SettingsRow>
       </SettingsSection>
 
       {/* SLA & Data */}
       <SettingsSection t={t}>
-        <div style={{ marginBottom: 20 }}>
-          <SettingsLabel t={t}>{i18n.slaTimezone}</SettingsLabel>
-          <SettingsHint t={t}>{i18n.slaTimezoneHint}</SettingsHint>
-          <div style={{ marginTop: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <SettingsRow label={i18n.slaTimezone} hint={i18n.slaTimezoneHint}>
             <Select value={timezone} onChange={setTimezone} options={tzOpts} />
-          </div>
-        </div>
-        <div style={{ marginBottom: 20 }}>
-          <SettingsLabel t={t}>{i18n.slaWindow}</SettingsLabel>
-          <SettingsHint t={t}>{i18n.slaWindowHint}</SettingsHint>
-          <ChipSelect value={slaWindow} onChange={setSlaWindow} options={windowOpts} />
-        </div>
-        <div>
-          <SettingsLabel t={t}>{i18n.dataRetention}</SettingsLabel>
-          <SettingsHint t={t}>{i18n.dataRetentionHint}</SettingsHint>
-          <ChipSelect value={retention} onChange={setRetention} options={retentionOpts} />
+          </SettingsRow>
+          <SettingsRow label={i18n.slaWindow} hint={i18n.slaWindowHint}>
+            <ChipSelect value={slaWindow} onChange={setSlaWindow} options={windowOpts} />
+          </SettingsRow>
+          <SettingsRow label={i18n.dataRetention} hint={i18n.dataRetentionHint}>
+            <ChipSelect value={retention} onChange={setRetention} options={retentionOpts} />
+          </SettingsRow>
         </div>
       </SettingsSection>
 
       {/* Webhook */}
       <SettingsSection t={t}>
-        <SettingsLabel t={t}>{i18n.webhookUrl}</SettingsLabel>
-        <SettingsHint t={t}>{i18n.webhookHint}</SettingsHint>
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
-          <div style={{ flex: 1 }}>
-            <Input
-              value={webhookUrl}
-              onChange={setWebhookUrl}
-              placeholder="https://hooks.example.com/sentinel"
-            />
-          </div>
-          <Btn
-            variant="default"
-            onClick={handleTestWebhook}
-            loading={webhookTested === 'testing'}
-            disabled={!webhookUrl}
-          >
-            {i18n.testWebhook}
-          </Btn>
-        </div>
-        {webhookTested === 'success' && (
-          <div
-            style={{
-              marginTop: 8,
-              fontSize: 12,
-              color: t.status.up,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-            }}
-          >
-            ✓ {i18n.webhookSuccess}
-          </div>
-        )}
-        {webhookTested === 'fail' && (
-          <div style={{ marginTop: 8, fontSize: 12, color: t.status.down }}>
-            ✕ {i18n.webhookFail}
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setShowPayload((p) => !p)}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: t.accent,
-            fontSize: 12,
-            cursor: 'pointer',
-            marginTop: 12,
-            padding: 0,
-            fontFamily: F.sans,
-          }}
-        >
-          {showPayload ? '▾' : '▸'} {i18n.samplePayload}
-        </button>
-        {showPayload && (
-          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: t.status.down,
-                  fontWeight: 600,
-                  marginBottom: 4,
-                  textTransform: 'uppercase',
-                }}
-              >
-                {i18n.errorPayload}
+        <SettingsRow label={i18n.webhookUrl} hint={i18n.webhookHint}>
+          <div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                <Input
+                  value={webhookUrl}
+                  onChange={setWebhookUrl}
+                  placeholder="https://hooks.example.com/sentinel"
+                />
               </div>
-              <pre
-                style={{
-                  backgroundColor: t.bg.input,
-                  padding: 12,
-                  borderRadius: R.sm,
-                  fontSize: 11,
-                  fontFamily: F.mono,
-                  color: t.text.secondary,
-                  overflow: 'auto',
-                  margin: 0,
-                  border: `1px solid ${t.border}`,
-                  lineHeight: 1.6,
-                }}
+              <Btn
+                variant="default"
+                onClick={handleTestWebhook}
+                loading={webhookTested === 'testing'}
+                disabled={!webhookUrl}
               >
-                {WEBHOOK_ERROR_SAMPLE}
-              </pre>
+                {i18n.testWebhook}
+              </Btn>
             </div>
-            <div>
+            {webhookTested === 'success' && (
               <div
                 style={{
-                  fontSize: 11,
+                  marginTop: 8,
+                  fontSize: 12,
                   color: t.status.up,
-                  fontWeight: 600,
-                  marginBottom: 4,
-                  textTransform: 'uppercase',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
                 }}
               >
-                {i18n.successPayload}
+                ✓ {i18n.webhookSuccess}
               </div>
-              <pre
-                style={{
-                  backgroundColor: t.bg.input,
-                  padding: 12,
-                  borderRadius: R.sm,
-                  fontSize: 11,
-                  fontFamily: F.mono,
-                  color: t.text.secondary,
-                  overflow: 'auto',
-                  margin: 0,
-                  border: `1px solid ${t.border}`,
-                  lineHeight: 1.6,
-                }}
-              >
-                {WEBHOOK_SUCCESS_SAMPLE}
-              </pre>
-            </div>
+            )}
+            {webhookTested === 'fail' && (
+              <div style={{ marginTop: 8, fontSize: 12, color: t.status.down }}>
+                ✕ {i18n.webhookFail}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowPayload((p) => !p)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: t.accent,
+                fontSize: 12,
+                cursor: 'pointer',
+                marginTop: 12,
+                padding: 0,
+                fontFamily: F.sans,
+              }}
+            >
+              {showPayload ? '▾' : '▸'} {i18n.samplePayload}
+            </button>
+            {showPayload && (
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: t.status.down,
+                      fontWeight: 600,
+                      marginBottom: 4,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {i18n.errorPayload}
+                  </div>
+                  <pre
+                    style={{
+                      backgroundColor: t.bg.input,
+                      padding: 12,
+                      borderRadius: R.sm,
+                      fontSize: 11,
+                      fontFamily: F.mono,
+                      color: t.text.secondary,
+                      overflow: 'auto',
+                      margin: 0,
+                      border: `1px solid ${t.border}`,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {WEBHOOK_ERROR_SAMPLE}
+                  </pre>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: t.status.up,
+                      fontWeight: 600,
+                      marginBottom: 4,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {i18n.successPayload}
+                  </div>
+                  <pre
+                    style={{
+                      backgroundColor: t.bg.input,
+                      padding: 12,
+                      borderRadius: R.sm,
+                      fontSize: 11,
+                      fontFamily: F.mono,
+                      color: t.text.secondary,
+                      overflow: 'auto',
+                      margin: 0,
+                      border: `1px solid ${t.border}`,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {WEBHOOK_SUCCESS_SAMPLE}
+                  </pre>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </SettingsRow>
       </SettingsSection>
 
       {/* API Integration */}
       <SettingsSection t={t}>
-        <SettingsLabel t={t}>{i18n.apiIntegration}</SettingsLabel>
-        <SettingsHint t={t}>{i18n.apiHint}</SettingsHint>
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 11, color: t.text.muted, fontWeight: 500, marginBottom: 6 }}>
-            {i18n.apiKey}
+        <SettingsRow label={i18n.apiIntegration} hint={i18n.apiHint}>
+          <div>
+            <div style={{ fontSize: 11, color: t.text.muted, fontWeight: 500, marginBottom: 6 }}>
+              {i18n.apiKey}
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <code
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  backgroundColor: t.bg.input,
+                  borderRadius: 8,
+                  fontFamily: F.mono,
+                  fontSize: 12,
+                  color: t.text.secondary,
+                  border: `1px solid ${t.border}`,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {apiKey}
+              </code>
+              <Btn small variant="ghost" onClick={() => handleCopy(apiKey)}>
+                {copied ? i18n.copied : i18n.copy}
+              </Btn>
+              <Btn small variant="danger" onClick={() => setRegenConfirm(true)}>
+                {i18n.regenerate}
+              </Btn>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <code
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                backgroundColor: t.bg.input,
-                borderRadius: 8,
-                fontFamily: F.mono,
-                fontSize: 12,
-                color: t.text.secondary,
-                border: `1px solid ${t.border}`,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {apiKey}
-            </code>
-            <Btn small variant="ghost" onClick={() => handleCopy(apiKey)}>
-              {copied ? i18n.copied : i18n.copy}
-            </Btn>
-            <Btn small variant="danger" onClick={() => setRegenConfirm(true)}>
-              {i18n.regenerate}
-            </Btn>
-          </div>
-        </div>
+        </SettingsRow>
       </SettingsSection>
 
       {/* Save button */}
@@ -2478,7 +2488,23 @@ export default function App() {
     }
   })
   const [selectedId, setSelectedId] = useState(null)
-  const [tab, setTab] = useState('overview')
+  const validTabs = ['overview', 'probes', 'incidents', 'settings']
+  const [tab, setTabState] = useState(() => {
+    const hash = window.location.hash.slice(1)
+    return validTabs.includes(hash) ? hash : 'overview'
+  })
+  const setTab = useCallback((id: string) => {
+    setTabState(id)
+    window.location.hash = id === 'overview' ? '' : id
+  }, [])
+  useEffect(() => {
+    const onHash = () => {
+      const hash = window.location.hash.slice(1)
+      setTabState(validTabs.includes(hash) ? hash : 'overview')
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
   const [filter, setFilter] = useState('all')
   const [projectName, setProjectName] = useState('Pulse')
 

@@ -660,9 +660,17 @@ function Input({
   style?: React.CSSProperties
 }) {
   const { t } = useApp()
+  const ref = useRef<HTMLInputElement>(null)
+  // Sync external value changes (e.g. from settings load) without breaking undo
+  useEffect(() => {
+    if (ref.current && ref.current.value !== value) {
+      ref.current.value = value
+    }
+  }, [value])
   return (
     <input
-      value={value}
+      ref={ref}
+      defaultValue={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       style={{

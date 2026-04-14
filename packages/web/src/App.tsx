@@ -236,20 +236,20 @@ const themes = {
   },
   light: {
     bg: {
-      base: '#f4f5f7',
+      base: '#f8f9fc',
       card: '#ffffff',
-      cardHover: '#f9fafb',
-      elevated: '#f0f1f4',
-      input: '#f4f5f8',
+      cardHover: '#f5f6fa',
+      elevated: '#eef0f6',
+      input: '#f1f3f9',
     },
-    text: { primary: '#1a1d27', secondary: '#6b7084', muted: '#9ca0b0', inverse: '#ffffff' },
-    status: { up: '#10b981', degraded: '#f59e0b', down: '#ef4444', maintenance: '#6366f1' },
-    accent: '#4f46e5',
-    accentMuted: 'rgba(79,70,229,0.08)',
-    border: 'rgba(0,0,0,0.07)',
-    borderSubtle: 'rgba(0,0,0,0.04)',
-    shadow: '0 1px 3px rgba(0,0,0,0.06)',
-    scrollThumb: 'rgba(0,0,0,0.12)',
+    text: { primary: '#111827', secondary: '#4b5563', muted: '#9ca3af', inverse: '#ffffff' },
+    status: { up: '#059669', degraded: '#d97706', down: '#dc2626', maintenance: '#4f46e5' },
+    accent: '#4338ca',
+    accentMuted: 'rgba(67,56,202,0.07)',
+    border: 'rgba(0,0,0,0.09)',
+    borderSubtle: 'rgba(0,0,0,0.05)',
+    shadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)',
+    scrollThumb: 'rgba(0,0,0,0.15)',
   },
 }
 const F = {
@@ -263,8 +263,14 @@ const typeColors = { http: '#60a5fa', websocket: '#a78bfa', tcp: '#34d399', push
 /* ================================================================
    Context
    ================================================================ */
-const AppCtx = createContext<any>(null)
-const useApp = () => useContext(AppCtx)
+interface AppContextValue {
+  t: (typeof themes)['dark']
+  i18n: (typeof msg)['en']
+  lang: string
+  theme: string
+}
+const AppCtx = createContext<AppContextValue | null>(null)
+const useApp = () => useContext(AppCtx) as AppContextValue
 
 /* ================================================================
    Mock Data
@@ -481,16 +487,15 @@ const initSvcs = [
 /* ================================================================
    Helpers
    ================================================================ */
-const fmtSLA = (v) => v.toFixed(2) + '%'
+const fmtSLA = (v) => `${v.toFixed(2)}%`
 const slaColor = (sla, tgt, t) =>
   sla >= tgt ? t.status.up : sla >= tgt - 0.5 ? t.status.degraded : t.status.down
-const uid = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)
+const uid = () => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`
 const genApiKey = () =>
-  'sk_' +
-  Array.from(
+  `sk_${Array.from(
     { length: 32 },
     () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)],
-  ).join('')
+  ).join('')}`
 
 /* ================================================================
    Shared UI atoms
@@ -549,7 +554,11 @@ function StatusDot({ status, size = 8, pulse = true }) {
   )
 }
 
-function Badge({ children, color, bg }: { children: any; color?: string; bg?: string }) {
+function Badge({
+  children,
+  color,
+  bg,
+}: { children: React.ReactNode; color?: string; bg?: string }) {
   const { t } = useApp()
   return (
     <span
@@ -622,7 +631,7 @@ function Btn({
             display: 'inline-block',
             width: 14,
             height: 14,
-            border: `2px solid currentColor`,
+            border: '2px solid currentColor',
             borderTopColor: 'transparent',
             borderRadius: '50%',
             animation: 'spin .6s linear infinite',
@@ -639,7 +648,12 @@ function Input({
   onChange,
   placeholder,
   style: sx = {},
-}: { value: any; onChange: any; placeholder?: string; style?: any }) {
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  style?: React.CSSProperties
+}) {
   const { t } = useApp()
   return (
     <input
@@ -659,8 +673,12 @@ function Input({
         transition: 'border-color .2s',
         ...sx,
       }}
-      onFocus={(e) => (e.target.style.borderColor = t.accent + '66')}
-      onBlur={(e) => (e.target.style.borderColor = t.border)}
+      onFocus={(e) => {
+        e.target.style.borderColor = `${t.accent}66`
+      }}
+      onBlur={(e) => {
+        e.target.style.borderColor = t.border
+      }}
     />
   )
 }
@@ -686,7 +704,7 @@ function Select({ value, onChange, options }) {
         style={{
           padding: '8px 32px 8px 12px',
           backgroundColor: t.bg.input,
-          border: `1px solid ${open ? t.accent + '66' : t.border}`,
+          border: `1px solid ${open ? `${t.accent}66` : t.border}`,
           borderRadius: 8,
           color: t.text.primary,
           fontSize: 13,
@@ -783,7 +801,7 @@ function ChipSelect({ value, onChange, options }) {
             cursor: 'pointer',
             fontFamily: F.sans,
             transition: 'all .15s',
-            border: `1px solid ${o.value === value ? t.accent + '55' : t.border}`,
+            border: `1px solid ${o.value === value ? `${t.accent}55` : t.border}`,
             backgroundColor: o.value === value ? t.accentMuted : 'transparent',
             color: o.value === value ? t.text.primary : t.text.secondary,
           }}
@@ -801,12 +819,13 @@ function ChipSelect({ value, onChange, options }) {
 function SLAGauge({ value, target, size = 96 }) {
   const { t, i18n } = useApp()
   const c = slaColor(value, target, t)
-  const r = (size - 10) / 2,
-    circ = 2 * Math.PI * r,
-    dash = (value / 100) * circ * 0.75
+  const r = (size - 10) / 2
+  const circ = 2 * Math.PI * r
+  const dash = (value / 100) * circ * 0.75
   return (
     <div style={{ position: 'relative', width: size, height: size }}>
       <svg viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(135deg)' }}>
+        <title>SLA Gauge</title>
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -887,7 +906,8 @@ function UptimeBar({ data, barHeight = 28 }) {
         const h = hi === i
         return (
           <div
-            key={i}
+            key={`bar-${i}-${s}`}
+            role="img"
             onMouseEnter={() => setHi(i)}
             onMouseLeave={() => setHi(null)}
             style={{
@@ -938,17 +958,18 @@ function UptimeBar({ data, barHeight = 28 }) {
 function MiniChart({ data, width = 200, chartHeight = 48, color }) {
   const { t } = useApp()
   const c = color || t.status.up
-  const max = Math.max(...data.map((d) => d.p95)),
-    min = Math.min(...data.map((d) => d.v)),
-    range = max - min || 1
-  const toY = (v) => chartHeight - 4 - ((v - min) / range) * (chartHeight - 8),
-    toX = (i) => (i / (data.length - 1)) * width
+  const max = Math.max(...data.map((d) => d.p95))
+  const min = Math.min(...data.map((d) => d.v))
+  const range = max - min || 1
+  const toY = (v) => chartHeight - 4 - ((v - min) / range) * (chartHeight - 8)
+  const toX = (i) => (i / (data.length - 1)) * width
   const line = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(d.v)}`).join(' ')
   const p95 = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(d.p95)}`).join(' ')
-  const area = line + ` L${width},${chartHeight} L0,${chartHeight} Z`
+  const area = `${line} L${width},${chartHeight} L0,${chartHeight} Z`
   const gid = `g-${c.replace('#', '')}`
   return (
     <svg viewBox={`0 0 ${width} ${chartHeight}`} style={{ width: '100%', height: chartHeight }}>
+      <title>Latency Chart</title>
       <defs>
         <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={c} stopOpacity=".15" />
@@ -984,6 +1005,7 @@ function Modal({ open, onClose, title, children, width = 480 }) {
   if (!open) return null
   return (
     <div
+      role="presentation"
       style={{
         position: 'fixed',
         inset: 0,
@@ -994,6 +1016,9 @@ function Modal({ open, onClose, title, children, width = 480 }) {
         padding: 16,
       }}
       onClick={onClose}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose()
+      }}
     >
       <div
         style={{
@@ -1004,7 +1029,9 @@ function Modal({ open, onClose, title, children, width = 480 }) {
         }}
       />
       <div
+        role="presentation"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
         style={{
           position: 'relative',
           backgroundColor: t.bg.card,
@@ -1085,26 +1112,26 @@ function Toast({ message, visible }) {
    ================================================================ */
 function OverviewCards() {
   const { t, i18n } = useApp()
-  const S = initSvcs,
-    total = S.length,
-    up = S.filter((s) => s.status === 'up').length
-  const deg = S.filter((s) => s.status === 'degraded').length,
-    dn = S.filter((s) => s.status === 'down').length
-  const avg = S.reduce((a, s) => a + s.sla, 0) / total,
-    avgLat = Math.round(S.reduce((a, s) => a + s.latency, 0) / total)
+  const S = initSvcs
+  const total = S.length
+  const up = S.filter((s) => s.status === 'up').length
+  const deg = S.filter((s) => s.status === 'degraded').length
+  const dn = S.filter((s) => s.status === 'down').length
+  const avg = S.reduce((a, s) => a + s.sla, 0) / total
+  const avgLat = Math.round(S.reduce((a, s) => a + s.latency, 0) / total)
   const breach = S.filter((s) => s.sla < s.target).length
   const cards = [
     {
       label: i18n.overallSLA,
       value: fmtSLA(avg),
-      sub: i18n.breaching.replace('{n}', breach),
+      sub: i18n.breaching.replace('{n}', String(breach)),
       color: breach > 0 ? t.status.degraded : t.status.up,
       icon: '◎',
     },
     {
       label: i18n.servicesUp,
       value: `${up}/${total}`,
-      sub: i18n.degradedDown.replace('{d}', deg).replace('{x}', dn),
+      sub: i18n.degradedDown.replace('{d}', String(deg)).replace('{x}', String(dn)),
       color: dn > 0 ? t.status.down : t.status.up,
       icon: '△',
     },
@@ -1118,7 +1145,7 @@ function OverviewCards() {
     {
       label: i18n.probesSec,
       value: '126',
-      sub: i18n.servicesMixed.replace('{n}', total),
+      sub: i18n.servicesMixed.replace('{n}', String(total)),
       color: t.accent,
       icon: '⬡',
     },
@@ -1131,9 +1158,9 @@ function OverviewCards() {
         gap: 12,
       }}
     >
-      {cards.map((c, i) => (
+      {cards.map((c) => (
         <div
-          key={i}
+          key={c.label}
           style={{
             backgroundColor: t.bg.card,
             borderRadius: R.md,
@@ -1146,7 +1173,7 @@ function OverviewCards() {
             cursor: 'default',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = c.color + '33'
+            e.currentTarget.style.borderColor = `${c.color}33`
             e.currentTarget.style.transform = 'translateY(-1px)'
           }}
           onMouseLeave={(e) => {
@@ -1212,8 +1239,14 @@ function ServiceRow({ svc, selected, onSelect }) {
   const [hov, setHov] = useState(false)
   const dn = lang === 'zh' ? svc.nameZh : svc.name
   return (
+    // biome-ignore lint/a11y/useSemanticElements: grid layout requires div, not button
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(svc.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onSelect(svc.id)
+      }}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -1245,7 +1278,7 @@ function ServiceRow({ svc, selected, onSelect }) {
             {dn}
           </div>
           <div style={{ display: 'flex', gap: 5, marginTop: 3 }}>
-            <Badge color={typeColors[svc.type]} bg={typeColors[svc.type] + '18'}>
+            <Badge color={typeColors[svc.type]} bg={`${typeColors[svc.type]}18`}>
               {svc.type}
             </Badge>
             <Badge>{svc.interval}</Badge>
@@ -1293,7 +1326,7 @@ function ServiceRow({ svc, selected, onSelect }) {
             fontSize: 11,
             fontWeight: 600,
             color: t.status[svc.status],
-            backgroundColor: t.status[svc.status] + '14',
+            backgroundColor: `${t.status[svc.status]}14`,
           }}
         >
           {label}
@@ -1352,11 +1385,11 @@ function DetailPanel({ svc }) {
             </h2>
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <Badge color={typeColors[svc.type]} bg={typeColors[svc.type] + '18'}>
+            <Badge color={typeColors[svc.type]} bg={`${typeColors[svc.type]}18`}>
               {svc.type.toUpperCase()}
             </Badge>
             <Badge>{lang === 'zh' ? `每 ${svc.interval}` : `every ${svc.interval}`}</Badge>
-            <Badge color={t.status[svc.status]} bg={t.status[svc.status] + '14'}>
+            <Badge color={t.status[svc.status]} bg={`${t.status[svc.status]}14`}>
               {sl}
             </Badge>
           </div>
@@ -1365,7 +1398,13 @@ function DetailPanel({ svc }) {
       </div>
       <div
         className="resp-cols"
-        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 24 }}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr 1fr',
+          gap: 10,
+          marginBottom: 24,
+          minWidth: 0,
+        }}
       >
         {[
           { l: i18n.uptime90, v: fmtSLA(svc.sla), cl: c },
@@ -1379,9 +1418,9 @@ function DetailPanel({ svc }) {
             v: `${svc.latency}ms`,
             cl: svc.latency > 100 ? t.status.degraded : t.text.primary,
           },
-        ].map((s, i) => (
+        ].map((s) => (
           <div
-            key={i}
+            key={s.l}
             style={{ backgroundColor: t.bg.input, borderRadius: R.sm, padding: '12px 14px' }}
           >
             <div
@@ -1397,11 +1436,12 @@ function DetailPanel({ svc }) {
             </div>
             <div
               style={{
-                fontSize: 18,
+                fontSize: 16,
                 fontWeight: 700,
                 fontFamily: F.mono,
                 color: s.cl,
                 fontFeatureSettings: "'tnum'",
+                whiteSpace: 'nowrap',
               }}
             >
               {s.v}
@@ -1521,8 +1561,12 @@ function ProbeCard({ probe, onEdit, onDuplicate, onDelete }) {
         transition: 'border-color .2s',
         boxShadow: t.shadow,
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = tc + '33')}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = t.border)}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = `${tc}33`
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = t.border
+      }}
     >
       {/* Row 1: status + name + actions */}
       <div
@@ -1577,7 +1621,7 @@ function ProbeCard({ probe, onEdit, onDuplicate, onDelete }) {
       </div>
       {/* Row 3: type badge + interval + timeout + desc */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <Badge color={tc} bg={tc + '18'}>
+        <Badge color={tc} bg={`${tc}18`}>
           {probe.type}
         </Badge>
         <span style={{ fontSize: 11, color: t.text.secondary, fontFamily: F.mono }}>
@@ -1639,29 +1683,29 @@ function ProbeForm({ probe, onSave, onCancel }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <label style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+        <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
           {i18n.probeName}
-        </label>
+        </span>
         <Input value={form.name} onChange={(v) => upd('name', v)} placeholder="prod-api-health" />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
-          <label style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
             {i18n.probeType}
-          </label>
+          </span>
           <Select value={form.type} onChange={(v) => upd('type', v)} options={typeOpts} />
         </div>
         <div>
-          <label style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
             Mode
-          </label>
+          </span>
           <Select value={form.mode} onChange={(v) => upd('mode', v)} options={modeOpts} />
         </div>
       </div>
       <div>
-        <label style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+        <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
           {i18n.probeUrl}
-        </label>
+        </span>
         <Input
           value={form.url}
           onChange={(v) => upd('url', v)}
@@ -1670,9 +1714,9 @@ function ProbeForm({ probe, onSave, onCancel }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
-          <label style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
             {i18n.probeInterval}
-          </label>
+          </span>
           <Select
             value={form.interval}
             onChange={(v) => upd('interval', v)}
@@ -1680,9 +1724,9 @@ function ProbeForm({ probe, onSave, onCancel }) {
           />
         </div>
         <div>
-          <label style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
             {i18n.probeTimeout}
-          </label>
+          </span>
           <Select value={form.timeout} onChange={(v) => upd('timeout', v)} options={timeoutOpts} />
         </div>
       </div>
@@ -1706,9 +1750,11 @@ function ProbeForm({ probe, onSave, onCancel }) {
 function ProbesPage() {
   const { t, i18n } = useApp()
   const [probes, setProbes] = useState(initProbes)
-  const [modal, setModal] = useState<any>(null) // {type:'add'|'edit'|'dup', probe?}
-  const [delConfirm, setDelConfirm] = useState<any>(null)
-  const [toast, setToast] = useState<any>(null)
+  const [modal, setModal] = useState<{ type: string; probe?: (typeof initProbes)[number] } | null>(
+    null,
+  )
+  const [delConfirm, setDelConfirm] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
   const flash = (msg) => {
     setToast(msg)
@@ -1719,7 +1765,7 @@ function ProbesPage() {
   const clientProbes = probes.filter((p) => p.mode === 'client')
 
   const handleSave = (form) => {
-    if (modal.type === 'edit') {
+    if (modal?.type === 'edit') {
       setProbes((ps) => ps.map((p) => (p.id === form.id ? form : p)))
       flash(i18n.saved)
     } else {
@@ -1771,7 +1817,7 @@ function ProbesPage() {
             probe={p}
             onEdit={(pr) => setModal({ type: 'edit', probe: pr })}
             onDuplicate={(pr) =>
-              setModal({ type: 'dup', probe: { ...pr, name: pr.name + '-copy', id: '' } })
+              setModal({ type: 'dup', probe: { ...pr, name: `${pr.name}-copy`, id: '' } })
             }
             onDelete={(id) => setDelConfirm(id)}
           />
@@ -1786,7 +1832,7 @@ function ProbesPage() {
             probe={p}
             onEdit={(pr) => setModal({ type: 'edit', probe: pr })}
             onDuplicate={(pr) =>
-              setModal({ type: 'dup', probe: { ...pr, name: pr.name + '-copy', id: '' } })
+              setModal({ type: 'dup', probe: { ...pr, name: `${pr.name}-copy`, id: '' } })
             }
             onDelete={(id) => setDelConfirm(id)}
           />
@@ -1894,7 +1940,7 @@ function SettingsSection({ children, t }) {
 }
 function SettingsLabel({ children, t }) {
   return (
-    <label
+    <span
       style={{
         fontSize: 13,
         fontWeight: 600,
@@ -1904,7 +1950,7 @@ function SettingsLabel({ children, t }) {
       }}
     >
       {children}
-    </label>
+    </span>
   )
 }
 function SettingsHint({ children, t }) {
@@ -1999,7 +2045,7 @@ function SettingsPage({ projectName, setProjectName }) {
   )
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div style={{ maxWidth: 960 }}>
       {/* Project Name */}
       <SettingsSection t={t}>
         <SettingsLabel t={t}>{i18n.projectName}</SettingsLabel>
@@ -2198,7 +2244,7 @@ function SettingsPage({ projectName, setProjectName }) {
           {saveState === 'saving'
             ? i18n.saving
             : saveState === 'saved'
-              ? '✓ ' + i18n.saved
+              ? `✓ ${i18n.saved}`
               : i18n.saveSettings}
         </Btn>
       </div>
@@ -2233,11 +2279,6 @@ function SettingsPage({ projectName, setProjectName }) {
    ================================================================ */
 function Header({ theme, toggleTheme, lang, toggleLang, projectName }) {
   const { t, i18n } = useApp()
-  const [time, setTime] = useState(new Date())
-  useEffect(() => {
-    const id = setInterval(() => setTime(new Date()), 1000)
-    return () => clearInterval(id)
-  }, [])
   const brandDisplay = projectName || i18n.brand
   return (
     <header
@@ -2299,18 +2340,9 @@ function Header({ theme, toggleTheme, lang, toggleLang, projectName }) {
           />
           <span style={{ fontSize: 12, color: t.text.secondary }}>{i18n.allProbes}</span>
         </div>
-        <div
-          style={{
-            fontFamily: F.mono,
-            fontSize: 12,
-            color: t.text.muted,
-            fontFeatureSettings: "'tnum'",
-          }}
-        >
-          {time.toLocaleTimeString(lang === 'zh' ? 'zh-CN' : 'en-US', { hour12: false })}
-        </div>
         <div style={{ width: 1, height: 20, backgroundColor: t.border }} />
         <button
+          type="button"
           onClick={toggleLang}
           style={{
             background: t.bg.card,
@@ -2331,6 +2363,7 @@ function Header({ theme, toggleTheme, lang, toggleLang, projectName }) {
           {lang === 'en' ? '中文' : 'EN'}
         </button>
         <button
+          type="button"
           onClick={toggleTheme}
           aria-label="Toggle theme"
           style={{
@@ -2375,6 +2408,7 @@ function TabNav({ active, onChange }) {
     >
       {tabs.map((tb) => (
         <button
+          type="button"
           key={tb.id}
           onClick={() => onChange(tb.id)}
           style={{
@@ -2429,18 +2463,50 @@ function ListHeader() {
    ROOT APP
    ================================================================ */
 export default function App() {
-  const [theme, setTheme] = useState('dark')
-  const [lang, setLang] = useState('zh')
+  const [theme, setTheme] = useState(() => {
+    try {
+      return (localStorage.getItem('pulse-theme') as 'dark' | 'light') || 'dark'
+    } catch {
+      return 'dark'
+    }
+  })
+  const [lang, setLang] = useState(() => {
+    try {
+      return (localStorage.getItem('pulse-lang') as 'en' | 'zh') || 'zh'
+    } catch {
+      return 'zh'
+    }
+  })
   const [selectedId, setSelectedId] = useState(null)
   const [tab, setTab] = useState('overview')
   const [filter, setFilter] = useState('all')
   const [projectName, setProjectName] = useState('Pulse')
 
-  const toggleTheme = useCallback(() => setTheme((p) => (p === 'dark' ? 'light' : 'dark')), [])
-  const toggleLang = useCallback(() => setLang((p) => (p === 'en' ? 'zh' : 'en')), [])
+  const toggleTheme = useCallback(() => {
+    setTheme((p) => {
+      const next = p === 'dark' ? 'light' : 'dark'
+      try {
+        localStorage.setItem('pulse-theme', next)
+      } catch {
+        /* noop */
+      }
+      return next
+    })
+  }, [])
+  const toggleLang = useCallback(() => {
+    setLang((p) => {
+      const next = p === 'en' ? 'zh' : 'en'
+      try {
+        localStorage.setItem('pulse-lang', next)
+      } catch {
+        /* noop */
+      }
+      return next
+    })
+  }, [])
 
-  const t = themes[theme],
-    i18n = msg[lang]
+  const t = themes[theme]
+  const i18n = msg[lang]
   const ctx = useMemo(() => ({ t, i18n, lang, theme }), [t, i18n, lang, theme])
 
   const filtered = useMemo(
@@ -2506,11 +2572,12 @@ export default function App() {
                   },
                 ].map((f) => (
                   <button
+                    type="button"
                     key={f.id}
                     onClick={() => setFilter(f.id)}
                     style={{
                       background: filter === f.id ? t.accentMuted : 'transparent',
-                      border: `1px solid ${filter === f.id ? t.accent + '44' : t.border}`,
+                      border: `1px solid ${filter === f.id ? `${t.accent}44` : t.border}`,
                       borderRadius: 8,
                       padding: '6px 14px',
                       cursor: 'pointer',

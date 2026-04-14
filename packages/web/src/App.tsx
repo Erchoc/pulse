@@ -2045,7 +2045,7 @@ function SettingsPage({ projectName, setProjectName }) {
   )
 
   return (
-    <div style={{ maxWidth: 960 }}>
+    <div>
       {/* Project Name */}
       <SettingsSection t={t}>
         <SettingsLabel t={t}>{i18n.projectName}</SettingsLabel>

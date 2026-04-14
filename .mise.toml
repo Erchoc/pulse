@@ -1,2 +1,6 @@
 [tools]
 node = "24"
+go = "1.23"
+
+[env]
+GOPROXY = "https://goproxy.cn,direct"

@@ -5,3 +5,6 @@ packages/*/dist
 *.log
 .DS_Store
 .env
+
+# Go
+dist/

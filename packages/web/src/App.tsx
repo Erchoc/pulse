@@ -44,6 +44,7 @@ const msg = {
     today: 'today',
     min: 'min',
     comingSoon: '— coming soon',
+    advanced: 'Advanced',
     version: 'Pulse v0.1.0 · Go + React',
     day: 'Day',
     // probes
@@ -78,7 +79,7 @@ const msg = {
       'How long raw probe data is kept. Older data is downsampled to hourly/daily aggregates.',
     slaWindow: 'SLA Reporting Period',
     slaWindowHint:
-      'The default period for SLA reporting. Weekly = rolling 7 days, Monthly = rolling 30 days, Quarterly = rolling 90 days. Both current and previous periods are available in the dashboard.',
+      'Rolling window for SLA calculation. The dashboard shows both the current window and the previous period for comparison.',
     slaTimezone: 'SLA Timezone',
     slaTimezoneHint:
       "Determines when each SLA period starts/ends. Example: if set to Asia/Shanghai (UTC+8), a monthly SLA period runs from the 1st 00:00 to the last day 23:59 in Shanghai time. A 01:00 outage on the 1st counts in the current month. If switched to UTC, that same outage (17:00 UTC the previous day) would count in the prior month's SLA.",
@@ -107,9 +108,9 @@ const msg = {
     r180d: '180 Days',
     r1y: '1 Year',
     r2y: '2 Years',
-    w7d: 'Weekly (7d)',
-    w30d: 'Monthly (30d)',
-    w90d: 'Quarterly (90d)',
+    w7d: 'Last 7 days',
+    w30d: 'Last 30 days',
+    w90d: 'Last 90 days',
   },
   zh: {
     brand: 'Pulse',
@@ -151,6 +152,7 @@ const msg = {
     today: '今天',
     min: '分钟',
     comingSoon: '— 即将推出',
+    advanced: '高级选项',
     version: 'Pulse v0.1.0 · Go + React',
     day: '第{n}天',
     serverProbes: '服务端探测',
@@ -181,8 +183,7 @@ const msg = {
     dataRetention: '数据保留时长',
     dataRetentionHint: '原始探测数据的保留周期。超期数据会被降采样为小时/天粒度的聚合数据。',
     slaWindow: 'SLA 统计口径',
-    slaWindowHint:
-      '默认的 SLA 报告周期。周报 = 滚动 7 天，月报 = 滚动 30 天，季报 = 滚动 90 天。仪表盘同时展示当前周期与上一周期的数据。',
+    slaWindowHint: 'SLA 计算的滚动窗口。仪表盘同时展示当前窗口与上一周期的对比数据。',
     slaTimezone: 'SLA 时区',
     slaTimezoneHint:
       '决定每个 SLA 统计周期的起止时间。举例：如果设为 Asia/Shanghai（UTC+8），月度 SLA 周期为每月 1 日 00:00 至月末 23:59（上海时间）。若某服务在 1 日凌晨 01:00 发生故障，该故障计入当月 SLA。但如果切换为 UTC 时区，同一故障（UTC 前一天 17:00）则会被计入上月的 SLA 统计。',
@@ -211,9 +212,9 @@ const msg = {
     r180d: '180 天',
     r1y: '1 年',
     r2y: '2 年',
-    w7d: '周报 (7天)',
-    w30d: '月报 (30天)',
-    w90d: '季报 (90天)',
+    w7d: '近 7 天',
+    w30d: '近 30 天',
+    w90d: '近 90 天',
   },
 }
 
@@ -1967,6 +1968,7 @@ function SettingsPage({ projectName, setProjectName }) {
   const [saveState, setSaveState] = useState('idle')
   const [webhookTested, setWebhookTested] = useState<string | null>(null)
   const [showPayload, setShowPayload] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [copied, setCopied] = useState(false)
   const [regenConfirm, setRegenConfirm] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -1993,13 +1995,9 @@ function SettingsPage({ projectName, setProjectName }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: WEBHOOK_PAYLOAD_SAMPLE,
-      mode: 'no-cors',
     })
       .then((res) => {
-        if (res.type === 'opaque') {
-          // no-cors: can't read status, treat as success (request was sent)
-          setWebhookTested('success')
-        } else if (res.ok) {
+        if (res.ok) {
           setWebhookTested('success')
         } else {
           setWebhookTested('fail')
@@ -2019,10 +2017,10 @@ function SettingsPage({ projectName, setProjectName }) {
     setRegenConfirm(false)
     flash(i18n.saved)
   }, [flash, i18n.saved])
-  const handleCopy = useCallback((text) => {
+  const handleCopy = useCallback((text: string) => {
     navigator.clipboard?.writeText(text)
     setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    setTimeout(() => setCopied(false), 2000)
   }, [])
 
   const retentionOpts = useMemo(
@@ -2089,9 +2087,42 @@ function SettingsPage({ projectName, setProjectName }) {
           <SettingsRow label={i18n.slaWindow} hint={i18n.slaWindowHint}>
             <ChipSelect value={slaWindow} onChange={setSlaWindow} options={windowOpts} />
           </SettingsRow>
-          <SettingsRow label={i18n.dataRetention} hint={i18n.dataRetentionHint}>
-            <ChipSelect value={retention} onChange={setRetention} options={retentionOpts} />
-          </SettingsRow>
+          <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 16 }}>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((p) => !p)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: t.text.muted,
+                fontSize: 12,
+                cursor: 'pointer',
+                padding: 0,
+                fontFamily: F.sans,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 10,
+                  transition: 'transform .2s',
+                  transform: showAdvanced ? 'rotate(90deg)' : 'none',
+                }}
+              >
+                ▶
+              </span>
+              {i18n.advanced}
+            </button>
+            {showAdvanced && (
+              <div style={{ marginTop: 16, animation: 'fadeSlide .2s ease' }}>
+                <SettingsRow label={i18n.dataRetention} hint={i18n.dataRetentionHint}>
+                  <ChipSelect value={retention} onChange={setRetention} options={retentionOpts} />
+                </SettingsRow>
+              </div>
+            )}
+          </div>
         </div>
       </SettingsSection>
 
@@ -2210,14 +2241,56 @@ function SettingsPage({ projectName, setProjectName }) {
               >
                 {apiKey}
               </code>
-              <Btn
-                small
-                variant="ghost"
+              <button
+                type="button"
                 onClick={() => handleCopy(apiKey)}
-                style={copied ? { color: t.status.up, borderColor: `${t.status.up}44` } : {}}
+                title={i18n.copy}
+                style={{
+                  background: 'none',
+                  border: `1px solid ${copied ? `${t.status.up}55` : t.border}`,
+                  borderRadius: 6,
+                  padding: '6px 8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all .2s',
+                  color: copied ? t.status.up : t.text.muted,
+                  backgroundColor: copied ? `${t.status.up}10` : 'transparent',
+                }}
               >
-                {i18n.copy}
-              </Btn>
+                {copied ? (
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ animation: 'checkPop .3s ease-out' }}
+                  >
+                    <title>Copied</title>
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                ) : (
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <title>Copy</title>
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                )}
+              </button>
               <Btn small variant="danger" onClick={() => setRegenConfirm(true)}>
                 {i18n.regenerate}
               </Btn>
@@ -2228,18 +2301,71 @@ function SettingsPage({ projectName, setProjectName }) {
 
       {/* Save button */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, marginBottom: 24 }}>
-        <Btn
-          variant="primary"
-          onClick={handleSave}
-          loading={saveState === 'saving'}
-          style={{ minWidth: 140 }}
+        <button
+          type="button"
+          onClick={saveState === 'idle' ? handleSave : undefined}
+          disabled={saveState !== 'idle'}
+          style={{
+            minWidth: 140,
+            padding: '10px 24px',
+            borderRadius: 10,
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: F.sans,
+            cursor: saveState === 'idle' ? 'pointer' : 'default',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            border: 'none',
+            transition: 'all .3s ease',
+            ...(saveState === 'saved'
+              ? {
+                  backgroundColor: t.status.up,
+                  color: '#fff',
+                  animation: 'savedPulse .6s ease-out',
+                }
+              : {
+                  backgroundColor: t.accent,
+                  color: '#fff',
+                }),
+          }}
         >
+          {saveState === 'saving' && (
+            <span
+              style={{
+                display: 'inline-block',
+                width: 14,
+                height: 14,
+                border: '2px solid rgba(255,255,255,.3)',
+                borderTopColor: '#fff',
+                borderRadius: '50%',
+                animation: 'spin .6s linear infinite',
+              }}
+            />
+          )}
+          {saveState === 'saved' && (
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#fff"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ animation: 'checkPop .3s ease-out' }}
+            >
+              <title>Saved</title>
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
           {saveState === 'saving'
             ? i18n.saving
             : saveState === 'saved'
-              ? `✓ ${i18n.saved}`
+              ? i18n.saved
               : i18n.saveSettings}
-        </Btn>
+        </button>
       </div>
 
       {/* Regen confirm modal */}
@@ -2539,10 +2665,13 @@ export default function App() {
         <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:3px}
+        ::-webkit-scrollbar{width:0;display:none}
+        *{scrollbar-width:none}
         @keyframes pulse-ring{0%{transform:scale(.8);opacity:.4}100%{transform:scale(1.6);opacity:0}}
         @keyframes fadeSlide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
         @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes checkPop{0%{transform:scale(0) rotate(-45deg);opacity:0}50%{transform:scale(1.2) rotate(0deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}
+        @keyframes savedPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 10px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
         @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important}.resp-cols{grid-template-columns:1fr!important}}
         @media(max-width:600px){.resp-cols{grid-template-columns:1fr!important}.stat-grid{grid-template-columns:1fr 1fr!important}}
       `}</style>

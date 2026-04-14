@@ -2055,12 +2055,14 @@ function SettingsPage({ projectName, setProjectName }) {
         </div>
       </SettingsSection>
 
-      {/* Data & SLA */}
+      {/* SLA & Data */}
       <SettingsSection t={t}>
         <div style={{ marginBottom: 20 }}>
-          <SettingsLabel t={t}>{i18n.dataRetention}</SettingsLabel>
-          <SettingsHint t={t}>{i18n.dataRetentionHint}</SettingsHint>
-          <ChipSelect value={retention} onChange={setRetention} options={retentionOpts} />
+          <SettingsLabel t={t}>{i18n.slaTimezone}</SettingsLabel>
+          <SettingsHint t={t}>{i18n.slaTimezoneHint}</SettingsHint>
+          <div style={{ marginTop: 10 }}>
+            <Select value={timezone} onChange={setTimezone} options={tzOpts} />
+          </div>
         </div>
         <div style={{ marginBottom: 20 }}>
           <SettingsLabel t={t}>{i18n.slaWindow}</SettingsLabel>
@@ -2068,11 +2070,9 @@ function SettingsPage({ projectName, setProjectName }) {
           <ChipSelect value={slaWindow} onChange={setSlaWindow} options={windowOpts} />
         </div>
         <div>
-          <SettingsLabel t={t}>{i18n.slaTimezone}</SettingsLabel>
-          <SettingsHint t={t}>{i18n.slaTimezoneHint}</SettingsHint>
-          <div style={{ marginTop: 10 }}>
-            <Select value={timezone} onChange={setTimezone} options={tzOpts} />
-          </div>
+          <SettingsLabel t={t}>{i18n.dataRetention}</SettingsLabel>
+          <SettingsHint t={t}>{i18n.dataRetentionHint}</SettingsHint>
+          <ChipSelect value={retention} onChange={setRetention} options={retentionOpts} />
         </div>
       </SettingsSection>
 

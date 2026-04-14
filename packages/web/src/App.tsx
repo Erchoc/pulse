@@ -670,11 +670,10 @@ function Input({
   style?: React.CSSProperties
 }) {
   const { t } = useApp()
-  const ref = useRef<HTMLInputElement>(null)
   return (
     <input
-      ref={ref}
-      defaultValue={value}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       style={{
         width: '100%',
@@ -694,7 +693,6 @@ function Input({
       }}
       onBlur={(e) => {
         e.target.style.borderColor = t.border
-        if (ref.current) onChange(ref.current.value)
       }}
     />
   )

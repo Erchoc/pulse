@@ -2154,8 +2154,8 @@ function SettingsPage({ projectName, setProjectName }) {
       <SettingsSection t={t}>
         <SettingsRow label={i18n.webhookUrl} hint={i18n.webhookHint}>
           <div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 200px', minWidth: 0 }}>
                 <Input
                   value={webhookUrl}
                   onChange={setWebhookUrl}
@@ -2290,10 +2290,13 @@ function SettingsPage({ projectName, setProjectName }) {
                     fontSize: 11,
                     fontFamily: F.mono,
                     color: t.text.secondary,
-                    overflow: 'auto',
+                    overflowX: 'auto',
                     margin: 0,
                     border: `1px solid ${t.border}`,
                     lineHeight: 1.6,
+                    maxWidth: '100%',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all',
                   }}
                 >
                   {WEBHOOK_PAYLOAD_SAMPLE}

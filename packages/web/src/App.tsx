@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { useAnimatedPager } from './useAnimatedPager'
 
 /* ================================================================
    i18n
@@ -733,7 +732,7 @@ const probeNames = [
 ]
 const types = ['http', 'websocket', 'tcp']
 const intervals = ['10s', '30s', '60s', '300s']
-const statuses = ['up', 'up', 'up', 'up', 'up', 'up', 'degraded', 'down']
+const statuses = ['up', 'up', 'up', 'up', 'up', 'degraded', 'down', 'maintenance']
 
 function genMockSvcs(n = 120) {
   return Array.from({ length: n }, (_, i) => {
@@ -759,11 +758,17 @@ function genMockSvcs(n = 120) {
       status: st,
       bar: genBar(),
       ld: genLd(),
-      maintenance: false,
-      maintenanceReason: '',
-      maintenanceStartAt: null as string | null,
-      maintenanceEndAt: null as string | null,
-      maintenanceOperator: '',
+      maintenance: st === 'maintenance',
+      maintenanceReason: st === 'maintenance' ? 'Database migration & index rebuild' : '',
+      maintenanceStartAt:
+        st === 'maintenance'
+          ? new Date(Date.now() - 45 * 60000).toISOString()
+          : (null as string | null),
+      maintenanceEndAt:
+        st === 'maintenance'
+          ? new Date(Date.now() + 60 * 60000).toISOString()
+          : (null as string | null),
+      maintenanceOperator: st === 'maintenance' ? 'ops-team' : '',
       maintenanceNotifyUsers: [] as string[],
     }
   })
@@ -792,7 +797,7 @@ const allProbes = isMockPage ? genMockProbes() : _initProbes
 /* ================================================================
    Helpers
    ================================================================ */
-const PAGE_SIZE = 8
+const PAGE_SIZE = 10
 
 const fmtSLA = (v) => `${v.toFixed(2)}%`
 const slaColor = (sla, tgt, t) =>
@@ -1785,12 +1790,7 @@ function OverviewCards({ svcs }) {
 /* ================================================================
    Service Row & Detail Panel (FIXED height bug)
    ================================================================ */
-function ServiceRow({
-  svc,
-  selected,
-  onSelect,
-  animClass,
-}: { svc; selected: boolean; onSelect; animClass?: string }) {
+function ServiceRow({ svc, selected, onSelect }: { svc; selected: boolean; onSelect }) {
   const { t, i18n, lang } = useApp()
   const c = slaColor(svc.sla, svc.target, t)
   const label = {
@@ -1801,12 +1801,11 @@ function ServiceRow({
   }[svc.status]
   const [hov, setHov] = useState(false)
   const dn = lang === 'zh' ? svc.nameZh : svc.name
-  const isExiting = animClass === 'ap-exit'
   return (
     <button
       type="button"
-      className={`svc-row${animClass ? ` ${animClass}` : ''}`}
-      onClick={isExiting ? undefined : () => onSelect(svc.id)}
+      className="svc-row"
+      onClick={() => onSelect(svc.id)}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -1907,6 +1906,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
   const [incidentOpen, setIncidentOpen] = useState(false)
   const [maintModalOpen, setMaintModalOpen] = useState(false)
   const [endMaintConfirm, setEndMaintConfirm] = useState(false)
+  const [logOpen, setLogOpen] = useState(false)
   if (!svc)
     return (
       <div
@@ -2038,6 +2038,131 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
           </div>
         </div>
       )}
+      {svc.maintenance &&
+        (() => {
+          const logs = [
+            {
+              time: '10:00',
+              action: lang === 'zh' ? '维护窗口开始' : 'Maintenance window started',
+            },
+            { time: '10:02', action: lang === 'zh' ? '流量已切走' : 'Traffic drained' },
+            {
+              time: '10:05',
+              action: lang === 'zh' ? '数据库备份完成' : 'Database backup completed',
+            },
+            {
+              time: '10:12',
+              action: lang === 'zh' ? '模式迁移执行中' : 'Schema migration running',
+            },
+            { time: '10:18', action: lang === 'zh' ? '索引重建中' : 'Index rebuild in progress' },
+            { time: '10:25', action: lang === 'zh' ? '数据验证通过' : 'Data validation passed' },
+            { time: '10:30', action: lang === 'zh' ? '缓存预热中' : 'Cache warming up' },
+            {
+              time: '10:35',
+              action: lang === 'zh' ? '健康检查通过 (3/5)' : 'Health check passed (3/5)',
+            },
+            {
+              time: '10:38',
+              action: lang === 'zh' ? '等待剩余节点就绪' : 'Waiting for remaining nodes',
+            },
+            { time: '10:42', action: lang === 'zh' ? '全部节点就绪' : 'All nodes ready' },
+            {
+              time: '10:45',
+              action: lang === 'zh' ? '灰度流量 10% 导入' : 'Canary traffic 10% routed',
+            },
+            { time: '10:50', action: lang === 'zh' ? '灰度验证正常' : 'Canary validation OK' },
+          ]
+          return (
+            <div style={{ marginBottom: 16 }}>
+              <button
+                type="button"
+                onClick={() => setLogOpen((p) => !p)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  color: t.text.muted,
+                  fontWeight: 500,
+                  padding: '0 0 8px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '.04em',
+                  fontFamily: F.sans,
+                }}
+              >
+                <span>{lang === 'zh' ? '维护活动日志' : 'Maintenance Activity Log'}</span>
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  style={{
+                    transform: logOpen ? 'rotate(180deg)' : 'none',
+                    transition: 'transform .2s',
+                  }}
+                >
+                  <title>{logOpen ? 'Collapse' : 'Expand'}</title>
+                  <path
+                    d="M3 4.5L6 7.5L9 4.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              {logOpen && (
+                <div
+                  style={{
+                    backgroundColor: t.bg.input,
+                    borderRadius: R.sm,
+                    padding: '10px 14px',
+                    fontSize: 12,
+                  }}
+                >
+                  {logs.map((log, i) => (
+                    <div
+                      key={log.time}
+                      style={{
+                        display: 'flex',
+                        gap: 10,
+                        padding: '6px 0',
+                        alignItems: 'center',
+                        borderBottom: i < logs.length - 1 ? `1px solid ${t.borderSubtle}` : 'none',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontFamily: F.mono,
+                          fontSize: 11,
+                          color: t.text.muted,
+                          flexShrink: 0,
+                          width: 42,
+                        }}
+                      >
+                        {log.time}
+                      </span>
+                      <span
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          backgroundColor: t.status.maintenance,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span style={{ color: t.text.secondary }}>{log.action}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })()}
       <div
         className="resp-cols"
         style={{
@@ -4541,21 +4666,8 @@ export default function App() {
     else if (sort === 'name-desc') list = [...list].sort((a, b) => b.name.localeCompare(a.name))
     return list
   }, [allSvcs, filter, search, sort])
-  const listContainerRef = useRef<HTMLDivElement>(null)
-  const detailRef = useRef<HTMLDivElement>(null)
-  const svcPager = useAnimatedPager({
-    items: filtered,
-    containerRef: listContainerRef,
-    observeRef: detailRef,
-    getItemId: (s) => s.id,
-    minSize: PAGE_SIZE,
-    rowHeight: 68,
-    overhead: 80,
-    sound: true,
-    recalcOn: selectedId,
-  })
-  const pagedSvcs = svcPager.items
-  const svcPageSize = svcPager.pageSize
+  const [svcPage, setSvcPage] = useState(1)
+  const pagedSvcs = filtered.slice((svcPage - 1) * PAGE_SIZE, svcPage * PAGE_SIZE)
   const selectedSvc = allSvcs.find((s) => s.id === selectedId) || null
 
   return (
@@ -4580,6 +4692,7 @@ export default function App() {
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes checkPop{0%{transform:scale(0) rotate(-45deg);opacity:0}50%{transform:scale(1.2) rotate(0deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}
         @keyframes savedPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 10px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+        .detail-scroll::-webkit-scrollbar{display:none}.detail-scroll{scrollbar-width:none}
         .settings-row{display:grid;grid-template-columns:280px 1fr;gap:32px;align-items:start}
         @media(max-width:1200px){.main-grid{grid-template-columns:1fr 320px!important}.svc-row{grid-template-columns:minmax(120px,1.2fr) minmax(120px,1.5fr) 76px 80px!important}.hide-tablet{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}}
         @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr 80px 76px!important;gap:8px!important}.filter-bar{flex-wrap:wrap!important}.filter-chips{display:flex!important;width:100%!important;gap:4px!important}.filter-chips button{flex:1!important;min-width:0!important;justify-content:center!important;white-space:nowrap!important;padding:6px 6px!important;font-size:12px!important}.search-box{max-width:none!important;width:100%!important;flex:auto!important}}
@@ -4637,7 +4750,7 @@ export default function App() {
                       key={f.id}
                       onClick={() => {
                         setFilter(f.id)
-                        svcPager.setPage(1)
+                        setSvcPage(1)
                       }}
                       style={{
                         background: filter === f.id ? t.accentMuted : 'transparent',
@@ -4679,7 +4792,7 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-                {allSvcs.length > svcPageSize && (
+                {allSvcs.length > PAGE_SIZE && (
                   <div
                     className="search-box"
                     style={{
@@ -4716,7 +4829,7 @@ export default function App() {
                       value={search}
                       onChange={(e) => {
                         setSearch(e.target.value)
-                        svcPager.setPage(1)
+                        setSvcPage(1)
                       }}
                       placeholder={i18n.search}
                       style={{
@@ -4762,10 +4875,13 @@ export default function App() {
               </div>
               <div
                 className="main-grid"
-                style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 16 }}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 380px',
+                  gap: 16,
+                }}
               >
                 <div
-                  ref={listContainerRef}
                   style={{
                     backgroundColor: t.bg.card,
                     borderRadius: R.lg,
@@ -4778,7 +4894,7 @@ export default function App() {
                     sort={sort}
                     onSort={(s) => {
                       setSort(s)
-                      svcPager.setPage(1)
+                      setSvcPage(1)
                     }}
                   />
                   <div style={{ borderTop: `1px solid ${t.borderSubtle}` }}>
@@ -4788,7 +4904,6 @@ export default function App() {
                         svc={s}
                         selected={selectedId === s.id}
                         onSelect={setSelectedId}
-                        animClass={svcPager.animClass(s.id)}
                       />
                     ))}
                     {filtered.length === 0 && (
@@ -4805,19 +4920,20 @@ export default function App() {
                     )}
                     <Pagination
                       total={filtered.length}
-                      page={svcPager.page}
-                      pageSize={svcPageSize}
-                      onPageChange={svcPager.setPage}
+                      page={svcPage}
+                      pageSize={PAGE_SIZE}
+                      onPageChange={setSvcPage}
                     />
                   </div>
                 </div>
                 <div
-                  ref={detailRef}
+                  className="detail-scroll"
                   style={{
                     backgroundColor: t.bg.card,
                     borderRadius: R.lg,
                     border: `1px solid ${t.border}`,
-                    overflow: 'hidden',
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
                     minHeight: 420,
                     boxShadow: t.shadow,
                   }}

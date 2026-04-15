@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 /* ================================================================
    Fonts & constants
@@ -29,6 +29,10 @@ const addresses: Record<string, string> = {
   cache: 'cache.internal:6379',
   'log-pipe': 'logs.example.com/health',
 }
+
+const STATUS_BAR_DAYS = 90
+const CACHE_KEY = 'pulse-status-cache'
+const CACHE_TTL_MS = 5 * 60 * 1000
 
 /* ================================================================
    Types
@@ -63,7 +67,12 @@ interface Theme {
   bg: { base: string; card: string; elevated: string }
   border: string
   text: { primary: string; secondary: string; muted: string }
-  status: { up: string; degraded: string; down: string; maintenance: string }
+  status: {
+    up: string
+    degraded: string
+    down: string
+    maintenance: string
+  }
   shadow: string
   accent: string
 }
@@ -94,6 +103,109 @@ interface StatusPageProps {
 }
 
 /* ================================================================
+   Cache helpers — 5-minute browser-side cache
+   ================================================================ */
+function getCachedServices(): StatusService[] | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    const { ts, data } = JSON.parse(raw)
+    if (Date.now() - ts > CACHE_TTL_MS) {
+      sessionStorage.removeItem(CACHE_KEY)
+      return null
+    }
+    return data
+  } catch {
+    return null
+  }
+}
+
+function setCachedServices(services: StatusService[]) {
+  try {
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: services }))
+  } catch {
+    /* quota exceeded — ignore */
+  }
+}
+
+/* ================================================================
+   SVG Icons (replace emoji for consistent rendering)
+   ================================================================ */
+function CheckIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Operational</title>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  )
+}
+
+function AlertIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Degraded</title>
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  )
+}
+
+function XIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Outage</title>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  )
+}
+
+function WrenchIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Maintenance</title>
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+    </svg>
+  )
+}
+
+/* ================================================================
    Helpers
    ================================================================ */
 function getOverallStatus(services: StatusService[]) {
@@ -114,11 +226,7 @@ function formatDowntime(minutes: number, noDowntimeLabel: string): string {
 }
 
 function statusColor(status: string, t: Theme): string {
-  if (status === 'up') return t.status.up
-  if (status === 'degraded') return t.status.degraded
-  if (status === 'down') return t.status.down
-  if (status === 'maintenance') return t.status.maintenance
-  return t.status.up
+  return t.status[status as keyof typeof t.status] ?? t.status.up
 }
 
 /* ================================================================
@@ -154,8 +262,6 @@ function DayPopover({
     if (left < 8) left = 8
     if (left + bw > vw - 8) left = vw - bw - 8
     if (top < 8) top = r.bottom + 8
-
-    // clamp bottom
     if (top + bh > vh - 8) top = vh - bh - 8
 
     setPos({ top, left })
@@ -201,7 +307,13 @@ function DayPopover({
         {dateStr}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 16,
+          }}
+        >
           <span style={{ fontSize: 12, color: t.text.muted }}>{i18n.statusUptime}</span>
           <span
             style={{
@@ -214,18 +326,40 @@ function DayPopover({
             {data.day.uptime.toFixed(2)}%
           </span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 16,
+          }}
+        >
           <span style={{ fontSize: 12, color: t.text.muted }}>{i18n.dayDowntime}</span>
           <span
-            style={{ fontSize: 12, fontWeight: 600, color: t.text.primary, fontFamily: F.mono }}
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: t.text.primary,
+              fontFamily: F.mono,
+            }}
           >
             {downtimeStr}
           </span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 16,
+          }}
+        >
           <span style={{ fontSize: 12, color: t.text.muted }}>{i18n.dayAvgLatency}</span>
           <span
-            style={{ fontSize: 12, fontWeight: 600, color: t.text.primary, fontFamily: F.mono }}
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: t.text.primary,
+              fontFamily: F.mono,
+            }}
           >
             {data.avgLatency > 0 ? `${data.avgLatency}ms` : '—'}
           </span>
@@ -236,7 +370,7 @@ function DayPopover({
 }
 
 /* ================================================================
-   UptimeBar
+   UptimeBar — flex layout, bars fill container naturally
    ================================================================ */
 function UptimeBar({
   bar,
@@ -253,10 +387,13 @@ function UptimeBar({
 }) {
   const [popover, setPopover] = useState<PopoverData | null>(null)
 
+  // Take only last 90 days
+  const days = useMemo(() => bar.slice(-STATUS_BAR_DAYS), [bar])
+
   const handleBarClick = (day: BarDay, idx: number, e: React.MouseEvent) => {
+    e.stopPropagation()
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    // Approximate avg latency from ld array
-    const ldIdx = Math.floor((idx / bar.length) * ld.length)
+    const ldIdx = Math.floor((idx / days.length) * ld.length)
     const avgLatency = ld[ldIdx]?.v ?? 0
     setPopover({ day, avgLatency: Math.round(avgLatency), rect })
   }
@@ -264,14 +401,13 @@ function UptimeBar({
   const handleBarKeyDown = (day: BarDay, idx: number, e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-      const ldIdx = Math.floor((idx / bar.length) * ld.length)
+      const ldIdx = Math.floor((idx / days.length) * ld.length)
       const avgLatency = ld[ldIdx]?.v ?? 0
       setPopover({ day, avgLatency: Math.round(avgLatency), rect })
     }
     if (e.key === 'Escape') setPopover(null)
   }
 
-  // Close popover on outside click
   useEffect(() => {
     if (!popover) return
     const handler = () => setPopover(null)
@@ -279,46 +415,40 @@ function UptimeBar({
     return () => window.removeEventListener('click', handler)
   }, [popover])
 
-  const barGap = 2
-  const barW = 6
-
   return (
     <>
       <div
         style={{
           display: 'flex',
-          alignItems: 'flex-end',
-          gap: barGap,
+          alignItems: 'stretch',
+          gap: 1.5,
           height: 32,
-          overflow: 'hidden',
+          width: '100%',
+          minWidth: 0,
         }}
       >
-        {bar.map((day, idx) => (
+        {days.map((day, idx) => (
           <div
             key={day.date}
             role="button"
             tabIndex={0}
             title={day.date}
-            onClick={(e) => {
-              e.stopPropagation()
-              handleBarClick(day, idx, e)
-            }}
+            onClick={(e) => handleBarClick(day, idx, e)}
             onKeyDown={(e) => handleBarKeyDown(day, idx, e)}
             style={{
-              width: barW,
-              flexShrink: 0,
-              height: day.status === 'up' ? 24 : day.status === 'degraded' ? 28 : 32,
+              flex: 1,
+              minWidth: 0,
               background: statusColor(day.status, t),
               borderRadius: 2,
               cursor: 'pointer',
-              opacity: 0.85,
+              opacity: 0.8,
               transition: 'opacity 0.1s',
             }}
             onMouseEnter={(e) => {
               ;(e.currentTarget as HTMLElement).style.opacity = '1'
             }}
             onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLElement).style.opacity = '0.85'
+              ;(e.currentTarget as HTMLElement).style.opacity = '0.8'
             }}
           />
         ))}
@@ -344,8 +474,6 @@ function ServiceCard({
 }) {
   const address = addresses[svc.id] ?? `${svc.id}.example.com`
   const name = lang === 'zh' ? svc.nameZh : svc.name
-  const barDays = svc.bar.length
-  const daysLabel = i18n.statusDays.replace('{n}', String(barDays))
 
   return (
     <div
@@ -369,7 +497,14 @@ function ServiceCard({
         }}
       >
         {/* Left: dot + name */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            minWidth: 0,
+          }}
+        >
           <span
             style={{
               width: 9,
@@ -398,9 +533,13 @@ function ServiceCard({
         {/* Right: meta badges */}
         <div
           className="status-svc-meta"
-          style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexShrink: 0,
+          }}
         >
-          {/* Protocol badge */}
           <span
             style={{
               fontSize: 11,
@@ -417,8 +556,8 @@ function ServiceCard({
           >
             {svc.type}
           </span>
-          {/* Address */}
           <span
+            className="status-address"
             style={{
               fontSize: 12,
               fontFamily: F.mono,
@@ -435,16 +574,9 @@ function ServiceCard({
       </div>
 
       {/* Bar row */}
-      <div
-        className="status-bar-row"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
-        {/* Left label */}
+      <div className="status-bar-row" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span
+          className="status-days-label"
           style={{
             fontSize: 11,
             color: t.text.muted,
@@ -453,22 +585,25 @@ function ServiceCard({
             minWidth: 36,
           }}
         >
-          {daysLabel}
+          {i18n.statusDays.replace('{n}', String(STATUS_BAR_DAYS))}
         </span>
 
-        {/* Bars — flex grow */}
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
           <UptimeBar bar={svc.bar} ld={svc.ld} t={t} i18n={i18n} lang={lang} />
         </div>
 
-        {/* Right: uptime % */}
         <span
           className="status-uptime-pct"
           style={{
             fontSize: 13,
             fontFamily: F.mono,
             fontWeight: 600,
-            color: t.text.secondary,
+            color:
+              svc.sla >= svc.target
+                ? t.status.up
+                : svc.sla >= svc.target - 0.5
+                  ? t.status.degraded
+                  : t.status.down,
             flexShrink: 0,
             minWidth: 56,
             textAlign: 'right',
@@ -477,11 +612,8 @@ function ServiceCard({
           {svc.sla.toFixed(2)}%
         </span>
         <span
-          style={{
-            fontSize: 11,
-            color: t.text.muted,
-            flexShrink: 0,
-          }}
+          className="status-uptime-label"
+          style={{ fontSize: 11, color: t.text.muted, flexShrink: 0 }}
         >
           {i18n.statusUptime}
         </span>
@@ -491,7 +623,7 @@ function ServiceCard({
 }
 
 /* ================================================================
-   StatusBanner
+   StatusBanner — SVG icons, clean design
    ================================================================ */
 function StatusBanner({
   overall,
@@ -502,23 +634,20 @@ function StatusBanner({
   t: Theme
   i18n: I18n
 }) {
-  const { color, label, icon } = (() => {
-    if (overall === 'operational')
-      return { color: t.status.up, label: i18n.allOperational, icon: '✓' }
-    if (overall === 'partial')
-      return { color: t.status.degraded, label: i18n.partialOutage, icon: '⚠' }
-    if (overall === 'major') return { color: t.status.down, label: i18n.majorOutage, icon: '✕' }
-    // maintenance
-    return { color: t.status.maintenance, label: i18n.underMaintenance, icon: '⚙' }
-  })()
+  const config: Record<string, { color: string; label: string; Icon: () => React.JSX.Element }> = {
+    operational: { color: t.status.up, label: i18n.allOperational, Icon: CheckIcon },
+    partial: { color: t.status.degraded, label: i18n.partialOutage, Icon: AlertIcon },
+    major: { color: t.status.down, label: i18n.majorOutage, Icon: XIcon },
+    maintenance: { color: t.status.maintenance, label: i18n.underMaintenance, Icon: WrenchIcon },
+  }
+  const { color, label, Icon } = config[overall] ?? config.operational
 
   return (
     <div
       style={{
-        background: `${color}18`,
-        border: `1px solid ${color}40`,
+        background: color,
         borderRadius: 12,
-        padding: '18px 24px',
+        padding: '14px 24px',
         display: 'flex',
         alignItems: 'center',
         gap: 12,
@@ -527,27 +656,26 @@ function StatusBanner({
     >
       <span
         style={{
-          width: 32,
-          height: 32,
+          width: 28,
+          height: 28,
           borderRadius: '50%',
-          background: color,
+          background: 'rgba(255,255,255,0.2)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           color: '#fff',
-          fontSize: 16,
-          fontWeight: 700,
           flexShrink: 0,
         }}
       >
-        {icon}
+        <Icon />
       </span>
       <span
         style={{
-          fontFamily: F.display,
+          fontFamily: F.sans,
           fontWeight: 600,
-          fontSize: 18,
-          color,
+          fontSize: 15,
+          color: '#fff',
+          letterSpacing: '0.01em',
         }}
       >
         {label}
@@ -560,25 +688,29 @@ function StatusBanner({
    StatusPage (default export)
    ================================================================ */
 export default function StatusPage({ services, projectName, t, i18n, lang }: StatusPageProps) {
-  const overall = getOverallStatus(services)
+  // Cache services on mount
+  useEffect(() => {
+    setCachedServices(services)
+  }, [services])
+
+  // Sort by SLA ascending — worst availability first
+  const sortedServices = useMemo(() => [...services].sort((a, b) => a.sla - b.sla), [services])
+
+  const overall = useMemo(() => getOverallStatus(sortedServices), [sortedServices])
 
   return (
     <>
-      {/* Responsive styles + fonts */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap');
 
-        @keyframes pulse-ring {
-          0%   { box-shadow: 0 0 0 0 currentColor; opacity: 0.8; }
-          70%  { box-shadow: 0 0 0 6px transparent; opacity: 0; }
-          100% { box-shadow: 0 0 0 0 transparent; opacity: 0; }
-        }
-
         @media(max-width:640px) {
-          .status-svc-meta { flex-direction:column!important; align-items:flex-start!important; gap:4px!important }
           .status-svc-header { flex-direction:column!important; align-items:flex-start!important; gap:6px!important }
-          .status-bar-row { flex-direction:column!important; gap:4px!important }
-          .status-bar-row .status-uptime-pct { text-align:left!important }
+          .status-svc-meta { flex-direction:row!important; flex-wrap:wrap!important; gap:6px!important }
+          .status-address { display:none!important }
+          .status-bar-row { flex-wrap:wrap!important; gap:6px!important }
+          .status-days-label { display:none!important }
+          .status-uptime-label { display:none!important }
+          .status-uptime-pct { order:1!important; font-size:12px!important; min-width:auto!important }
         }
       `}</style>
 
@@ -597,13 +729,13 @@ export default function StatusPage({ services, projectName, t, i18n, lang }: Sta
             padding: '0 20px 60px',
           }}
         >
-          {/* ---- Header ---- */}
+          {/* Header */}
           <header
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '28px 0 28px',
+              padding: '28px 0',
               borderBottom: `1px solid ${t.border}`,
               marginBottom: 32,
             }}
@@ -650,17 +782,23 @@ export default function StatusPage({ services, projectName, t, i18n, lang }: Sta
             </button>
           </header>
 
-          {/* ---- Status Banner ---- */}
+          {/* Status Banner */}
           <StatusBanner overall={overall} t={t} i18n={i18n} />
 
-          {/* ---- Service List ---- */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {services.map((svc) => (
+          {/* Service List — sorted by SLA asc (worst first) */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            {sortedServices.map((svc) => (
               <ServiceCard key={svc.id} svc={svc} t={t} i18n={i18n} lang={lang} />
             ))}
           </div>
 
-          {/* ---- Footer ---- */}
+          {/* Footer */}
           <footer
             style={{
               marginTop: 48,

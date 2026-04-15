@@ -4734,7 +4734,7 @@ function ApiKeyModal({ open, onClose }: { open: boolean; onClose: () => void }) 
       <div style={{ padding: '16px 24px 24px' }}>
         <p style={{ color: t.text.secondary, fontSize: 13, margin: '0 0 16px', lineHeight: 1.6 }}>
           {i18n.apiHint}{' '}
-          <a href="/doc" style={{ color: t.accent }}>
+          <a href="/doc" target="_blank" rel="noopener noreferrer" style={{ color: t.accent }}>
             {i18n.apiDocLink} →
           </a>
         </p>
@@ -5182,7 +5182,7 @@ function UserMenu({
                   <path d="M13.73 21a2 2 0 01-3.46 0" />
                 </svg>
               }
-              label="Webhook 通知"
+              label={i18n.webhookNotif}
               onClick={() => {
                 onOpenWebhook()
                 setOpen(false)
@@ -5205,7 +5205,7 @@ function UserMenu({
                   <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
                 </svg>
               }
-              label="API 接入"
+              label={i18n.apiIntegrationShort}
               onClick={() => {
                 onOpenApiKey()
                 setOpen(false)

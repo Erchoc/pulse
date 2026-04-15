@@ -27,6 +27,14 @@ const msg = {
     brand: 'Pulse',
     tagline: 'Global Probe · Real-time SLA',
     allProbes: 'All probes active',
+    rangeToday: 'Today',
+    rangeLast7d: '7 Days',
+    rangeLast30d: '30 Days',
+    rangeLast3m: '3 Months',
+    rangeLast6m: '6 Months',
+    rangeLast1y: '1 Year',
+    realtime: 'Real-time',
+    cached: 'Cached',
     overview: 'Overview',
     probes: 'Probes',
     incidents: 'Incidents',
@@ -194,6 +202,14 @@ const msg = {
     brand: 'Pulse',
     tagline: '全球探针 · 实时 SLA',
     allProbes: '所有探针正常运行',
+    rangeToday: '今日',
+    rangeLast7d: '近7天',
+    rangeLast30d: '近30天',
+    rangeLast3m: '近3月',
+    rangeLast6m: '近半年',
+    rangeLast1y: '近一年',
+    realtime: '实时',
+    cached: '缓存',
     overview: '总览',
     probes: '探针',
     incidents: '事件',
@@ -4483,7 +4499,73 @@ function SettingsPage({ projectName, setProjectName, siteNotif, onNotifChange, i
 /* ================================================================
    Layout: Header, Tabs
    ================================================================ */
-function Header({ theme, toggleTheme, lang, toggleLang, projectName }) {
+function TimeRangeSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t, i18n } = useApp()
+  const ranges = [
+    { id: 'today', label: i18n.rangeToday, live: true },
+    { id: '7d', label: i18n.rangeLast7d },
+    { id: '30d', label: i18n.rangeLast30d },
+    { id: '3m', label: i18n.rangeLast3m },
+    { id: '6m', label: i18n.rangeLast6m },
+    { id: '1y', label: i18n.rangeLast1y },
+  ]
+  return (
+    <div
+      style={{ display: 'flex', gap: 2, backgroundColor: t.bg.input, borderRadius: 8, padding: 2 }}
+    >
+      {ranges.map((r) => {
+        const active = value === r.id
+        return (
+          <button
+            type="button"
+            key={r.id}
+            onClick={() => onChange(r.id)}
+            style={{
+              padding: '4px 8px',
+              fontSize: 11,
+              fontWeight: active ? 600 : 400,
+              fontFamily: F.sans,
+              borderRadius: 6,
+              cursor: 'pointer',
+              border: 'none',
+              transition: 'all .15s',
+              whiteSpace: 'nowrap',
+              backgroundColor: active ? t.bg.card : 'transparent',
+              color: active ? t.text.primary : t.text.muted,
+              boxShadow: active ? '0 1px 3px rgba(0,0,0,.15)' : 'none',
+            }}
+          >
+            {r.label}
+            {r.live && active && (
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 5,
+                  height: 5,
+                  borderRadius: '50%',
+                  backgroundColor: t.status.up,
+                  marginLeft: 4,
+                  verticalAlign: 'middle',
+                  boxShadow: `0 0 6px ${t.status.up}`,
+                }}
+              />
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function Header({
+  theme,
+  toggleTheme,
+  lang,
+  toggleLang,
+  projectName,
+  timeRange,
+  onTimeRangeChange,
+}) {
   const { t, i18n } = useApp()
   const brandDisplay = projectName || i18n.brand
   return (
@@ -4524,8 +4606,10 @@ function Header({ theme, toggleTheme, lang, toggleLang, projectName }) {
           <span style={{ fontSize: 11, color: t.text.muted }}>{i18n.tagline}</span>
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <TimeRangeSelector value={timeRange} onChange={onTimeRangeChange} />
+        <div className="hide-mobile" style={{ width: 1, height: 20, backgroundColor: t.border }} />
+        <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span
             style={{
               width: 6,
@@ -4537,7 +4621,7 @@ function Header({ theme, toggleTheme, lang, toggleLang, projectName }) {
           />
           <span style={{ fontSize: 12, color: t.text.secondary }}>{i18n.allProbes}</span>
         </div>
-        <div style={{ width: 1, height: 20, backgroundColor: t.border }} />
+        <div className="hide-mobile" style={{ width: 1, height: 20, backgroundColor: t.border }} />
         <button
           type="button"
           onClick={toggleLang}
@@ -4922,6 +5006,7 @@ export default function App() {
     type: 'info' | 'warning' | 'critical'
   } | null>(null)
   const [notifDismissed, setNotifDismissed] = useState(false)
+  const [timeRange, setTimeRange] = useState<'today' | '7d' | '30d' | '3m' | '6m' | '1y'>('today')
 
   const toggleMaintenance = useCallback((svcId: string, data: Record<string, unknown> | null) => {
     setSvcs((prev) =>
@@ -5020,6 +5105,7 @@ export default function App() {
         <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
+        html,body{overscroll-behavior:none;-webkit-overflow-scrolling:touch}
         ::-webkit-scrollbar{width:0;display:none}
         *{scrollbar-width:none}
         @keyframes pulse-ring{0%{transform:scale(.8);opacity:.4}100%{transform:scale(1.6);opacity:0}}
@@ -5096,6 +5182,8 @@ export default function App() {
             lang={lang}
             toggleLang={toggleLang}
             projectName={projectName}
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
           />
           {!isPWA && <TabNav active={tab} onChange={setTab} />}
 
@@ -5370,7 +5458,7 @@ export default function App() {
                   ))}
                 </div>
                 <span style={{ fontFamily: F.mono, fontFeatureSettings: "'tnum'" }}>
-                  {i18n.version}
+                  {timeRange === 'today' ? i18n.realtime : `${i18n.cached} (T+1)`}
                 </span>
               </div>
             </>

@@ -1066,7 +1066,12 @@ function Input({
 function Select({ value, onChange, options }) {
   const { t } = useApp()
   const [open, setOpen] = useState(false)
-  const [dropUp, setDropUp] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; dropUp: boolean }>({
+    top: 0,
+    left: 0,
+    width: 0,
+    dropUp: false,
+  })
   const ref = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const selected = options.find((o) => o.value === value)
@@ -1082,7 +1087,13 @@ function Select({ value, onChange, options }) {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
       const spaceBelow = window.innerHeight - rect.bottom
-      setDropUp(spaceBelow < 200)
+      const up = spaceBelow < 200
+      setPos({
+        top: up ? rect.top : rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        dropUp: up,
+      })
     }
     setOpen(!open)
   }
@@ -1126,15 +1137,16 @@ function Select({ value, onChange, options }) {
       {open && (
         <div
           style={{
-            position: 'absolute',
-            ...(dropUp ? { bottom: 'calc(100% + 4px)' } : { top: 'calc(100% + 4px)' }),
-            left: 0,
-            minWidth: '100%',
+            position: 'fixed',
+            top: pos.dropUp ? 'auto' : pos.top,
+            bottom: pos.dropUp ? `${window.innerHeight - pos.top + 4}px` : 'auto',
+            left: pos.left,
+            width: pos.width,
             backgroundColor: t.bg.card,
             border: `1px solid ${t.border}`,
             borderRadius: 8,
             boxShadow: '0 8px 24px rgba(0,0,0,.3)',
-            zIndex: 100,
+            zIndex: 1100,
             overflow: 'hidden',
             animation: 'fadeSlide .15s ease',
           }}
@@ -3913,12 +3925,7 @@ function SettingsPage({ projectName, setProjectName }) {
           hint={
             <>
               {i18n.apiHint}{' '}
-              <a
-                href="/api/docs"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: t.accent }}
-              >
+              <a href="/doc" target="_blank" rel="noopener noreferrer" style={{ color: t.accent }}>
                 {i18n.apiDocLink} →
               </a>
             </>
@@ -4381,7 +4388,7 @@ function ListHeader({ sort, onSort }: { sort: string; onSort: (s: string) => voi
    ROOT APP
    ================================================================ */
 // Redirect non-root paths to / (SPA uses hash routing only)
-if (window.location.pathname !== '/') {
+if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/doc')) {
   window.location.replace(`/${window.location.hash}`)
 }
 

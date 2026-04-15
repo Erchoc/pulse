@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pulse API Documentation</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'DM Sans', sans-serif; background: #0f1117; color: #e2e4ea; line-height: 1.6; }
+    .container { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    .subtitle { color: #6b7084; font-size: 14px; margin-bottom: 40px; }
+    .back { color: #818cf8; text-decoration: none; font-size: 13px; display: inline-block; margin-bottom: 24px; }
+    .back:hover { text-decoration: underline; }
+    h2 { font-size: 18px; font-weight: 600; margin: 32px 0 12px; padding-top: 24px; border-top: 1px solid #1e2030; }
+    h2:first-of-type { border-top: none; }
+    .endpoint { background: #161822; border: 1px solid #1e2030; border-radius: 10px; padding: 16px 20px; margin-bottom: 12px; }
+    .method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace; margin-right: 8px; }
+    .get { background: #059669; color: #fff; }
+    .post { background: #818cf8; color: #fff; }
+    .delete { background: #f87171; color: #fff; }
+    .put { background: #fbbf24; color: #000; }
+    .path { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #c4c7d4; }
+    .desc { font-size: 13px; color: #6b7084; margin-top: 6px; }
+    code { font-family: 'JetBrains Mono', monospace; background: #1e2030; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; background: #818cf822; color: #818cf8; margin-bottom: 24px; }
+    pre { background: #161822; border: 1px solid #1e2030; border-radius: 8px; padding: 16px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.8; margin: 12px 0; }
+    .note { background: #818cf810; border-left: 3px solid #818cf8; padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13px; color: #a0a3b1; margin: 16px 0; }
+    @media (prefers-color-scheme: light) {
+      body { background: #f8f9fc; color: #111827; }
+      .endpoint { background: #fff; border-color: #e5e7eb; }
+      code { background: #f0f1f5; }
+      pre { background: #fff; border-color: #e5e7eb; }
+      .path { color: #374151; }
+      .desc { color: #6b7280; }
+      h2 { border-top-color: #e5e7eb; }
+      .note { background: #818cf808; }
+      .subtitle { color: #6b7280; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a class="back" href="/">← Back to Pulse</a>
+    <h1>Pulse API Documentation</h1>
+    <p class="subtitle">REST API v1 — Base URL: <code>/api/v1</code></p>
+    <span class="badge">v0.1.0</span>
+
+    <div class="note">
+      All API requests require the <code>X-API-Key</code> header. You can find your API key in <strong>Settings → OpenAPI Integration</strong>.
+    </div>
+
+    <h2>Health</h2>
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <span class="path">/healthz</span>
+      <div class="desc">Health check endpoint. Returns server status.</div>
+    </div>
+
+    <h2>Services</h2>
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <span class="path">/api/v1/services</span>
+      <div class="desc">List all services with SLA metrics and status.</div>
+    </div>
+
+    <h2>Probes</h2>
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <span class="path">/api/v1/probes</span>
+      <div class="desc">List all configured probes.</div>
+    </div>
+    <div class="endpoint">
+      <span class="method post">POST</span>
+      <span class="path">/api/v1/probes</span>
+      <div class="desc">Create a new probe.</div>
+    </div>
+
+    <h2>Push (Client Heartbeat)</h2>
+    <div class="endpoint">
+      <span class="method post">POST</span>
+      <span class="path">/api/v1/push/:token</span>
+      <div class="desc">Client-side probe heartbeat endpoint. Push probes send periodic heartbeats to this endpoint.</div>
+    </div>
+
+    <h2>Maintenance</h2>
+    <div class="endpoint">
+      <span class="method post">POST</span>
+      <span class="path">/api/v1/services/:id/maintenance</span>
+      <div class="desc">Start maintenance window for a service. Probe failures won't count toward SLA during maintenance.</div>
+    </div>
+    <pre>{
+  "reason": "Database migration",
+  "end_at": "2026-04-15T18:00:00Z",
+  "notify_users": ["user-1", "user-2"]
+}</pre>
+    <div class="endpoint">
+      <span class="method delete">DELETE</span>
+      <span class="path">/api/v1/services/:id/maintenance</span>
+      <div class="desc">End maintenance window for a service.</div>
+    </div>
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <span class="path">/api/v1/services/:id/maintenance/history</span>
+      <div class="desc">Get maintenance history for a service.</div>
+    </div>
+
+    <h2>Settings</h2>
+    <div class="endpoint">
+      <span class="method get">GET</span>
+      <span class="path">/api/v1/settings</span>
+      <div class="desc">Get platform settings (project name, retention, SLA window, etc.)</div>
+    </div>
+
+    <h2>Webhook</h2>
+    <div class="endpoint">
+      <span class="method post">POST</span>
+      <span class="path">/api/v1/settings/webhook/test</span>
+      <div class="desc">Test webhook delivery. Sends a test payload to the configured URL.</div>
+    </div>
+
+    <h2>Example Request</h2>
+    <pre>curl -H "X-API-Key: your-api-key" \
+     https://your-pulse-instance/api/v1/services</pre>
+
+    <h2>Response Format</h2>
+    <pre>{
+  "data": [...],
+  "total": 8
+}</pre>
+
+    <div class="note">
+      This documentation is auto-generated. For detailed request/response schemas, refer to the source code or contact the platform administrator.
+    </div>
+
+    <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #1e2030; font-size: 12px; color: #6b7084;">
+      Pulse v0.1.0 · Go + React
+    </div>
+  </div>
+</body>
+</html>

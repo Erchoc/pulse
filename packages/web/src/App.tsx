@@ -62,9 +62,12 @@ const msg = {
     overallSLA: 'Overall SLA',
     servicesUp: 'Services Up',
     avgLatency: 'Avg Latency',
-    probesSec: 'Checks/day',
-    breaching: '{n} breaching target',
+    probesSec: '{r} Checks',
+    breaching: '{n} services breaching target',
     degradedDown: '{d} degraded · {x} down',
+    tipDegraded: 'Latency exceeds threshold or partial probe failures',
+    tipDown: 'Service unreachable — all probes failing',
+    tipMaintenance: 'Manually set — alerts suppressed during window',
     p50All: 'p50 across all probes',
     servicesMixed: '{n} services monitored',
     all: 'All',
@@ -237,9 +240,12 @@ const msg = {
     overallSLA: '整体 SLA',
     servicesUp: '服务状态',
     avgLatency: '平均延迟',
-    probesSec: '检查次数/天',
+    probesSec: '{r}检查次数',
     breaching: '{n} 个服务未达标',
     degradedDown: '{d} 个降级 · {x} 个宕机',
+    tipDegraded: '响应延迟超阈值，或部分探针检测失败',
+    tipDown: '服务完全不可达，所有探针检测失败',
+    tipMaintenance: '人工设置维护中，维护期间告警静默',
     p50All: '全部探针 p50',
     servicesMixed: '监控 {n} 个服务',
     all: '全部',
@@ -1739,7 +1745,7 @@ function Toast({ message, visible }) {
    Overview Cards
    ================================================================ */
 function OverviewCards({ svcs }) {
-  const { t, i18n } = useApp()
+  const { t, i18n, rangeLabel } = useApp()
   const S = svcs
   const total = S.length
   const up = S.filter((s) => s.status === 'up').length
@@ -1771,7 +1777,7 @@ function OverviewCards({ svcs }) {
       icon: '⟡',
     },
     {
-      label: i18n.probesSec,
+      label: i18n.probesSec.replace('{r}', rangeLabel),
       value: String(
         S.reduce((sum, s) => {
           const sec = Number.parseInt(s.interval) || 30
@@ -5181,21 +5187,24 @@ export default function App() {
               >
                 <div className="filter-chips" style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                   {[
-                    { id: 'all', label: i18n.all, count: allSvcs.length },
+                    { id: 'all', label: i18n.all, count: allSvcs.length, tip: '' },
                     {
                       id: 'up',
                       label: i18n.operational,
                       count: allSvcs.filter((s) => s.status === 'up').length,
+                      tip: '',
                     },
                     {
                       id: 'degraded',
                       label: i18n.degraded,
                       count: allSvcs.filter((s) => s.status === 'degraded').length,
+                      tip: i18n.tipDegraded,
                     },
                     {
                       id: 'down',
                       label: i18n.down,
                       count: allSvcs.filter((s) => s.status === 'down').length,
+                      tip: i18n.tipDown,
                     },
                     ...(allSvcs.some((s) => s.status === 'maintenance')
                       ? [
@@ -5203,6 +5212,7 @@ export default function App() {
                             id: 'maintenance',
                             label: i18n.maintenance,
                             count: allSvcs.filter((s) => s.status === 'maintenance').length,
+                            tip: i18n.tipMaintenance,
                           },
                         ]
                       : []),
@@ -5210,6 +5220,7 @@ export default function App() {
                     <button
                       type="button"
                       key={f.id}
+                      title={f.tip || undefined}
                       onClick={() => {
                         setFilter(f.id)
                         setSvcPage(1)
@@ -5423,12 +5434,21 @@ export default function App() {
               >
                 <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                   {[
-                    { s: 'up', l: i18n.operational },
-                    { s: 'degraded', l: i18n.degraded },
-                    { s: 'down', l: i18n.down },
-                    { s: 'maintenance', l: i18n.maintenance },
+                    { s: 'up', l: i18n.operational, tip: '' },
+                    { s: 'degraded', l: i18n.degraded, tip: i18n.tipDegraded },
+                    { s: 'down', l: i18n.down, tip: i18n.tipDown },
+                    { s: 'maintenance', l: i18n.maintenance, tip: i18n.tipMaintenance },
                   ].map((x) => (
-                    <span key={x.s} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span
+                      key={x.s}
+                      title={x.tip || undefined}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        cursor: x.tip ? 'help' : undefined,
+                      }}
+                    >
                       <span
                         style={{
                           width: 8,

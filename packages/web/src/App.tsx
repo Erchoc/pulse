@@ -237,7 +237,6 @@ const msg = {
     pushPromptBody:
       'Get instant alerts when your services go down or recover. You can change this anytime in settings.',
     pushPromptAllow: 'Enable Notifications',
-    pushPromptLater: 'Maybe Later',
     setMaintenance: 'Set Maintenance',
     endMaintenance: 'End Maintenance',
     maintenanceReason: 'Reason',
@@ -481,7 +480,6 @@ const msg = {
     pushPromptTitle: '保持知情',
     pushPromptBody: '服务宕机或恢复时即时收到告警通知。你随时可以在设置中更改。',
     pushPromptAllow: '开启通知',
-    pushPromptLater: '以后再说',
     setMaintenance: '设置维护',
     endMaintenance: '结束维护',
     maintenanceReason: '维护原因',
@@ -4226,10 +4224,6 @@ function PushPermissionPrompt({ onDismiss }: { onDismiss: () => void }) {
         justifyContent: 'center',
         padding: 16,
       }}
-      onClick={onDismiss}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onDismiss()
-      }}
     >
       <div
         style={{
@@ -4309,46 +4303,25 @@ function PushPermissionPrompt({ onDismiss }: { onDismiss: () => void }) {
           {i18n.pushPromptBody}
         </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button
-            type="button"
-            onClick={handleAllow}
-            style={{
-              width: '100%',
-              padding: '12px 20px',
-              borderRadius: 10,
-              fontSize: 14,
-              fontWeight: 600,
-              fontFamily: F.sans,
-              cursor: 'pointer',
-              border: 'none',
-              backgroundColor: t.accent,
-              color: '#fff',
-              transition: 'opacity .15s',
-            }}
-          >
-            {i18n.pushPromptAllow}
-          </button>
-          <button
-            type="button"
-            onClick={onDismiss}
-            style={{
-              width: '100%',
-              padding: '10px 20px',
-              borderRadius: 10,
-              fontSize: 13,
-              fontWeight: 500,
-              fontFamily: F.sans,
-              cursor: 'pointer',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: t.text.muted,
-              transition: 'color .15s',
-            }}
-          >
-            {i18n.pushPromptLater}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleAllow}
+          style={{
+            width: '100%',
+            padding: '12px 20px',
+            borderRadius: 10,
+            fontSize: 14,
+            fontWeight: 600,
+            fontFamily: F.sans,
+            cursor: 'pointer',
+            border: 'none',
+            backgroundColor: t.accent,
+            color: '#fff',
+            transition: 'opacity .15s',
+          }}
+        >
+          {i18n.pushPromptAllow}
+        </button>
       </div>
     </div>
   )

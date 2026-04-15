@@ -5289,6 +5289,8 @@ function Header({
   projectName,
   timeRange,
   onTimeRangeChange,
+  onOpenWebhook,
+  onOpenApiKey,
 }) {
   const { t, i18n } = useApp()
   const brandDisplay = projectName || i18n.brand
@@ -5371,6 +5373,7 @@ function Header({
         </button>
         <button
           type="button"
+          className="hide-mobile"
           onClick={toggleTheme}
           aria-label="Toggle theme"
           style={{
@@ -5390,8 +5393,323 @@ function Header({
         >
           {theme === 'dark' ? '☀️' : '🌙'}
         </button>
+        <UserMenu
+          theme={theme}
+          toggleTheme={toggleTheme}
+          onOpenWebhook={onOpenWebhook}
+          onOpenApiKey={onOpenApiKey}
+        />
       </div>
     </header>
+  )
+}
+
+function UserMenu({
+  theme,
+  toggleTheme,
+  onOpenWebhook,
+  onOpenApiKey,
+}: {
+  theme: string
+  toggleTheme: () => void
+  onOpenWebhook: () => void
+  onOpenApiKey: () => void
+}) {
+  const { t, i18n } = useApp()
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const user = { name: 'Admin', email: 'admin@example.com' }
+
+  useEffect(() => {
+    if (!open) return
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [open])
+
+  const avatarStyle: React.CSSProperties = {
+    width: 20,
+    height: 20,
+    borderRadius: '50%',
+    backgroundColor: t.accent,
+    color: '#fff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 11,
+    fontWeight: 700,
+    flexShrink: 0,
+  }
+
+  return (
+    <div ref={menuRef} style={{ position: 'relative' }}>
+      {/* Desktop trigger */}
+      <button
+        type="button"
+        className="hide-mobile"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          background: t.bg.card,
+          border: `1px solid ${t.border}`,
+          borderRadius: 8,
+          height: 32,
+          padding: '0 10px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+          cursor: 'pointer',
+          fontSize: 12,
+          fontWeight: 600,
+          color: t.text.secondary,
+          transition: 'all .2s',
+        }}
+      >
+        <span style={avatarStyle}>{user.name[0]}</span>
+        <span>{user.name}</span>
+        <span style={{ fontSize: 10, color: t.text.muted }}>▼</span>
+      </button>
+
+      {/* Mobile trigger */}
+      <button
+        type="button"
+        className="show-mobile-only"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: 'none',
+          width: 32,
+          height: 32,
+          borderRadius: '50%',
+          backgroundColor: t.accent,
+          color: '#fff',
+          border: 'none',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          fontSize: 14,
+          fontWeight: 700,
+        }}
+      >
+        {user.name[0]}
+      </button>
+
+      {/* Dropdown panel */}
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            right: 0,
+            marginTop: 6,
+            minWidth: 260,
+            background: t.bg.card,
+            border: `1px solid ${t.border}`,
+            borderRadius: R.md,
+            boxShadow: '0 8px 24px rgba(0,0,0,.15)',
+            zIndex: 1000,
+            animation: 'fadeSlide .15s ease',
+            overflow: 'hidden',
+          }}
+        >
+          {/* User info */}
+          <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.text.primary }}>{user.name}</div>
+            <div style={{ fontSize: 11, color: t.text.muted, marginTop: 2 }}>{user.email}</div>
+          </div>
+
+          {/* Actions */}
+          <div style={{ borderTop: `1px solid ${t.border}`, padding: '6px 0' }}>
+            <MenuItem
+              icon={
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={t.text.muted}
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <title>Webhook</title>
+                  <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 01-3.46 0" />
+                </svg>
+              }
+              label="Webhook 通知"
+              onClick={() => {
+                onOpenWebhook()
+                setOpen(false)
+              }}
+              t={t}
+            />
+            <MenuItem
+              icon={
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={t.text.muted}
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <title>API Key</title>
+                  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                </svg>
+              }
+              label="API 接入"
+              onClick={() => {
+                onOpenApiKey()
+                setOpen(false)
+              }}
+              t={t}
+            />
+          </div>
+
+          {/* Theme toggle (mobile only) */}
+          <div
+            className="show-mobile-only"
+            style={{
+              display: 'none',
+              borderTop: `1px solid ${t.border}`,
+              padding: '6px 0',
+            }}
+          >
+            <button
+              type="button"
+              onClick={toggleTheme}
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: t.text.secondary,
+                fontSize: 13,
+              }}
+            >
+              {/* Toggle track */}
+              <div
+                style={{
+                  width: 36,
+                  height: 20,
+                  borderRadius: 10,
+                  backgroundColor: theme === 'dark' ? t.accent : t.border,
+                  position: 'relative',
+                  transition: 'background-color .2s',
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 3,
+                    left: theme === 'dark' ? 18 : 3,
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    backgroundColor: '#fff',
+                    transition: 'left .2s',
+                  }}
+                />
+              </div>
+              <span>{theme === 'dark' ? '🌙' : '☀️'}</span>
+              <span>{i18n.darkMode}</span>
+            </button>
+          </div>
+
+          {/* Logout (disabled placeholder) */}
+          <div style={{ borderTop: `1px solid ${t.border}`, padding: '6px 0' }}>
+            <button
+              type="button"
+              disabled
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                background: 'none',
+                border: 'none',
+                cursor: 'not-allowed',
+                color: t.text.muted,
+                fontSize: 13,
+                opacity: 0.5,
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <title>Sign out</title>
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              {i18n.logout}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MenuItem({
+  icon,
+  label,
+  onClick,
+  t,
+}: {
+  icon: React.ReactNode
+  label: string
+  onClick: () => void
+  t: ReturnType<typeof useApp>['t']
+}) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        width: '100%',
+        padding: '10px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        background: hovered ? t.bg.cardHover : 'none',
+        border: 'none',
+        cursor: 'pointer',
+        color: t.text.secondary,
+        fontSize: 13,
+        transition: 'background .15s',
+        textAlign: 'left',
+      }}
+    >
+      {icon}
+      {label}
+    </button>
   )
 }
 
@@ -5879,6 +6197,8 @@ export default function App() {
         @media(max-width:1200px){.main-grid{grid-template-columns:1fr 320px!important}.svc-row{grid-template-columns:minmax(120px,1.2fr) minmax(120px,1.5fr) 76px 80px!important}.hide-tablet{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}}
         @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr 80px 76px!important;gap:8px!important}.filter-bar{flex-wrap:wrap!important}.filter-chips{display:flex!important;width:100%!important;gap:4px!important}.filter-chips button{flex:1!important;min-width:0!important;justify-content:center!important;white-space:nowrap!important;padding:6px 6px!important;font-size:12px!important}.search-box{max-width:none!important;width:100%!important;flex:auto!important}}
         @media(max-width:600px){.resp-cols{grid-template-columns:1fr!important}.stat-grid{grid-template-columns:1fr 1fr!important}}
+        .show-mobile-only{display:none!important}
+        @media(max-width:960px){.show-mobile-only{display:flex!important}}
       `}</style>
 
           {siteNotif &&
@@ -5945,6 +6265,8 @@ export default function App() {
               projectName={projectName}
               timeRange={timeRange}
               onTimeRangeChange={setTimeRange}
+              onOpenWebhook={() => {}}
+              onOpenApiKey={() => {}}
             />
             {!isPWA && <TabNav active={tab} onChange={setTab} />}
 

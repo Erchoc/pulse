@@ -238,7 +238,7 @@ const msg = {
     servicesUp: '服务状态',
     avgLatency: '平均延迟',
     probesSec: '检查次数/天',
-    breaching: '{n} 个未达标',
+    breaching: '{n} 个服务未达标',
     degradedDown: '{d} 个降级 · {x} 个宕机',
     p50All: '全部探针 p50',
     servicesMixed: '监控 {n} 个服务',
@@ -4577,22 +4577,24 @@ function Header({
           <span style={{ fontSize: 11, color: t.text.muted }}>{i18n.tagline}</span>
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <TimeRangeSelector value={timeRange} onChange={onTimeRangeChange} />
-        <div className="hide-mobile" style={{ width: 1, height: 20, backgroundColor: t.border }} />
-        <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              backgroundColor: t.status.up,
-              boxShadow: `0 0 8px ${t.status.up}`,
-            }}
-          />
-          <span style={{ fontSize: 12, color: t.text.secondary }}>{i18n.allProbes}</span>
+        <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 1, height: 20, backgroundColor: t.border }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: t.status.up,
+                boxShadow: `0 0 8px ${t.status.up}`,
+              }}
+            />
+            <span style={{ fontSize: 12, color: t.text.secondary }}>{i18n.allProbes}</span>
+          </div>
+          <div style={{ width: 1, height: 20, backgroundColor: t.border }} />
         </div>
-        <div className="hide-mobile" style={{ width: 1, height: 20, backgroundColor: t.border }} />
         <button
           type="button"
           onClick={toggleLang}
@@ -4600,12 +4602,12 @@ function Header({
             background: t.bg.card,
             border: `1px solid ${t.border}`,
             borderRadius: 8,
-            height: 36,
-            padding: '0 12px',
+            height: 32,
+            padding: '0 10px',
             display: 'flex',
             alignItems: 'center',
             cursor: 'pointer',
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 600,
             color: t.text.secondary,
             fontFamily: F.mono,
@@ -4622,8 +4624,8 @@ function Header({
             background: t.bg.card,
             border: `1px solid ${t.border}`,
             borderRadius: 8,
-            width: 36,
-            height: 36,
+            width: 32,
+            height: 32,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -5155,7 +5157,7 @@ export default function App() {
           style={{
             maxWidth: 1400,
             margin: '0 auto',
-            padding: isPWA ? '0 24px 72px' : '0 24px 40px',
+            padding: isPWA ? '0 24px 88px' : '0 24px 16px',
           }}
         >
           <Header

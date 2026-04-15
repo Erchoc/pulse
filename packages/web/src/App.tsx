@@ -228,6 +228,8 @@ const msg = {
       'Go to Settings → Notifications → find this app → enable Allow Notifications, then return here.',
     deniedDesktop:
       'Click the lock/tune icon in the address bar → Site settings → Reset notification permission, then reload.',
+    deniedChromeTip:
+      'Chrome may silently block repeat permission requests. If the prompt no longer appears: visit chrome://settings/content/notifications, remove this site from the blocked list, then reload.',
     notApplicable: 'N/A on iOS',
     incidentLog: 'Incident Log',
     incidentLogHint:
@@ -473,6 +475,8 @@ const msg = {
     iosPwaNote: 'iOS PWA 直接使用 Notification API 推送 — 不需要 PushManager 和 Service Worker。',
     deniedIosPwa: '前往 设置 → 通知 → 找到本应用 → 开启「允许通知」，然后返回此页面。',
     deniedDesktop: '点击地址栏左侧的锁/调谐图标 → 网站设置 → 重置通知权限，然后刷新页面。',
+    deniedChromeTip:
+      'Chrome 可能会静默拦截重复的权限请求。如果弹窗不再出现：访问 chrome://settings/content/notifications，将此站点从拦截列表移除，然后刷新页面。',
     notApplicable: 'iOS 不适用',
     incidentLog: '事件记录',
     incidentLogHint: '监控启动后，历史事件和告警记录将显示在此处。',
@@ -4583,6 +4587,24 @@ function EventsPage({ isPWA }: { isPWA: boolean }) {
                 }}
               >
                 {isIOS && isStandalone ? i18n.deniedIosPwa : i18n.deniedDesktop}
+              </div>
+            )}
+
+            {/* Chrome silent block tip */}
+            {permission === 'denied' && !isIOS && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: t.status.degraded,
+                  lineHeight: 1.5,
+                  marginBottom: 14,
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  backgroundColor: `${t.status.degraded}08`,
+                  border: `1px solid ${t.status.degraded}15`,
+                }}
+              >
+                {i18n.deniedChromeTip}
               </div>
             )}
 

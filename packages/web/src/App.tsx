@@ -1994,15 +1994,39 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
           {svc.maintenanceReason && (
             <div style={{ color: t.text.secondary, marginBottom: 2 }}>{svc.maintenanceReason}</div>
           )}
-          <div style={{ color: t.text.muted, fontFamily: F.mono, fontSize: 11 }}>
-            {i18n.maintenanceSince} {new Date(svc.maintenanceStartAt).toLocaleString()}
+          <div
+            style={{
+              color: t.text.muted,
+              fontFamily: F.mono,
+              fontSize: 11,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+            }}
+          >
+            <span>
+              {i18n.maintenanceSince}{' '}
+              {new Date(svc.maintenanceStartAt).toLocaleString(undefined, {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
             {svc.maintenanceEndAt && (
-              <>
-                {' '}
-                · {i18n.maintenanceUntil} {new Date(svc.maintenanceEndAt).toLocaleString()}
-              </>
+              <span>
+                {i18n.maintenanceUntil}{' '}
+                {new Date(svc.maintenanceEndAt).toLocaleString(undefined, {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
             )}
-            {!svc.maintenanceEndAt && <> · {i18n.maintenanceManualEnd}</>}
+            {!svc.maintenanceEndAt && <span>{i18n.maintenanceManualEnd}</span>}
           </div>
         </div>
       )}
@@ -3925,7 +3949,12 @@ function SettingsPage({ projectName, setProjectName }) {
           hint={
             <>
               {i18n.apiHint}{' '}
-              <a href="/doc" target="_blank" rel="noopener noreferrer" style={{ color: t.accent }}>
+              <a
+                href="/doc.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: t.accent }}
+              >
                 {i18n.apiDocLink} →
               </a>
             </>
@@ -4388,7 +4417,7 @@ function ListHeader({ sort, onSort }: { sort: string; onSort: (s: string) => voi
    ROOT APP
    ================================================================ */
 // Redirect non-root paths to / (SPA uses hash routing only)
-if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/doc')) {
+if (window.location.pathname !== '/' && window.location.pathname !== '/doc.html') {
   window.location.replace(`/${window.location.hash}`)
 }
 
@@ -4510,11 +4539,26 @@ export default function App() {
     return list
   }, [allSvcs, filter, search, sort])
   const [svcPage, setSvcPage] = useState(1)
-  // Page reset handled in setFilter/setSearch/setSort handlers
+  const detailRef = useRef<HTMLDivElement>(null)
+  const [svcPageSize, setSvcPageSize] = useState(PAGE_SIZE)
+  useEffect(() => {
+    const el = detailRef.current
+    if (!el) return
+    const ROW_H = 68
+    const OVERHEAD = 80
+    const calc = () => {
+      const rows = Math.max(3, Math.floor((el.offsetHeight - OVERHEAD) / ROW_H))
+      setSvcPageSize(rows)
+    }
+    calc()
+    const ro = new ResizeObserver(calc)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const pagedSvcs = useMemo(() => {
-    const start = (svcPage - 1) * PAGE_SIZE
-    return filtered.slice(start, start + PAGE_SIZE)
-  }, [filtered, svcPage])
+    const start = (svcPage - 1) * svcPageSize
+    return filtered.slice(start, start + svcPageSize)
+  }, [filtered, svcPage, svcPageSize])
   const selectedSvc = allSvcs.find((s) => s.id === selectedId) || null
 
   return (
@@ -4638,7 +4682,7 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-                {allSvcs.length > PAGE_SIZE && (
+                {allSvcs.length > svcPageSize && (
                   <div
                     className="search-box"
                     style={{
@@ -4763,12 +4807,13 @@ export default function App() {
                     <Pagination
                       total={filtered.length}
                       page={svcPage}
-                      pageSize={PAGE_SIZE}
+                      pageSize={svcPageSize}
                       onPageChange={setSvcPage}
                     />
                   </div>
                 </div>
                 <div
+                  ref={detailRef}
                   style={{
                     backgroundColor: t.bg.card,
                     borderRadius: R.lg,

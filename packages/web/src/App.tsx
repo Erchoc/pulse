@@ -779,7 +779,7 @@ function genMockProbes(n = 110) {
   })
 }
 
-const allSvcs = isMockPage ? genMockSvcs() : _initSvcs
+const _allSvcs = isMockPage ? genMockSvcs() : _initSvcs
 const allProbes = isMockPage ? genMockProbes() : _initProbes
 
 /* ================================================================
@@ -1640,9 +1640,9 @@ function Toast({ message, visible }) {
 /* ================================================================
    Overview Cards
    ================================================================ */
-function OverviewCards() {
+function OverviewCards({ svcs }) {
   const { t, i18n } = useApp()
-  const S = allSvcs
+  const S = svcs
   const total = S.length
   const up = S.filter((s) => s.status === 'up').length
   const deg = S.filter((s) => s.status === 'degraded').length
@@ -1871,11 +1871,12 @@ function ServiceRow({ svc, selected, onSelect }) {
   )
 }
 
-function DetailPanel({ svc, totalSvcs = 0 }) {
+function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
   const { t, i18n, lang } = useApp()
   const [latencyOpen, setLatencyOpen] = useState(false)
   const [availOpen, setAvailOpen] = useState(false)
   const [incidentOpen, setIncidentOpen] = useState(false)
+  const [maintModalOpen, setMaintModalOpen] = useState(false)
   if (!svc)
     return (
       <div
@@ -1942,6 +1943,55 @@ function DetailPanel({ svc, totalSvcs = 0 }) {
         </div>
         <SLAGauge value={svc.sla} target={svc.target} size={92} />
       </div>
+      {svc.maintenance && (
+        <div
+          style={{
+            backgroundColor: `${t.status.maintenance}15`,
+            border: `1px solid ${t.status.maintenance}30`,
+            borderRadius: R.sm,
+            padding: '10px 14px',
+            marginBottom: 16,
+            fontSize: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ color: t.status.maintenance, fontWeight: 600 }}>
+              {i18n.maintenanceActive}
+            </span>
+            <Btn
+              small
+              variant="danger"
+              onClick={() => {
+                if (confirm(i18n.confirmEndMaintenance)) {
+                  onToggleMaintenance(svc.id, null)
+                }
+              }}
+            >
+              {i18n.endMaintenance}
+            </Btn>
+          </div>
+          {svc.maintenanceReason && (
+            <div style={{ color: t.text.secondary, marginTop: 4 }}>{svc.maintenanceReason}</div>
+          )}
+          <div style={{ color: t.text.muted, fontFamily: F.mono, fontSize: 11, marginTop: 4 }}>
+            {i18n.maintenanceSince} {new Date(svc.maintenanceStartAt).toLocaleString()}
+            {svc.maintenanceEndAt && (
+              <>
+                {' '}
+                · {i18n.maintenanceUntil} {new Date(svc.maintenanceEndAt).toLocaleString()}
+              </>
+            )}
+            {!svc.maintenanceEndAt && <> · {i18n.maintenanceManualEnd}</>}
+          </div>
+        </div>
+      )}
+      {!svc.maintenance && (
+        <div style={{ marginBottom: 16 }}>
+          <Btn small variant="ghost" onClick={() => setMaintModalOpen(true)}>
+            {i18n.setMaintenance}
+          </Btn>
+        </div>
+      )}
       <div
         className="resp-cols"
         style={{
@@ -2219,6 +2269,19 @@ function DetailPanel({ svc, totalSvcs = 0 }) {
       >
         <IncidentDetailModal data={svc.bar} />
       </Modal>
+      <Modal
+        open={maintModalOpen}
+        onClose={() => setMaintModalOpen(false)}
+        title={i18n.setMaintenance}
+      >
+        <MaintenanceModal
+          svc={svc}
+          onConfirm={(data) => {
+            onToggleMaintenance(svc.id, data)
+            setMaintModalOpen(false)
+          }}
+        />
+      </Modal>
     </div>
   )
 }
@@ -2326,6 +2389,127 @@ function LatencyDetailModal({ data, color }) {
           <span>{i18n.now}</span>
         </div>
       </div>
+    </div>
+  )
+}
+
+function MaintenanceModal({ svc, onConfirm }) {
+  const { t, i18n } = useApp()
+  const [reason, setReason] = useState(svc.maintenanceReason || '')
+  const [endAt, setEndAt] = useState('')
+  const [notifyUsers, setNotifyUsers] = useState<string[]>(svc.maintenanceNotifyUsers || [])
+
+  const handleSubmit = () => {
+    onConfirm({
+      maintenance: true,
+      maintenanceReason: reason,
+      maintenanceStartAt: new Date().toISOString(),
+      maintenanceEndAt: endAt ? new Date(endAt).toISOString() : null,
+      maintenanceOperator: 'user-1',
+      maintenanceNotifyUsers: notifyUsers,
+      status: 'maintenance',
+    })
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+          {i18n.maintenanceReason}
+        </span>
+        <Input
+          value={reason}
+          onChange={setReason}
+          placeholder={i18n.maintenanceReasonPlaceholder}
+        />
+      </div>
+      <div>
+        <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+          {i18n.maintenanceEndTime}
+        </span>
+        <input
+          type="datetime-local"
+          value={endAt}
+          onChange={(e) => {
+            setEndAt(e.target.value)
+          }}
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: `1px solid ${t.border}`,
+            backgroundColor: t.bg.input,
+            color: t.text.primary,
+            fontSize: 13,
+            fontFamily: F.sans,
+            outline: 'none',
+          }}
+        />
+      </div>
+      <div>
+        <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 8 }}>
+          {i18n.maintenanceNotify}
+        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {mockUsers.map((u) => (
+            <button
+              type="button"
+              key={u.id}
+              onClick={() => {
+                setNotifyUsers((prev) =>
+                  prev.includes(u.id) ? prev.filter((id) => id !== u.id) : [...prev, u.id],
+                )
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 13,
+                color: t.text.primary,
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: 6,
+                backgroundColor: notifyUsers.includes(u.id) ? `${t.accent}18` : 'transparent',
+                border: 'none',
+                fontFamily: F.sans,
+                width: '100%',
+                textAlign: 'left',
+              }}
+            >
+              <span
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: 4,
+                  border: `1.5px solid ${notifyUsers.includes(u.id) ? t.accent : t.border}`,
+                  backgroundColor: notifyUsers.includes(u.id) ? t.accent : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {notifyUsers.includes(u.id) && (
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <title>Checked</title>
+                    <path
+                      d="M2 5l2.5 2.5L8 3"
+                      stroke="#fff"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
+              </span>
+              {u.name} <span style={{ color: t.text.muted, fontSize: 11 }}>({u.email})</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <Btn variant="primary" onClick={handleSubmit} style={{ marginTop: 8 }}>
+        {i18n.setMaintenance}
+      </Btn>
     </div>
   )
 }
@@ -4192,6 +4376,28 @@ export default function App() {
   }, [parseTabFromHash])
   const [filter, setFilter] = useState('all')
   const [projectName, setProjectName] = useState('Pulse')
+  const [allSvcs, setSvcs] = useState(_allSvcs)
+
+  const toggleMaintenance = useCallback((svcId: string, data: Record<string, unknown> | null) => {
+    setSvcs((prev) =>
+      prev.map((s) => {
+        if (s.id !== svcId) return s
+        if (data === null) {
+          return {
+            ...s,
+            status: 'up',
+            maintenance: false,
+            maintenanceReason: '',
+            maintenanceStartAt: null,
+            maintenanceEndAt: null,
+            maintenanceOperator: '',
+            maintenanceNotifyUsers: [],
+          }
+        }
+        return { ...s, ...data }
+      }),
+    )
+  }, [])
 
   const toggleTheme = useCallback(() => {
     setTheme((p) => {
@@ -4248,7 +4454,7 @@ export default function App() {
     else if (sort === 'name-asc') list = [...list].sort((a, b) => a.name.localeCompare(b.name))
     else if (sort === 'name-desc') list = [...list].sort((a, b) => b.name.localeCompare(a.name))
     return list
-  }, [filter, search, sort])
+  }, [allSvcs, filter, search, sort])
   const [svcPage, setSvcPage] = useState(1)
   // Page reset handled in setFilter/setSearch/setSort handlers
   const pagedSvcs = useMemo(() => {
@@ -4297,7 +4503,7 @@ export default function App() {
           {/* ──── OVERVIEW ──── */}
           {tab === 'overview' && (
             <>
-              <OverviewCards />
+              <OverviewCards svcs={allSvcs} />
               <div
                 className="filter-bar"
                 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '20px 0 12px' }}
@@ -4513,7 +4719,11 @@ export default function App() {
                     boxShadow: t.shadow,
                   }}
                 >
-                  <DetailPanel svc={selectedSvc} totalSvcs={allSvcs.length} />
+                  <DetailPanel
+                    svc={selectedSvc}
+                    totalSvcs={allSvcs.length}
+                    onToggleMaintenance={toggleMaintenance}
+                  />
                 </div>
               </div>
               <div

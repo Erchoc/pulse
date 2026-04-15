@@ -28,6 +28,10 @@ const addresses: Record<string, string> = {
   'notif-hub': 'notify.example.com/health',
   cache: 'cache.internal:6379',
   'log-pipe': 'logs.example.com/health',
+  mq: 'mq.internal:5672',
+  config: 'config.example.com/health',
+  scheduler: 'scheduler.internal:8081',
+  analytics: 'analytics.internal:9200',
 }
 
 const STATUS_BAR_DAYS = 90
@@ -126,13 +130,6 @@ function setCachedServices(services: StatusService[]) {
 /* ================================================================
    Helpers
    ================================================================ */
-function getOverallStatus(services: StatusService[]) {
-  if (services.some((s) => s.status === 'down')) return 'major'
-  if (services.some((s) => s.status === 'degraded')) return 'partial'
-  if (services.some((s) => s.status === 'maintenance')) return 'maintenance'
-  return 'operational'
-}
-
 function formatDowntime(minutes: number, noDowntimeLabel: string): string {
   if (minutes <= 0) return noDowntimeLabel
   if (minutes >= 60) {
@@ -380,46 +377,6 @@ function ServiceRow({
 }
 
 /* ================================================================
-   StatusBanner — subtle, professional
-   ================================================================ */
-function StatusBanner({ overall, t, i18n }: { overall: string; t: Theme; i18n: I18n }) {
-  const config: Record<string, { color: string; label: string }> = {
-    operational: { color: t.status.up, label: i18n.allOperational },
-    partial: { color: t.status.degraded, label: i18n.partialOutage },
-    major: { color: t.status.down, label: i18n.majorOutage },
-    maintenance: { color: t.status.maintenance, label: i18n.underMaintenance },
-  }
-  const { color, label } = config[overall] ?? config.operational
-
-  return (
-    <div
-      style={{
-        background: `${color}14`,
-        border: `1px solid ${color}30`,
-        borderRadius: 8,
-        padding: '8px 16px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 10,
-      }}
-    >
-      <span
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background: color,
-          flexShrink: 0,
-          boxShadow: `0 0 6px ${color}60`,
-        }}
-      />
-      <span style={{ fontFamily: F.sans, fontWeight: 600, fontSize: 13, color }}>{label}</span>
-    </div>
-  )
-}
-
-/* ================================================================
    StatusPage
    ================================================================ */
 export default function StatusPage({ services, projectName, t, i18n, lang }: StatusPageProps) {
@@ -428,7 +385,6 @@ export default function StatusPage({ services, projectName, t, i18n, lang }: Sta
   }, [services])
 
   const sortedServices = useMemo(() => [...services].sort((a, b) => a.sla - b.sla), [services])
-  const overall = useMemo(() => getOverallStatus(sortedServices), [sortedServices])
 
   return (
     <>
@@ -495,9 +451,6 @@ export default function StatusPage({ services, projectName, t, i18n, lang }: Sta
               {i18n.subscribe}
             </button>
           </header>
-
-          {/* Status Banner */}
-          <StatusBanner overall={overall} t={t} i18n={i18n} />
 
           {/* Service List — compact rows, no cards */}
           <div

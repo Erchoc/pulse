@@ -214,16 +214,21 @@ const msg = {
     testPushTitle: 'Pulse Test',
     testPushBody: 'This is a test notification from Pulse push diagnostics.',
     pushSent: 'Notification sent!',
-    pushBlocked: 'Permission denied. Go to browser settings to reset.',
+    pushBlocked: 'Permission denied.',
     pushNotSupported: 'Push notifications are not supported in this browser/mode.',
     envInfo: 'Environment',
     envStandalone: 'Standalone (PWA)',
     envBrowser: 'Browser',
     envSecure: 'Secure Context (HTTPS)',
     envInsecure: 'Insecure Context (HTTP)',
-    iosNote: 'iOS requires PWA mode (Add to Home Screen) for push. Safari 16.4+.',
-    deniedNote:
-      'Permission was denied. Reset in browser/system notification settings, then reload.',
+    iosNote: 'iOS Safari does not support push. Add to Home Screen to use PWA mode.',
+    iosPwaNote:
+      'iOS PWA uses Notification API directly — PushManager and Service Worker are not required.',
+    deniedIosPwa:
+      'Go to Settings → Notifications → find this app → enable Allow Notifications, then return here.',
+    deniedDesktop:
+      'Click the lock/tune icon in the address bar → Site settings → Reset notification permission, then reload.',
+    notApplicable: 'N/A on iOS',
     incidentLog: 'Incident Log',
     incidentLogHint:
       'Historical incident and alert records will appear here once monitoring is active.',
@@ -453,15 +458,18 @@ const msg = {
     testPushTitle: 'Pulse 测试',
     testPushBody: '这是一条来自 Pulse 推送诊断的测试通知。',
     pushSent: '通知已发送！',
-    pushBlocked: '权限被拒绝，请前往浏览器设置重置后刷新页面。',
+    pushBlocked: '权限被拒绝。',
     pushNotSupported: '当前浏览器/模式不支持推送通知。',
     envInfo: '运行环境',
     envStandalone: '独立模式 (PWA)',
     envBrowser: '浏览器模式',
     envSecure: '安全上下文 (HTTPS)',
     envInsecure: '非安全上下文 (HTTP)',
-    iosNote: 'iOS 需要 PWA 模式（添加到主屏幕）才能使用推送，要求 Safari 16.4+。',
-    deniedNote: '权限已被拒绝。请在浏览器/系统通知设置中重置，然后刷新页面。',
+    iosNote: 'iOS Safari 不支持推送，请添加到主屏幕以 PWA 模式使用。',
+    iosPwaNote: 'iOS PWA 直接使用 Notification API 推送 — 不需要 PushManager 和 Service Worker。',
+    deniedIosPwa: '前往 设置 → 通知 → 找到本应用 → 开启「允许通知」，然后返回此页面。',
+    deniedDesktop: '点击地址栏左侧的锁/调谐图标 → 网站设置 → 重置通知权限，然后刷新页面。',
+    notApplicable: 'iOS 不适用',
     incidentLog: '事件记录',
     incidentLogHint: '监控启动后，历史事件和告警记录将显示在此处。',
     noEvents: '暂无事件',
@@ -4339,16 +4347,34 @@ function EventsPage({ isPWA }: { isPWA: boolean }) {
             />
             <PushCapRow
               label={i18n.pushManagerApi}
-              value={hasPushManager ? i18n.supported : i18n.notSupported}
-              ok={hasPushManager}
+              value={
+                isIOS ? i18n.notApplicable : hasPushManager ? i18n.supported : i18n.notSupported
+              }
+              ok={isIOS ? true : hasPushManager}
               t={t}
             />
             <PushCapRow
               label={i18n.serviceWorkerApi}
-              value={hasSW ? i18n.supported : i18n.notSupported}
-              ok={hasSW}
+              value={isIOS ? i18n.notApplicable : hasSW ? i18n.supported : i18n.notSupported}
+              ok={isIOS ? true : hasSW}
               t={t}
             />
+            {isIOS && (
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  color: t.accent,
+                  backgroundColor: `${t.accent}08`,
+                  border: `1px solid ${t.accent}15`,
+                  lineHeight: 1.5,
+                }}
+              >
+                {i18n.iosPwaNote}
+              </div>
+            )}
           </div>
 
           {/* Column 2: Permission & Actions */}
@@ -4414,7 +4440,7 @@ function EventsPage({ isPWA }: { isPWA: boolean }) {
                   border: `1px solid ${t.status.down}15`,
                 }}
               >
-                {i18n.deniedNote}
+                {isIOS && isStandalone ? i18n.deniedIosPwa : i18n.deniedDesktop}
               </div>
             )}
 

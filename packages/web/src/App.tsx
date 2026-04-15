@@ -4499,24 +4499,15 @@ function Header({ theme, toggleTheme, lang, toggleLang, projectName }) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div
+        <img
+          src="/favicon.png"
+          alt={brandDisplay}
           style={{
             width: 34,
             height: 34,
             borderRadius: R.sm,
-            background: `linear-gradient(135deg,${t.accent},#818cf8)`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 15,
-            fontWeight: 800,
-            color: '#fff',
-            fontFamily: F.mono,
-            boxShadow: `0 0 20px ${t.accent}33`,
           }}
-        >
-          {brandDisplay.charAt(0).toUpperCase()}
-        </div>
+        />
         <div>
           <h1
             style={{
@@ -5018,6 +5009,7 @@ export default function App() {
       <div
         style={{
           minHeight: '100vh',
+          paddingTop: isPWA ? 'env(safe-area-inset-top, 0px)' : undefined,
           backgroundColor: t.bg.base,
           color: t.text.primary,
           fontFamily: F.sans,

@@ -17,7 +17,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	srv := api.NewServer()
-	addr := fmt.Sprintf(":%d", *port)
+	addr := fmt.Sprintf("127.0.0.1:%d", *port)
 	slog.Info("starting pulse server", "addr", addr)
 	if err := srv.Start(addr); err != nil {
 		slog.Error("server failed", "error", err)

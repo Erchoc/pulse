@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pulse — Trash Animation Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'DM Sans', sans-serif; background: #0f1117; color: #e2e4ea; min-height: 100vh; padding: 40px 24px; }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .subtitle { font-size: 13px; color: #6b7084; margin-bottom: 32px; }
+    .demo { display: grid; grid-template-columns: 1fr 340px; gap: 16px; max-width: 900px; margin: 0 auto; }
+
+    /* ── Left: Service List ── */
+    .list-card { background: #161822; border: 1px solid #1e2030; border-radius: 12px; overflow: hidden; }
+    .list-header { padding: 14px 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #6b7084; border-bottom: 1px solid #1e2030; display: flex; justify-content: space-between; }
+    .list-header .count { color: #818cf8; font-family: 'JetBrains Mono', monospace; }
+    .row { display: grid; grid-template-columns: 1fr 80px 70px; align-items: center; gap: 12px; padding: 13px 20px; border-bottom: 1px solid #1e2030; cursor: pointer; transition: background-color .15s; position: relative; overflow: hidden; }
+    .row:hover { background: #1e2030; }
+    .row.selected { background: #818cf815; border-left: 2px solid #818cf8; }
+    .row .name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row .sla { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #059669; text-align: right; }
+    .row .badge { font-size: 10px; padding: 2px 8px; border-radius: 4px; text-align: center; font-weight: 600; }
+    .badge.up { background: #05966915; color: #059669; }
+    .badge.maintenance { background: #818cf815; color: #818cf8; }
+    .badge.down { background: #f8717115; color: #f87171; }
+
+    /* ── Row Animations ── */
+    @keyframes rowEnter {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes rowTrash {
+      0% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+      30% { opacity: 0.8; transform: translateY(6px) scale(0.96) rotate(1deg); }
+      100% { opacity: 0; transform: translateY(60px) scale(0.7) rotate(4deg); max-height: 0; padding: 0 20px; margin: 0; }
+    }
+    .row.entering { animation: rowEnter .3s cubic-bezier(.22,1,.36,1) both; }
+    .row.exiting { animation: rowTrash .4s cubic-bezier(.55,.06,.68,.19) both; pointer-events: none; }
+
+    /* ── Right: Detail Panel ── */
+    .detail-card { background: #161822; border: 1px solid #1e2030; border-radius: 12px; padding: 24px; min-height: 420px; transition: min-height .3s ease; }
+    .detail-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+    .stat { background: #1e2030; border-radius: 8px; padding: 12px; }
+    .stat .label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #6b7084; margin-bottom: 4px; }
+    .stat .value { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; }
+    .maintenance-block { background: #818cf810; border: 1px solid #818cf830; border-radius: 8px; padding: 16px; margin-top: 16px; }
+    .maintenance-block h4 { font-size: 12px; color: #818cf8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+    .maintenance-block p { font-size: 13px; color: #a0a3b1; line-height: 1.6; }
+    .mini-chart { height: 60px; background: #1e2030; border-radius: 6px; margin-top: 16px; position: relative; overflow: hidden; }
+    .mini-chart::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 30px; background: linear-gradient(0deg, #05966920, transparent); }
+
+    /* ── Controls ── */
+    .controls { max-width: 900px; margin: 32px auto 0; background: #161822; border: 1px solid #1e2030; border-radius: 12px; padding: 20px 24px; }
+    .controls h3 { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: #818cf8; }
+    .control-row { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+    .control-row label { font-size: 12px; color: #6b7084; min-width: 100px; }
+    .control-row button { padding: 6px 16px; border-radius: 6px; border: 1px solid #1e2030; background: #1e2030; color: #e2e4ea; font-size: 12px; cursor: pointer; font-family: inherit; transition: all .15s; }
+    .control-row button:hover { background: #282a3a; border-color: #818cf8; }
+    .control-row button.active { background: #818cf825; border-color: #818cf8; color: #818cf8; }
+    .log { margin-top: 16px; padding: 12px; background: #0f1117; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #6b7084; max-height: 80px; overflow-y: auto; }
+    .log div { padding: 2px 0; }
+    .log .enter { color: #059669; }
+    .log .exit { color: #f87171; }
+  </style>
+</head>
+<body>
+  <h1>Trash Animation Demo</h1>
+  <p class="subtitle">Pulse 服务列表动态分页 — 行数随右侧面板高度自适应，多余行带"丢进垃圾篓"动效 + 音效退出</p>
+
+  <div class="demo">
+    <div class="list-card">
+      <div class="list-header">
+        <span>SERVICE</span>
+        <span class="count" id="pageInfo">8 / 12</span>
+      </div>
+      <div id="listBody"></div>
+    </div>
+    <div class="detail-card" id="detailPanel">
+      <div id="detailContent"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <h3>Interactive Controls</h3>
+    <div class="control-row">
+      <label>Select service:</label>
+      <button onclick="selectSvc('normal')" class="active" id="btnNormal">Normal service</button>
+      <button onclick="selectSvc('maintenance')" id="btnMaint">Maintenance service (taller)</button>
+      <button onclick="selectSvc('compact')" id="btnCompact">Compact service (shorter)</button>
+    </div>
+    <div class="control-row">
+      <label>Sound:</label>
+      <button onclick="toggleSound()" id="btnSound">ON</button>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <script>
+    // ── Data ──
+    const services = [
+      { id: 1, name: 'Production API', sla: 99.97, status: 'up' },
+      { id: 2, name: 'CDN Edge Nodes', sla: 99.99, status: 'up' },
+      { id: 3, name: 'Database Cluster', sla: 99.91, status: 'maintenance' },
+      { id: 4, name: 'Auth Service', sla: 99.95, status: 'up' },
+      { id: 5, name: 'Payment Gateway', sla: 99.88, status: 'up' },
+      { id: 6, name: 'Email Delivery', sla: 99.82, status: 'up' },
+      { id: 7, name: 'Search Engine', sla: 99.94, status: 'up' },
+      { id: 8, name: 'WebSocket Relay', sla: 99.90, status: 'up' },
+      { id: 9, name: 'Log Collector', sla: 99.85, status: 'down' },
+      { id: 10, name: 'Metrics Pipeline', sla: 99.96, status: 'up' },
+      { id: 11, name: 'Static Assets', sla: 99.99, status: 'up' },
+      { id: 12, name: 'Backup Service', sla: 99.78, status: 'up' },
+    ]
+
+    // ── State ──
+    const ROW_H = 49 // px per row (padding + border)
+    const OVERHEAD = 42 // header height
+    const MIN_ROWS = 8
+    let currentRows = MIN_ROWS
+    let soundEnabled = true
+    let selectedType = 'normal'
+
+    // ── Audio (Web Audio API, no external files) ──
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+
+    function playTrashSound() {
+      if (!soundEnabled) return
+      // Descending "whoosh-plop" sound
+      const now = audioCtx.currentTime
+      const osc = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+      const filter = audioCtx.createBiquadFilter()
+
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(800, now)
+      osc.frequency.exponentialRampToValueAtTime(120, now + 0.25)
+
+      filter.type = 'lowpass'
+      filter.frequency.setValueAtTime(2000, now)
+      filter.frequency.exponentialRampToValueAtTime(200, now + 0.3)
+
+      gain.gain.setValueAtTime(0.15, now)
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35)
+
+      osc.connect(filter)
+      filter.connect(gain)
+      gain.connect(audioCtx.destination)
+      osc.start(now)
+      osc.stop(now + 0.35)
+    }
+
+    function playEnterSound() {
+      if (!soundEnabled) return
+      const now = audioCtx.currentTime
+      const osc = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(300, now)
+      osc.frequency.exponentialRampToValueAtTime(600, now + 0.12)
+
+      gain.gain.setValueAtTime(0.08, now)
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15)
+
+      osc.connect(gain)
+      gain.connect(audioCtx.destination)
+      osc.start(now)
+      osc.stop(now + 0.15)
+    }
+
+    // ── Rendering ──
+    const listBody = document.getElementById('listBody')
+    const pageInfo = document.getElementById('pageInfo')
+    const logEl = document.getElementById('log')
+
+    function log(msg, type) {
+      const d = document.createElement('div')
+      d.className = type || ''
+      d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`
+      logEl.prepend(d)
+      if (logEl.children.length > 20) logEl.lastChild.remove()
+    }
+
+    function renderRows(targetRows) {
+      const prev = currentRows
+      const next = Math.max(MIN_ROWS, Math.min(targetRows, services.length))
+
+      if (next === prev) return
+      currentRows = next
+      pageInfo.textContent = `${next} / ${services.length}`
+
+      if (next < prev) {
+        // ── TRASH: animate exiting rows ──
+        const exitCount = prev - next
+        log(`${exitCount} row(s) exiting with trash animation`, 'exit')
+        playTrashSound()
+
+        const rows = listBody.querySelectorAll('.row')
+        let animated = 0
+        for (let i = rows.length - 1; i >= 0 && animated < exitCount; i--) {
+          const row = rows[i]
+          row.classList.add('exiting')
+          row.style.animationDelay = `${(exitCount - 1 - animated) * 0.06}s`
+          animated++
+        }
+        setTimeout(() => rebuildList(next), 420 + exitCount * 60)
+      } else {
+        // ── ENTER: rebuild then animate new rows ──
+        const enterCount = next - prev
+        log(`${enterCount} row(s) entering from bottom`, 'enter')
+        rebuildList(next)
+        playEnterSound()
+
+        const rows = listBody.querySelectorAll('.row')
+        for (let i = prev; i < next; i++) {
+          if (rows[i]) {
+            rows[i].classList.add('entering')
+            rows[i].style.animationDelay = `${(i - prev) * 0.06}s`
+          }
+        }
+      }
+    }
+
+    function rebuildList(count) {
+      listBody.innerHTML = ''
+      for (let i = 0; i < count; i++) {
+        const s = services[i]
+        const row = document.createElement('div')
+        row.className = `row${i === 0 ? ' selected' : ''}`
+        row.innerHTML = `
+          <div class="name">${s.name}</div>
+          <div class="sla">${s.sla.toFixed(2)}%</div>
+          <div class="badge ${s.status}">${s.status === 'up' ? 'Operational' : s.status === 'maintenance' ? 'Maint.' : 'Down'}</div>
+        `
+        listBody.appendChild(row)
+      }
+      pageInfo.textContent = `${count} / ${services.length}`
+    }
+
+    // ── Detail Panel ──
+    const detailPanel = document.getElementById('detailPanel')
+    const detailContent = document.getElementById('detailContent')
+
+    const details = {
+      normal: {
+        height: 520,
+        html: `
+          <div class="detail-title">Production API</div>
+          <div class="stat-grid">
+            <div class="stat"><div class="label">Uptime (90D)</div><div class="value" style="color:#059669">99.97%</div></div>
+            <div class="stat"><div class="label">Avg Latency</div><div class="value">142ms</div></div>
+            <div class="stat"><div class="label">Incidents</div><div class="value">2</div></div>
+            <div class="stat"><div class="label">Probes</div><div class="value">4</div></div>
+          </div>
+          <div class="mini-chart"></div>
+        `
+      },
+      maintenance: {
+        height: 680,
+        html: `
+          <div class="detail-title">Database Cluster</div>
+          <div class="stat-grid">
+            <div class="stat"><div class="label">Uptime (90D)</div><div class="value" style="color:#818cf8">99.91%</div></div>
+            <div class="stat"><div class="label">Avg Latency</div><div class="value">38ms</div></div>
+            <div class="stat"><div class="label">Incidents</div><div class="value">5</div></div>
+            <div class="stat"><div class="label">Probes</div><div class="value">2</div></div>
+          </div>
+          <div class="maintenance-block">
+            <h4>Maintenance Active</h4>
+            <p><strong>Reason:</strong> Database schema migration v4.2</p>
+            <p><strong>Start:</strong> 2026-04-15 10:00 CST</p>
+            <p><strong>Expected End:</strong> 2026-04-15 18:00 CST</p>
+            <p><strong>Operator:</strong> @devops-team</p>
+            <p style="margin-top:8px;font-size:11px;color:#6b7084">Probe failures during maintenance are excluded from SLA calculation.</p>
+          </div>
+          <div class="mini-chart"></div>
+          <div class="stat-grid" style="margin-top:16px">
+            <div class="stat"><div class="label">Maintenance Windows (90D)</div><div class="value">3</div></div>
+            <div class="stat"><div class="label">Total Downtime</div><div class="value">4h 22m</div></div>
+          </div>
+        `
+      },
+      compact: {
+        height: 420,
+        html: `
+          <div class="detail-title">Static Assets</div>
+          <div class="stat-grid">
+            <div class="stat"><div class="label">Uptime (90D)</div><div class="value" style="color:#059669">99.99%</div></div>
+            <div class="stat"><div class="label">Avg Latency</div><div class="value">12ms</div></div>
+          </div>
+        `
+      }
+    }
+
+    function selectSvc(type) {
+      selectedType = type
+      document.querySelectorAll('.control-row button').forEach(b => b.classList.remove('active'))
+      document.getElementById({ normal: 'btnNormal', maintenance: 'btnMaint', compact: 'btnCompact' }[type]).classList.add('active')
+
+      const d = details[type]
+      detailContent.innerHTML = d.html
+      detailPanel.style.minHeight = d.height + 'px'
+
+      // Simulate grid stretch: calculate how many rows fit
+      const availableHeight = d.height
+      const rows = Math.max(MIN_ROWS, Math.floor((availableHeight - OVERHEAD) / ROW_H))
+      log(`Panel height: ${d.height}px → ${rows} rows (min ${MIN_ROWS})`)
+
+      requestAnimationFrame(() => requestAnimationFrame(() => renderRows(rows)))
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled
+      document.getElementById('btnSound').textContent = soundEnabled ? 'ON' : 'OFF'
+      // Resume AudioContext on user interaction (browser autoplay policy)
+      if (audioCtx.state === 'suspended') audioCtx.resume()
+    }
+
+    // ── Init ──
+    rebuildList(MIN_ROWS)
+    selectSvc('normal')
+    log('Demo ready. Click buttons above to switch service types.')
+  </script>
+</body>
+</html>

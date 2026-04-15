@@ -792,6 +792,56 @@ const allProbes = isMockPage ? genMockProbes() : _initProbes
    Helpers
    ================================================================ */
 const PAGE_SIZE = 8
+
+// ── Trash animation sound (Web Audio API, no external files) ──
+let _audioCtx: AudioContext | null = null
+function getAudioCtx() {
+  if (!_audioCtx) _audioCtx = new AudioContext()
+  return _audioCtx
+}
+function playTrashSound() {
+  try {
+    const ctx = getAudioCtx()
+    if (ctx.state === 'suspended') ctx.resume()
+    const now = ctx.currentTime
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    const filter = ctx.createBiquadFilter()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(800, now)
+    osc.frequency.exponentialRampToValueAtTime(120, now + 0.25)
+    filter.type = 'lowpass'
+    filter.frequency.setValueAtTime(2000, now)
+    filter.frequency.exponentialRampToValueAtTime(200, now + 0.3)
+    gain.gain.setValueAtTime(0.12, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35)
+    osc.connect(filter).connect(gain).connect(ctx.destination)
+    osc.start(now)
+    osc.stop(now + 0.35)
+  } catch (_) {
+    /* audio not available */
+  }
+}
+function playEnterSound() {
+  try {
+    const ctx = getAudioCtx()
+    if (ctx.state === 'suspended') ctx.resume()
+    const now = ctx.currentTime
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(300, now)
+    osc.frequency.exponentialRampToValueAtTime(600, now + 0.12)
+    gain.gain.setValueAtTime(0.06, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15)
+    osc.connect(gain).connect(ctx.destination)
+    osc.start(now)
+    osc.stop(now + 0.15)
+  } catch (_) {
+    /* audio not available */
+  }
+}
+
 const fmtSLA = (v) => `${v.toFixed(2)}%`
 const slaColor = (sla, tgt, t) =>
   sla >= tgt ? t.status.up : sla >= tgt - 0.5 ? t.status.degraded : t.status.down
@@ -1783,7 +1833,12 @@ function OverviewCards({ svcs }) {
 /* ================================================================
    Service Row & Detail Panel (FIXED height bug)
    ================================================================ */
-function ServiceRow({ svc, selected, onSelect }) {
+function ServiceRow({
+  svc,
+  selected,
+  onSelect,
+  animClass,
+}: { svc; selected: boolean; onSelect; animClass?: string }) {
   const { t, i18n, lang } = useApp()
   const c = slaColor(svc.sla, svc.target, t)
   const label = {
@@ -1794,11 +1849,12 @@ function ServiceRow({ svc, selected, onSelect }) {
   }[svc.status]
   const [hov, setHov] = useState(false)
   const dn = lang === 'zh' ? svc.nameZh : svc.name
+  const isExiting = animClass === 'svc-row-exit'
   return (
     <button
       type="button"
-      className="svc-row"
-      onClick={() => onSelect(svc.id)}
+      className={`svc-row${animClass ? ` ${animClass}` : ''}`}
+      onClick={isExiting ? undefined : () => onSelect(svc.id)}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -4560,10 +4616,61 @@ export default function App() {
     void selectedId
     requestAnimationFrame(() => requestAnimationFrame(recalcPageSize))
   }, [selectedId, recalcPageSize])
+
+  // ── Trash animation: track exiting rows ──
+  const prevPageSizeRef = useRef(svcPageSize)
+  const [displayPageSize, setDisplayPageSize] = useState(svcPageSize)
+  const [exitingIds, setExitingIds] = useState<string[]>([])
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  useEffect(() => {
+    const prev = prevPageSizeRef.current
+    prevPageSizeRef.current = svcPageSize
+    if (svcPageSize < prev && svcPageSize >= 8) {
+      // Rows are being removed → trash animation
+      const start = (svcPage - 1) * svcPageSize
+      const exiting = filtered.slice(start + svcPageSize, start + prev).map((s) => s.id)
+      if (exiting.length > 0) {
+        setExitingIds(exiting)
+        playTrashSound()
+        if (exitTimerRef.current) clearTimeout(exitTimerRef.current)
+        exitTimerRef.current = setTimeout(() => {
+          setExitingIds([])
+          setDisplayPageSize(svcPageSize)
+        }, 450)
+      } else {
+        setDisplayPageSize(svcPageSize)
+      }
+    } else if (svcPageSize > prev) {
+      // Rows are being added → enter animation
+      setDisplayPageSize(svcPageSize)
+      playEnterSound()
+    } else {
+      setDisplayPageSize(svcPageSize)
+    }
+  }, [svcPageSize, filtered, svcPage])
+
+  const visibleSize = exitingIds.length > 0 ? displayPageSize : svcPageSize
   const pagedSvcs = useMemo(() => {
-    const start = (svcPage - 1) * svcPageSize
-    return filtered.slice(start, start + svcPageSize)
-  }, [filtered, svcPage, svcPageSize])
+    const start = (svcPage - 1) * visibleSize
+    const main = filtered.slice(start, start + visibleSize)
+    // Append exiting rows so they can animate out
+    if (exitingIds.length > 0) {
+      const extras = filtered.filter(
+        (s) => exitingIds.includes(s.id) && !main.some((m) => m.id === s.id),
+      )
+      return [...main, ...extras]
+    }
+    return main
+  }, [filtered, svcPage, visibleSize, exitingIds])
+  const enteringIds = useMemo(() => {
+    const prev = prevPageSizeRef.current
+    if (svcPageSize > prev && exitingIds.length === 0) {
+      const start = (svcPage - 1) * svcPageSize
+      return filtered.slice(start + prev, start + svcPageSize).map((s) => s.id)
+    }
+    return []
+  }, [svcPageSize, filtered, svcPage, exitingIds])
   const selectedSvc = allSvcs.find((s) => s.id === selectedId) || null
 
   return (
@@ -4588,6 +4695,10 @@ export default function App() {
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes checkPop{0%{transform:scale(0) rotate(-45deg);opacity:0}50%{transform:scale(1.2) rotate(0deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}
         @keyframes savedPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 10px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+        @keyframes rowTrash{0%{opacity:1;transform:translateY(0) scale(1) rotate(0deg)}30%{opacity:.8;transform:translateY(6px) scale(.96) rotate(1deg)}100%{opacity:0;transform:translateY(50px) scale(.7) rotate(4deg);max-height:0;padding-top:0;padding-bottom:0}}
+        @keyframes rowEnter{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+        .svc-row-exit{animation:rowTrash .4s cubic-bezier(.55,.06,.68,.19) both!important;pointer-events:none!important}
+        .svc-row-enter{animation:rowEnter .3s cubic-bezier(.22,1,.36,1) both}
         .settings-row{display:grid;grid-template-columns:280px 1fr;gap:32px;align-items:start}
         @media(max-width:1200px){.main-grid{grid-template-columns:1fr 320px!important}.svc-row{grid-template-columns:minmax(120px,1.2fr) minmax(120px,1.5fr) 76px 80px!important}.hide-tablet{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}}
         @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr 80px 76px!important;gap:8px!important}.filter-bar{flex-wrap:wrap!important}.filter-chips{display:flex!important;width:100%!important;gap:4px!important}.filter-chips button{flex:1!important;min-width:0!important;justify-content:center!important;white-space:nowrap!important;padding:6px 6px!important;font-size:12px!important}.search-box{max-width:none!important;width:100%!important;flex:auto!important}}
@@ -4796,6 +4907,13 @@ export default function App() {
                         svc={s}
                         selected={selectedId === s.id}
                         onSelect={setSelectedId}
+                        animClass={
+                          exitingIds.includes(s.id)
+                            ? 'svc-row-exit'
+                            : enteringIds.includes(s.id)
+                              ? 'svc-row-enter'
+                              : undefined
+                        }
                       />
                     ))}
                     {filtered.length === 0 && (

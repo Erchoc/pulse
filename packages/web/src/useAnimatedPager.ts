@@ -162,9 +162,17 @@ export function useAnimatedPager<T>(options: AnimatedPagerOptions<T>): AnimatedP
   const recalc = useCallback(() => {
     const el = containerRef.current
     if (!el) return
-    const rows = Math.max(minSize, Math.floor((el.offsetHeight - overhead) / rowHeight))
+    // el.offsetHeight = grid-stretched height (= grid row = max of both panels)
+    // observeRef's first child = detail panel's REAL content height (not stretched)
+    let h = el.offsetHeight
+    const obs = observeRef?.current
+    if (obs?.firstElementChild) {
+      const contentH = (obs.firstElementChild as HTMLElement).offsetHeight
+      h = Math.max(h, contentH)
+    }
+    const rows = Math.max(minSize, Math.floor((h - overhead) / rowHeight))
     setPageSize(rows)
-  }, [containerRef, minSize, overhead, rowHeight])
+  }, [containerRef, observeRef, minSize, overhead, rowHeight])
 
   useEffect(() => {
     const list = containerRef.current

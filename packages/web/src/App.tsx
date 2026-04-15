@@ -6,7 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 const msg = {
   en: {
     brand: 'Pulse',
-    tagline: 'SLA Monitoring',
+    tagline: 'Global Probe · Real-time SLA',
     allProbes: 'All probes active',
     overview: 'Overview',
     probes: 'Probes',
@@ -15,11 +15,11 @@ const msg = {
     overallSLA: 'Overall SLA',
     servicesUp: 'Services Up',
     avgLatency: 'Avg Latency',
-    probesSec: 'Probes/sec',
+    probesSec: 'Checks/day',
     breaching: '{n} breaching target',
     degradedDown: '{d} degraded · {x} down',
     p50All: 'p50 across all probes',
-    servicesMixed: '{n} services × mixed intervals',
+    servicesMixed: '{n} services monitored',
     all: 'All',
     operational: 'Operational',
     degraded: 'Degraded',
@@ -43,7 +43,17 @@ const msg = {
     estDowntime: 'Est. Downtime/yr',
     avgLat: 'Avg Latency',
     responseTime: 'Response Time — 72h',
+    details: 'Details',
     availability: 'Availability — 90 Days',
+    incidentHistory: 'Incident History — 90 Days',
+    totalIncidents: 'Total Incidents',
+    avgDuration: 'Avg Duration',
+    longestDown: 'Longest Down',
+    daysClean: 'Days Clean',
+    noIncidents: 'No incidents in the last 90 days',
+    nMore: '+{n} more',
+    dUnit: 'd',
+    loadMore: 'Load more events',
     ago72: '72h ago',
     now: 'now',
     ago90: '90d ago',
@@ -64,7 +74,7 @@ const msg = {
     probeTimeout: 'Timeout',
     probeDesc: 'Description',
     probeMode: 'Probe Mode',
-    nameTooLong: 'Name must be 6 characters or less',
+    nameTooLong: 'Name must be 32 characters or less',
     edit: 'Edit',
     duplicate: 'Duplicate',
     delete: 'Delete',
@@ -115,6 +125,21 @@ const msg = {
     saved: 'Saved!',
     copied: 'Copied!',
     copy: 'Copy',
+    setMaintenance: 'Set Maintenance',
+    endMaintenance: 'End Maintenance',
+    maintenanceReason: 'Reason',
+    maintenanceReasonPlaceholder: 'e.g. Database migration',
+    maintenanceEndTime: 'Estimated End Time',
+    maintenanceEndTimePlaceholder: 'Leave empty for manual end',
+    maintenanceNotify: 'Notify Users',
+    maintenanceOperator: 'Operator',
+    maintenanceStarted: 'Maintenance started',
+    maintenanceEnded: 'Maintenance ended',
+    maintenanceSince: 'Since',
+    maintenanceUntil: 'Until',
+    maintenanceManualEnd: 'Manual end',
+    maintenanceActive: 'In Maintenance',
+    confirmEndMaintenance: 'End maintenance for this service?',
     r30d: '30 Days',
     r90d: '90 Days',
     r180d: '180 Days',
@@ -128,7 +153,7 @@ const msg = {
   },
   zh: {
     brand: 'Pulse',
-    tagline: 'SLA 可用性监控',
+    tagline: '全球探针 · 实时 SLA',
     allProbes: '所有探针正常运行',
     overview: '总览',
     probes: '探针',
@@ -137,11 +162,11 @@ const msg = {
     overallSLA: '整体 SLA',
     servicesUp: '服务状态',
     avgLatency: '平均延迟',
-    probesSec: '探测/秒',
+    probesSec: '检查次数/天',
     breaching: '{n} 个未达标',
     degradedDown: '{d} 个降级 · {x} 个宕机',
     p50All: '全部探针 p50',
-    servicesMixed: '{n} 个服务 × 混合间隔',
+    servicesMixed: '监控 {n} 个服务',
     all: '全部',
     operational: '正常',
     degraded: '降级',
@@ -165,7 +190,17 @@ const msg = {
     estDowntime: '预计年停机',
     avgLat: '平均延迟',
     responseTime: '响应时间 — 近 72 小时',
+    details: '详情',
     availability: '可用性 — 近 90 天',
+    incidentHistory: '事件历史 — 近 90 天',
+    totalIncidents: '总事件数',
+    avgDuration: '平均时长',
+    longestDown: '最长宕机',
+    daysClean: '无故障天数',
+    noIncidents: '近 90 天无事件',
+    nMore: '+{n} 更多',
+    dUnit: '天',
+    loadMore: '加载更多事件',
     ago72: '72小时前',
     now: '现在',
     ago90: '90天前',
@@ -185,7 +220,7 @@ const msg = {
     probeTimeout: '超时',
     probeDesc: '描述',
     probeMode: '探测模式',
-    nameTooLong: '名称不超过 6 个字符',
+    nameTooLong: '名称不超过 32 个字符',
     edit: '编辑',
     duplicate: '复制',
     delete: '删除',
@@ -231,6 +266,21 @@ const msg = {
     saved: '已保存！',
     copied: '已复制！',
     copy: '复制',
+    setMaintenance: '设置维护',
+    endMaintenance: '结束维护',
+    maintenanceReason: '维护原因',
+    maintenanceReasonPlaceholder: '例如：数据库迁移',
+    maintenanceEndTime: '预计结束时间',
+    maintenanceEndTimePlaceholder: '留空则手动结束',
+    maintenanceNotify: '通知用户',
+    maintenanceOperator: '操作人',
+    maintenanceStarted: '维护已开始',
+    maintenanceEnded: '维护已结束',
+    maintenanceSince: '开始于',
+    maintenanceUntil: '预计结束',
+    maintenanceManualEnd: '手动结束',
+    maintenanceActive: '维护中',
+    confirmEndMaintenance: '确定结束该服务的维护状态？',
     r30d: '30 天',
     r90d: '90 天',
     r180d: '180 天',
@@ -306,11 +356,49 @@ const useApp = () => useContext(AppCtx) as AppContextValue
 /* ================================================================
    Mock Data
    ================================================================ */
-const genBar = (n = 90) =>
-  Array.from({ length: n }, () => {
-    const r = Math.random()
-    return r > 0.97 ? 'down' : r > 0.93 ? 'degraded' : 'up'
-  })
+const genBar = (n = 100) => {
+  const today = new Date()
+  const bars: { date: string; status: string; uptime: number }[] = []
+  // Generate non-overlapping incidents
+  const incidents: { start: number; len: number; severity: string }[] = []
+  const numIncidents = 1 + Math.floor(Math.random() * 20) // 1-20
+  const used = new Set<number>()
+  for (let k = 0; k < numIncidents; k++) {
+    let start: number
+    let attempts = 0
+    do {
+      start = 2 + Math.floor(Math.random() * (n - 4))
+      attempts++
+    } while (used.has(start) && attempts < 50)
+    if (attempts >= 50) continue
+    const len = 1 + Math.floor(Math.random() * 2) // 1-2 days
+    const severity = Math.random() > 0.4 ? 'degraded' : 'down'
+    for (let j = start; j < start + len && j < n; j++) used.add(j)
+    incidents.push({ start, len, severity })
+  }
+  for (let i = 0; i < n; i++) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - (n - 1 - i))
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    let status = 'up'
+    let uptime = 99.9 + Math.random() * 0.1
+    for (const inc of incidents) {
+      if (i >= inc.start && i < inc.start + inc.len) {
+        status = inc.severity
+        uptime = status === 'down' ? 80 + Math.random() * 15 : 95 + Math.random() * 4
+        break
+      }
+      // degraded recovery day after incident
+      if (i === inc.start + inc.len) {
+        status = 'degraded'
+        uptime = 97 + Math.random() * 2
+        break
+      }
+    }
+    bars.push({ date: dateStr, status, uptime: Math.round(uptime * 100) / 100 })
+  }
+  return bars
+}
 const genLd = (n = 72) => {
   let b = 45
   return Array.from({ length: n }, () => {
@@ -320,7 +408,7 @@ const genLd = (n = 72) => {
   })
 }
 
-const initProbes = [
+const _initProbes = [
   {
     id: 'p1',
     name: 'prod-api-health',
@@ -400,7 +488,7 @@ const initProbes = [
   },
 ]
 
-const initSvcs = [
+const _initSvcs = [
   {
     id: 'api-gw',
     name: 'API Gateway',
@@ -414,6 +502,12 @@ const initSvcs = [
     status: 'up',
     bar: genBar(),
     ld: genLd(),
+    maintenance: false,
+    maintenanceReason: '',
+    maintenanceStartAt: null as string | null,
+    maintenanceEndAt: null as string | null,
+    maintenanceOperator: '',
+    maintenanceNotifyUsers: [] as string[],
   },
   {
     id: 'ws-broker',
@@ -428,6 +522,12 @@ const initSvcs = [
     status: 'up',
     bar: genBar(),
     ld: genLd(),
+    maintenance: false,
+    maintenanceReason: '',
+    maintenanceStartAt: null as string | null,
+    maintenanceEndAt: null as string | null,
+    maintenanceOperator: '',
+    maintenanceNotifyUsers: [] as string[],
   },
   {
     id: 'auth',
@@ -442,6 +542,12 @@ const initSvcs = [
     status: 'up',
     bar: genBar(),
     ld: genLd(),
+    maintenance: false,
+    maintenanceReason: '',
+    maintenanceStartAt: null as string | null,
+    maintenanceEndAt: null as string | null,
+    maintenanceOperator: '',
+    maintenanceNotifyUsers: [] as string[],
   },
   {
     id: 'order',
@@ -456,6 +562,12 @@ const initSvcs = [
     status: 'degraded',
     bar: genBar(),
     ld: genLd(),
+    maintenance: false,
+    maintenanceReason: '',
+    maintenanceStartAt: null as string | null,
+    maintenanceEndAt: null as string | null,
+    maintenanceOperator: '',
+    maintenanceNotifyUsers: [] as string[],
   },
   {
     id: 'pay',
@@ -470,6 +582,12 @@ const initSvcs = [
     status: 'up',
     bar: genBar(),
     ld: genLd(),
+    maintenance: false,
+    maintenanceReason: '',
+    maintenanceStartAt: null as string | null,
+    maintenanceEndAt: null as string | null,
+    maintenanceOperator: '',
+    maintenanceNotifyUsers: [] as string[],
   },
   {
     id: 'search',
@@ -481,9 +599,15 @@ const initSvcs = [
     sla: 98.72,
     target: 99.5,
     latency: 156,
-    status: 'down',
+    status: 'maintenance',
     bar: genBar(),
     ld: genLd(),
+    maintenance: true,
+    maintenanceReason: 'Elasticsearch rolling upgrade',
+    maintenanceStartAt: new Date(Date.now() - 2 * 3600_000).toISOString(),
+    maintenanceEndAt: new Date(Date.now() + 4 * 3600_000).toISOString(),
+    maintenanceOperator: 'user-1',
+    maintenanceNotifyUsers: ['user-2'],
   },
   {
     id: 'cdn',
@@ -498,6 +622,12 @@ const initSvcs = [
     status: 'up',
     bar: genBar(),
     ld: genLd(),
+    maintenance: false,
+    maintenanceReason: '',
+    maintenanceStartAt: null as string | null,
+    maintenanceEndAt: null as string | null,
+    maintenanceOperator: '',
+    maintenanceNotifyUsers: [] as string[],
   },
   {
     id: 'db',
@@ -512,12 +642,150 @@ const initSvcs = [
     status: 'up',
     bar: genBar(),
     ld: genLd(),
+    maintenance: false,
+    maintenanceReason: '',
+    maintenanceStartAt: null as string | null,
+    maintenanceEndAt: null as string | null,
+    maintenanceOperator: '',
+    maintenanceNotifyUsers: [] as string[],
   },
 ]
+
+const mockUsers = [
+  { id: 'user-1', name: 'Admin', email: 'admin@example.com' },
+  { id: 'user-2', name: '张三', email: 'zhangsan@example.com' },
+  { id: 'user-3', name: '李四', email: 'lisi@example.com' },
+]
+
+/* ================================================================
+   Mock Page Data (URL param mock_page=true)
+   ================================================================ */
+const isMockPage = new URLSearchParams(window.location.search).has('mock_page')
+
+const svcNames = [
+  ['User Service', '用户服务'],
+  ['Notification Hub', '通知中心'],
+  ['File Storage', '文件存储'],
+  ['Message Queue', '消息队列'],
+  ['Cache Layer', '缓存层'],
+  ['Log Collector', '日志采集'],
+  ['Config Center', '配置中心'],
+  ['Gateway Proxy', '网关代理'],
+  ['Scheduler', '调度器'],
+  ['Analytics Engine', '分析引擎'],
+  ['Billing Service', '计费服务'],
+  ['Email Sender', '邮件发送'],
+  ['SMS Gateway', 'SMS 网关'],
+  ['Image Processor', '图片处理'],
+  ['Video Transcoder', '视频转码'],
+  ['Recommendation', '推荐引擎'],
+  ['Geo Service', '地理服务'],
+  ['Rate Limiter', '限流器'],
+  ['Session Store', 'Session 存储'],
+  ['Audit Logger', '审计日志'],
+  ['Health Monitor', '健康监控'],
+  ['Data Pipeline', '数据管道'],
+  ['Feature Flags', '特性开关'],
+  ['A/B Testing', 'A/B 测试'],
+  ['OAuth Provider', 'OAuth 提供方'],
+  ['Webhook Relay', 'Webhook 中继'],
+  ['PDF Generator', 'PDF 生成'],
+  ['Export Service', '导出服务'],
+  ['Import Service', '导入服务'],
+  ['Sync Worker', '同步 Worker'],
+]
+const probeNames = [
+  'api-health',
+  'db-check',
+  'cache-ping',
+  'queue-depth',
+  'cdn-edge',
+  'dns-resolve',
+  'ssl-cert',
+  'ws-echo',
+  'grpc-health',
+  'smtp-check',
+  'redis-ping',
+  'es-cluster',
+  'mongo-rs',
+  'kafka-lag',
+  'etcd-health',
+  'vault-seal',
+  'consul-leader',
+  'k8s-api',
+  'nginx-status',
+  'envoy-admin',
+  'prometheus-up',
+  'grafana-health',
+  'jaeger-query',
+  'minio-health',
+  'rabbitmq-mgmt',
+  'clickhouse-ping',
+  'influx-health',
+  'nats-varz',
+]
+const types = ['http', 'websocket', 'tcp']
+const intervals = ['10s', '30s', '60s', '300s']
+const statuses = ['up', 'up', 'up', 'up', 'up', 'up', 'degraded', 'down']
+
+function genMockSvcs(n = 120) {
+  return Array.from({ length: n }, (_, i) => {
+    const [name, nameZh] = svcNames[i % svcNames.length]
+    const suffix = i >= svcNames.length ? ` ${Math.floor(i / svcNames.length) + 1}` : ''
+    const st = statuses[Math.floor(Math.random() * statuses.length)]
+    const sla =
+      st === 'down'
+        ? 95 + Math.random() * 4
+        : st === 'degraded'
+          ? 98 + Math.random() * 1.5
+          : 99.5 + Math.random() * 0.49
+    return {
+      id: `svc-${i}`,
+      name: `${name}${suffix}`,
+      nameZh: `${nameZh}${suffix}`,
+      group: ['Core', 'Business', 'Infra', 'Edge'][i % 4],
+      type: types[i % types.length],
+      interval: intervals[i % intervals.length],
+      sla: Math.round(sla * 100) / 100,
+      target: 99.9,
+      latency: Math.round(5 + Math.random() * 200),
+      status: st,
+      bar: genBar(),
+      ld: genLd(),
+      maintenance: false,
+      maintenanceReason: '',
+      maintenanceStartAt: null as string | null,
+      maintenanceEndAt: null as string | null,
+      maintenanceOperator: '',
+      maintenanceNotifyUsers: [] as string[],
+    }
+  })
+}
+
+function genMockProbes(n = 110) {
+  return Array.from({ length: n }, (_, i) => {
+    const isClient = i % 5 === 0
+    return {
+      id: `mp-${i}`,
+      name: `${probeNames[i % probeNames.length]}${i >= probeNames.length ? `-${Math.floor(i / probeNames.length)}` : ''}`,
+      type: isClient ? 'push' : types[i % types.length],
+      url: isClient ? '—' : `https://svc-${i}.example.com/health`,
+      interval: intervals[i % intervals.length],
+      timeout: ['2s', '5s', '10s'][i % 3],
+      desc: isClient ? 'push' : types[i % types.length],
+      mode: isClient ? 'client' : 'server',
+      status: statuses[Math.floor(Math.random() * statuses.length)],
+    }
+  })
+}
+
+const allSvcs = isMockPage ? genMockSvcs() : _initSvcs
+const allProbes = isMockPage ? genMockProbes() : _initProbes
 
 /* ================================================================
    Helpers
    ================================================================ */
+const PAGE_SIZE = 10
 const fmtSLA = (v) => `${v.toFixed(2)}%`
 const slaColor = (sla, tgt, t) =>
   sla >= tgt ? t.status.up : sla >= tgt - 0.5 ? t.status.degraded : t.status.down
@@ -527,6 +795,78 @@ const genApiKey = () =>
     { length: 32 },
     () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)],
   ).join('')}`
+
+/* ================================================================
+   Pagination
+   ================================================================ */
+function Pagination({
+  total,
+  page,
+  pageSize,
+  onPageChange,
+}: { total: number; page: number; pageSize: number; onPageChange: (p: number) => void }) {
+  const { t, i18n } = useApp()
+  const totalPages = Math.ceil(total / pageSize)
+  if (totalPages <= 1) return null
+  const from = (page - 1) * pageSize + 1
+  const to = Math.min(page * pageSize, total)
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+        padding: '12px 0',
+        fontSize: 12,
+        color: t.text.muted,
+      }}
+    >
+      <button
+        type="button"
+        disabled={page <= 1}
+        onClick={() => onPageChange(page - 1)}
+        style={{
+          padding: '4px 10px',
+          borderRadius: 6,
+          border: `1px solid ${t.border}`,
+          backgroundColor: 'transparent',
+          color: page <= 1 ? t.text.muted : t.text.primary,
+          cursor: page <= 1 ? 'default' : 'pointer',
+          opacity: page <= 1 ? 0.4 : 1,
+          fontSize: 12,
+          fontFamily: F.sans,
+        }}
+      >
+        {i18n.prev}
+      </button>
+      <span style={{ fontFamily: F.mono, fontFeatureSettings: "'tnum'" }}>
+        {i18n.pageInfo
+          .replace('{from}', String(from))
+          .replace('{to}', String(to))
+          .replace('{total}', String(total))}
+      </span>
+      <button
+        type="button"
+        disabled={page >= totalPages}
+        onClick={() => onPageChange(page + 1)}
+        style={{
+          padding: '4px 10px',
+          borderRadius: 6,
+          border: `1px solid ${t.border}`,
+          backgroundColor: 'transparent',
+          color: page >= totalPages ? t.text.muted : t.text.primary,
+          cursor: page >= totalPages ? 'default' : 'pointer',
+          opacity: page >= totalPages ? 0.4 : 1,
+          fontSize: 12,
+          fontFamily: F.sans,
+        }}
+      >
+        {i18n.next}
+      </button>
+    </div>
+  )
+}
 
 /* ================================================================
    Shared UI atoms
@@ -678,11 +1018,13 @@ function Input({
   value,
   onChange,
   placeholder,
+  maxLength,
   style: sx = {},
 }: {
   value: string
   onChange: (v: string) => void
   placeholder?: string
+  maxLength?: number
   style?: React.CSSProperties
 }) {
   const { t } = useApp()
@@ -690,6 +1032,7 @@ function Input({
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      maxLength={maxLength}
       placeholder={placeholder}
       style={{
         width: '100%',
@@ -717,7 +1060,9 @@ function Input({
 function Select({ value, onChange, options }) {
   const { t } = useApp()
   const [open, setOpen] = useState(false)
+  const [dropUp, setDropUp] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
   const selected = options.find((o) => o.value === value)
   useEffect(() => {
     if (!open) return
@@ -727,11 +1072,20 @@ function Select({ value, onChange, options }) {
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [open])
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - rect.bottom
+      setDropUp(spaceBelow < 200)
+    }
+    setOpen(!open)
+  }
   return (
     <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={handleOpen}
         style={{
           padding: '8px 32px 8px 12px',
           backgroundColor: t.bg.input,
@@ -766,7 +1120,7 @@ function Select({ value, onChange, options }) {
         <div
           style={{
             position: 'absolute',
-            top: 'calc(100% + 4px)',
+            ...(dropUp ? { bottom: 'calc(100% + 4px)' } : { top: 'calc(100% + 4px)' }),
             left: 0,
             minWidth: '100%',
             backgroundColor: t.bg.card,
@@ -912,27 +1266,23 @@ function SLAGauge({ value, target, size = 96 }) {
    Uptime Bar
    ================================================================ */
 function UptimeBar({ data, barHeight = 28 }) {
-  const { t, i18n, lang } = useApp()
+  const { t } = useApp()
   const [hi, setHi] = useState(null)
-  const label = (s) =>
-    ({
-      up: i18n.operational,
-      degraded: i18n.degraded,
-      down: i18n.down,
-      maintenance: i18n.maintenance,
-    })[s]
   return (
     <div
       style={{
         display: 'flex',
         gap: 1.5,
-        alignItems: 'flex-end',
+        alignItems: 'stretch',
         height: barHeight,
         width: '100%',
+        minWidth: 0,
+        overflow: 'hidden',
         position: 'relative',
       }}
     >
-      {data.map((s, i) => {
+      {data.map((d, i) => {
+        const s = typeof d === 'string' ? d : d.status
         const c = t.status[s] || t.status.up
         const h = hi === i
         return (
@@ -943,14 +1293,12 @@ function UptimeBar({ data, barHeight = 28 }) {
             onMouseLeave={() => setHi(null)}
             style={{
               flex: 1,
-              height: h ? barHeight : s === 'up' ? barHeight * 0.7 : barHeight,
               backgroundColor: c,
               borderRadius: 2,
-              opacity: h ? 1 : 0.7,
-              transition: 'all .15s ease',
+              opacity: h ? 1 : 0.75,
+              transition: 'opacity .12s',
               cursor: 'pointer',
-              minWidth: 2,
-              boxShadow: h ? `0 0 8px ${c}` : 'none',
+              minWidth: 0,
             }}
           />
         )
@@ -959,24 +1307,23 @@ function UptimeBar({ data, barHeight = 28 }) {
         <div
           style={{
             position: 'absolute',
-            top: -34,
+            top: -30,
             left: `${(hi / data.length) * 100}%`,
             transform: 'translateX(-50%)',
-            padding: '3px 10px',
-            borderRadius: 6,
+            padding: '2px 8px',
+            borderRadius: 4,
             fontSize: 11,
             fontFamily: F.mono,
             whiteSpace: 'nowrap',
             backgroundColor: t.bg.elevated,
             color: t.text.primary,
             border: `1px solid ${t.border}`,
-            boxShadow: '0 4px 12px rgba(0,0,0,.3)',
+            boxShadow: '0 2px 8px rgba(0,0,0,.2)',
             pointerEvents: 'none',
             zIndex: 10,
           }}
         >
-          {lang === 'zh' ? `第${data.length - hi}天` : `Day ${data.length - hi}`} ·{' '}
-          {label(data[hi])}
+          {typeof data[hi] === 'string' ? '' : data[hi].date}
         </div>
       )}
     </div>
@@ -986,45 +1333,197 @@ function UptimeBar({ data, barHeight = 28 }) {
 /* ================================================================
    Mini Chart
    ================================================================ */
-function MiniChart({ data, width = 200, chartHeight = 48, color }) {
+function MiniChart({
+  data,
+  width = 200,
+  chartHeight = 48,
+  color,
+  showAxis = false,
+  interactive = false,
+}) {
   const { t } = useApp()
   const c = color || t.status.up
-  const max = Math.max(...data.map((d) => d.p95))
-  const min = Math.min(...data.map((d) => d.v))
-  const range = max - min || 1
-  const toY = (v) => chartHeight - 4 - ((v - min) / range) * (chartHeight - 8)
-  const toX = (i) => (i / (data.length - 1)) * width
+  const maxVal = Math.max(...data.map((d) => d.p95))
+  const minVal = Math.min(...data.map((d) => d.v))
+  const range = maxVal - minVal || 1
+  const pad = 4
+  const leftPad = showAxis ? 32 : 0
+  const plotW = width - leftPad
+  const toY = (v) => chartHeight - pad - ((v - minVal) / range) * (chartHeight - pad * 2)
+  const toX = (i) => leftPad + (i / (data.length - 1)) * plotW
   const line = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(d.v)}`).join(' ')
-  const p95 = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(d.p95)}`).join(' ')
-  const area = `${line} L${width},${chartHeight} L0,${chartHeight} Z`
-  const gid = `g-${c.replace('#', '')}`
+  const p95Line = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i)},${toY(d.p95)}`).join(' ')
+  const area = `${line} L${toX(data.length - 1)},${chartHeight} L${leftPad},${chartHeight} Z`
+  const gid = `g-${c.replace('#', '')}-${showAxis ? 'a' : 'b'}`
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!interactive || !containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const xPct = (e.clientX - rect.left) / rect.width
+      const idx = Math.round(xPct * (data.length - 1))
+      setHoverIdx(Math.max(0, Math.min(data.length - 1, idx)))
+    },
+    [interactive, data.length],
+  )
+
+  const hd = hoverIdx !== null ? data[hoverIdx] : null
+  const hoursAgo = hoverIdx !== null ? data.length - 1 - hoverIdx : 0
+
   return (
-    <svg viewBox={`0 0 ${width} ${chartHeight}`} style={{ width: '100%', height: chartHeight }}>
-      <title>Latency Chart</title>
-      <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={c} stopOpacity=".15" />
-          <stop offset="100%" stopColor={c} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill={`url(#${gid})`} />
-      <path d={p95} fill="none" stroke={c} strokeWidth="1" strokeDasharray="3,3" opacity=".3" />
-      <path
-        d={line}
-        fill="none"
-        stroke={c}
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      <circle
-        cx={toX(data.length - 1)}
-        cy={toY(data[data.length - 1].v)}
-        r="2.5"
-        fill={c}
-        style={{ filter: `drop-shadow(0 0 3px ${c})` }}
-      />
-    </svg>
+    <div
+      ref={containerRef}
+      style={{ position: 'relative' }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setHoverIdx(null)}
+    >
+      <svg
+        viewBox={`0 0 ${width} ${chartHeight}`}
+        preserveAspectRatio="none"
+        style={{ width: '100%', height: chartHeight, display: 'block' }}
+      >
+        <title>Latency Chart</title>
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={c} stopOpacity=".15" />
+            <stop offset="100%" stopColor={c} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {showAxis && (
+          <>
+            <text
+              x={leftPad - 4}
+              y={toY(maxVal) + 3}
+              textAnchor="end"
+              fontSize="8"
+              fill={t.text.muted}
+              fontFamily={F.mono}
+            >
+              {maxVal}ms
+            </text>
+            <text
+              x={leftPad - 4}
+              y={toY(minVal) + 3}
+              textAnchor="end"
+              fontSize="8"
+              fill={t.text.muted}
+              fontFamily={F.mono}
+            >
+              {minVal}ms
+            </text>
+            <line
+              x1={leftPad}
+              y1={toY(maxVal)}
+              x2={width}
+              y2={toY(maxVal)}
+              stroke={t.border}
+              strokeWidth=".5"
+              strokeDasharray="2,2"
+            />
+            <line
+              x1={leftPad}
+              y1={toY(minVal)}
+              x2={width}
+              y2={toY(minVal)}
+              stroke={t.border}
+              strokeWidth=".5"
+              strokeDasharray="2,2"
+            />
+          </>
+        )}
+        <path d={area} fill={`url(#${gid})`} />
+        <path
+          d={p95Line}
+          fill="none"
+          stroke={c}
+          strokeWidth="1"
+          strokeDasharray="3,3"
+          opacity=".3"
+        />
+        <path
+          d={line}
+          fill="none"
+          stroke={c}
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        {interactive && hoverIdx !== null && (
+          <>
+            <line
+              x1={toX(hoverIdx)}
+              y1={0}
+              x2={toX(hoverIdx)}
+              y2={chartHeight}
+              stroke={t.text.muted}
+              strokeWidth=".5"
+              strokeDasharray="3,3"
+            />
+            <circle
+              cx={toX(hoverIdx)}
+              cy={toY(data[hoverIdx].v)}
+              r="3.5"
+              fill={c}
+              stroke={t.bg.card}
+              strokeWidth="1.5"
+            />
+            <circle
+              cx={toX(hoverIdx)}
+              cy={toY(data[hoverIdx].p95)}
+              r="2.5"
+              fill="none"
+              stroke={c}
+              strokeWidth="1"
+              opacity=".5"
+            />
+          </>
+        )}
+        {hoverIdx === null && (
+          <circle
+            cx={toX(data.length - 1)}
+            cy={toY(data[data.length - 1].v)}
+            r="2.5"
+            fill={c}
+            style={{ filter: `drop-shadow(0 0 3px ${c})` }}
+          />
+        )}
+      </svg>
+      {interactive && hd && hoverIdx !== null && (
+        <div
+          style={{
+            position: 'absolute',
+            top: -4,
+            left: `${(hoverIdx / (data.length - 1)) * 100}%`,
+            transform: `translateX(${hoverIdx > data.length * 0.7 ? '-100%' : '0'})`,
+            backgroundColor: t.bg.card,
+            border: `1px solid ${t.border}`,
+            borderRadius: 6,
+            padding: '6px 10px',
+            fontSize: 11,
+            fontFamily: F.mono,
+            color: t.text.primary,
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 2px 8px rgba(0,0,0,.15)',
+            zIndex: 10,
+          }}
+        >
+          <div style={{ fontSize: 10, color: t.text.muted, marginBottom: 3 }}>
+            {hoursAgo === 0 ? 'now' : `${hoursAgo}h ago`}
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <span>
+              <span style={{ color: c }}>p50</span> {hd.v}ms
+            </span>
+            <span style={{ opacity: 0.6 }}>
+              <span style={{ color: c }}>p95</span> {hd.p95}ms
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1143,7 +1642,7 @@ function Toast({ message, visible }) {
    ================================================================ */
 function OverviewCards() {
   const { t, i18n } = useApp()
-  const S = initSvcs
+  const S = allSvcs
   const total = S.length
   const up = S.filter((s) => s.status === 'up').length
   const deg = S.filter((s) => s.status === 'degraded').length
@@ -1163,7 +1662,7 @@ function OverviewCards() {
       label: i18n.servicesUp,
       value: `${up}/${total}`,
       sub: i18n.degradedDown.replace('{d}', String(deg)).replace('{x}', String(dn)),
-      color: dn > 0 ? t.status.down : t.status.up,
+      color: up === total ? t.status.up : t.text.primary,
       icon: '△',
     },
     {
@@ -1175,7 +1674,12 @@ function OverviewCards() {
     },
     {
       label: i18n.probesSec,
-      value: '126',
+      value: String(
+        S.reduce((sum, s) => {
+          const sec = Number.parseInt(s.interval) || 30
+          return sum + Math.floor(86400 / sec)
+        }, 0),
+      ),
       sub: i18n.servicesMixed.replace('{n}', String(total)),
       color: t.accent,
       icon: '⬡',
@@ -1278,7 +1782,7 @@ function ServiceRow({ svc, selected, onSelect }) {
       onMouseLeave={() => setHov(false)}
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(140px,1.2fr) minmax(160px,2fr) 80px 70px 76px',
+        gridTemplateColumns: 'minmax(140px,1.2fr) minmax(160px,2fr) 76px 70px 80px',
         alignItems: 'center',
         gap: 14,
         padding: '12px 20px',
@@ -1319,6 +1823,33 @@ function ServiceRow({ svc, selected, onSelect }) {
       <div className="hide-mobile" style={{ width: '100%' }}>
         <UptimeBar data={svc.bar} barHeight={20} />
       </div>
+      <div style={{ textAlign: 'center' }}>
+        <span
+          style={{
+            display: 'inline-block',
+            padding: '3px 10px',
+            borderRadius: 6,
+            fontSize: 11,
+            fontWeight: 600,
+            color: t.status[svc.status],
+            backgroundColor: `${t.status[svc.status]}14`,
+          }}
+        >
+          {label}
+        </span>
+      </div>
+      <div
+        className="hide-mobile"
+        style={{
+          fontFamily: F.mono,
+          fontSize: 12,
+          color: svc.latency > 100 ? t.status.degraded : t.text.secondary,
+          textAlign: 'center',
+          fontFeatureSettings: "'tnum'",
+        }}
+      >
+        {svc.latency}ms
+      </div>
       <div
         style={{
           fontFamily: F.mono,
@@ -1336,39 +1867,15 @@ function ServiceRow({ svc, selected, onSelect }) {
           </span>
         )}
       </div>
-      <div
-        className="hide-mobile"
-        style={{
-          fontFamily: F.mono,
-          fontSize: 12,
-          color: svc.latency > 100 ? t.status.degraded : t.text.secondary,
-          textAlign: 'right',
-          fontFeatureSettings: "'tnum'",
-        }}
-      >
-        {svc.latency}ms
-      </div>
-      <div style={{ textAlign: 'right' }}>
-        <span
-          style={{
-            display: 'inline-block',
-            padding: '3px 10px',
-            borderRadius: 6,
-            fontSize: 11,
-            fontWeight: 600,
-            color: t.status[svc.status],
-            backgroundColor: `${t.status[svc.status]}14`,
-          }}
-        >
-          {label}
-        </span>
-      </div>
     </button>
   )
 }
 
-function DetailPanel({ svc }) {
+function DetailPanel({ svc, totalSvcs = 0 }) {
   const { t, i18n, lang } = useApp()
+  const [latencyOpen, setLatencyOpen] = useState(false)
+  const [availOpen, setAvailOpen] = useState(false)
+  const [incidentOpen, setIncidentOpen] = useState(false)
   if (!svc)
     return (
       <div
@@ -1388,7 +1895,15 @@ function DetailPanel({ svc }) {
       </div>
     )
   const c = slaColor(svc.sla, svc.target, t)
-  const downMin = (((100 - svc.sla) / 100) * 365 * 24 * 60).toFixed(0)
+  const downTotalMin = ((100 - svc.sla) / 100) * 365 * 24 * 60
+  const fmtDown = (m: number, isZh: boolean) => {
+    if (m < 60) return `${Math.round(m)}${isZh ? '分' : 'min'}`
+    const h = m / 60
+    if (h < 24) return `${h.toFixed(1)}${isZh ? '小时' : 'h'}`
+    const d = h / 24
+    return `${d.toFixed(1)}${isZh ? '天' : 'd'}`
+  }
+  const downStr = fmtDown(downTotalMin, lang === 'zh')
   const sl = {
     up: i18n.operational,
     degraded: i18n.degraded,
@@ -1441,8 +1956,8 @@ function DetailPanel({ svc }) {
           { l: i18n.uptime90, v: fmtSLA(svc.sla), cl: c },
           {
             l: i18n.estDowntime,
-            v: `${downMin} ${i18n.min}`,
-            cl: Number.parseInt(downMin) > 60 ? t.status.down : t.text.primary,
+            v: downStr,
+            cl: downTotalMin > 60 ? t.status.down : t.text.primary,
           },
           {
             l: i18n.avgLat,
@@ -1489,20 +2004,68 @@ function DetailPanel({ svc }) {
             marginBottom: 10,
             textTransform: 'uppercase',
             letterSpacing: '.04em',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
           }}
         >
           {i18n.responseTime}
+          <button
+            type="button"
+            onClick={() => setLatencyOpen(true)}
+            style={{
+              background: 'none',
+              border: `1px solid ${t.border}`,
+              borderRadius: 6,
+              padding: '2px 8px',
+              fontSize: 10,
+              color: t.text.secondary,
+              cursor: 'pointer',
+              fontFamily: F.sans,
+              textTransform: 'none',
+              letterSpacing: 0,
+            }}
+          >
+            {i18n.details}
+          </button>
         </div>
-        <div style={{ backgroundColor: t.bg.input, borderRadius: R.sm, padding: '16px 12px 8px' }}>
-          <MiniChart data={svc.ld} chartHeight={72} color={c} />
+        <div
+          style={{
+            backgroundColor: t.bg.input,
+            borderRadius: R.sm,
+            position: 'relative',
+            overflow: 'hidden',
+            padding: '6px 0 0',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: 4,
+              left: 8,
+              fontSize: 9,
+              fontFamily: F.mono,
+              color: t.text.muted,
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
+          >
+            {Math.max(...svc.ld.map((d) => d.p95))}ms
+          </div>
+          <div style={{ marginBottom: -6 }}>
+            <MiniChart data={svc.ld} chartHeight={80} color={c} />
+          </div>
           <div
             style={{
               display: 'flex',
               justifyContent: 'space-between',
-              marginTop: 6,
+              alignItems: 'center',
+              padding: '0 8px 6px',
               fontSize: 10,
               color: t.text.muted,
               fontFamily: F.mono,
+              position: 'relative',
+              zIndex: 1,
             }}
           >
             <span>{i18n.ago72}</span>
@@ -1536,7 +2099,7 @@ function DetailPanel({ svc }) {
           </div>
         </div>
       </div>
-      <div>
+      <div style={{ marginBottom: 24 }}>
         <div
           style={{
             fontSize: 11,
@@ -1545,9 +2108,30 @@ function DetailPanel({ svc }) {
             marginBottom: 10,
             textTransform: 'uppercase',
             letterSpacing: '.04em',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
           }}
         >
           {i18n.availability}
+          <button
+            type="button"
+            onClick={() => setAvailOpen(true)}
+            style={{
+              background: 'none',
+              border: `1px solid ${t.border}`,
+              borderRadius: 6,
+              padding: '2px 8px',
+              fontSize: 10,
+              color: t.text.secondary,
+              cursor: 'pointer',
+              fontFamily: F.sans,
+              textTransform: 'none',
+              letterSpacing: 0,
+            }}
+          >
+            {i18n.details}
+          </button>
         </div>
         <div
           style={{
@@ -1573,6 +2157,593 @@ function DetailPanel({ svc }) {
           </div>
         </div>
       </div>
+      {totalSvcs > PAGE_SIZE && (
+        <div>
+          <div
+            style={{
+              fontSize: 11,
+              color: t.text.muted,
+              fontWeight: 500,
+              marginBottom: 10,
+              textTransform: 'uppercase',
+              letterSpacing: '.04em',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            {i18n.incidentHistory}
+            <button
+              type="button"
+              onClick={() => setIncidentOpen(true)}
+              style={{
+                background: 'none',
+                border: `1px solid ${t.border}`,
+                borderRadius: 6,
+                padding: '2px 8px',
+                fontSize: 10,
+                color: t.text.secondary,
+                cursor: 'pointer',
+                fontFamily: F.sans,
+                textTransform: 'none',
+                letterSpacing: 0,
+              }}
+            >
+              {i18n.details}
+            </button>
+          </div>
+          <IncidentTimeline data={svc.bar} maxItems={3} />
+        </div>
+      )}
+      <Modal
+        open={latencyOpen}
+        onClose={() => setLatencyOpen(false)}
+        title={`${dn} — ${i18n.responseTime}`}
+        width={640}
+      >
+        <LatencyDetailModal data={svc.ld} color={c} />
+      </Modal>
+      <Modal
+        open={availOpen}
+        onClose={() => setAvailOpen(false)}
+        title={`${dn} — ${i18n.availability}`}
+        width={640}
+      >
+        <AvailabilityDetailModal data={svc.bar} sla={svc.sla} target={svc.target} />
+      </Modal>
+      <Modal
+        open={incidentOpen}
+        onClose={() => setIncidentOpen(false)}
+        title={`${dn} — ${i18n.incidentHistory}`}
+        width={640}
+      >
+        <IncidentDetailModal data={svc.bar} />
+      </Modal>
+    </div>
+  )
+}
+
+function LatencyDetailModal({ data, color }) {
+  const { t, i18n } = useApp()
+  const vals = data.map((d) => d.v)
+  const p95s = data.map((d) => d.p95)
+  const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
+  const minV = Math.min(...vals)
+  const maxV = Math.max(...vals)
+  const avgP95 = Math.round(p95s.reduce((a, b) => a + b, 0) / p95s.length)
+  const current = vals[vals.length - 1]
+  const stats = [
+    { label: 'Current', value: `${current}ms` },
+    { label: 'Avg (p50)', value: `${avg}ms` },
+    { label: 'Min', value: `${minV}ms` },
+    { label: 'Max', value: `${maxV}ms` },
+    { label: 'Avg (p95)', value: `${avgP95}ms` },
+  ]
+  return (
+    <div>
+      <div
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 20 }}
+      >
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            style={{
+              backgroundColor: t.bg.input,
+              borderRadius: R.sm,
+              padding: '10px 12px',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                color: t.text.muted,
+                marginBottom: 4,
+                textTransform: 'uppercase',
+                letterSpacing: '.03em',
+                minHeight: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {s.label}
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                fontFamily: F.mono,
+                color: t.text.primary,
+                fontFeatureSettings: "'tnum'",
+              }}
+            >
+              {s.value}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ backgroundColor: t.bg.input, borderRadius: R.sm, padding: '16px 8px 8px' }}>
+        <MiniChart data={data} chartHeight={120} color={color} showAxis interactive width={560} />
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginTop: 6,
+            fontSize: 10,
+            color: t.text.muted,
+            fontFamily: F.mono,
+            padding: '0 4px',
+          }}
+        >
+          <span>{i18n.ago72}</span>
+          <span style={{ display: 'flex', gap: 10 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span
+                style={{
+                  width: 12,
+                  height: 1.5,
+                  backgroundColor: color,
+                  display: 'inline-block',
+                  borderRadius: 1,
+                }}
+              />{' '}
+              p50
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span
+                style={{
+                  width: 12,
+                  height: 1,
+                  opacity: 0.3,
+                  display: 'inline-block',
+                  borderTop: `1px dashed ${color}`,
+                }}
+              />{' '}
+              p95
+            </span>
+          </span>
+          <span>{i18n.now}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function IncidentTimeline({ data, maxItems = 4 }) {
+  const { t, i18n } = useApp()
+  // Extract incidents: consecutive non-up days
+  const incidents: { start: number; end: number; severity: string; date: string }[] = []
+  let cur: { start: number; severity: string; date: string } | null = null
+  for (let i = 0; i < data.length; i++) {
+    const s = typeof data[i] === 'string' ? data[i] : data[i].status
+    if (s !== 'up') {
+      if (!cur) cur = { start: i, severity: s, date: data[i].date || `${i18n.day} ${i + 1}` }
+      if (s === 'down') cur.severity = 'down'
+    } else if (cur) {
+      incidents.push({ ...cur, end: i - 1, date: cur.date })
+      cur = null
+    }
+  }
+  if (cur) incidents.push({ ...cur, end: data.length - 1, date: cur.date })
+  const upDays = data.filter((d) => (typeof d === 'string' ? d : d.status) === 'up').length
+  const sevLabel = { down: i18n.down, degraded: i18n.degraded, maintenance: i18n.maintenance }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {incidents.length === 0 ? (
+        <div
+          style={{
+            backgroundColor: t.bg.input,
+            borderRadius: R.sm,
+            fontSize: 12,
+            color: t.text.muted,
+            textAlign: 'center',
+            padding: '14px 0',
+          }}
+        >
+          {upDays}/{data.length} {i18n.daysClean}
+        </div>
+      ) : (
+        <>
+          {incidents.slice(0, maxItems).map((inc) => {
+            const dur = inc.end - inc.start + 1
+            return (
+              <div
+                key={inc.start}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  backgroundColor: t.bg.input,
+                  borderRadius: R.sm,
+                  padding: '10px 14px',
+                  fontSize: 12,
+                  fontFamily: F.mono,
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: t.status[inc.severity],
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ color: t.text.primary }}>{inc.date}</span>
+                <span style={{ color: t.text.muted }}>
+                  {dur}
+                  {i18n.dUnit}
+                </span>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: 10,
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    backgroundColor: `${t.status[inc.severity]}18`,
+                    color: t.status[inc.severity],
+                    fontWeight: 600,
+                  }}
+                >
+                  {sevLabel[inc.severity] || inc.severity}
+                </span>
+              </div>
+            )
+          })}
+          {incidents.length > maxItems && (
+            <div
+              style={{ fontSize: 10, color: t.text.muted, textAlign: 'center', padding: '4px 0' }}
+            >
+              {i18n.nMore.replace('{n}', String(incidents.length - maxItems))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function AvailabilityDetailModal({ data, sla, target }) {
+  const { t, i18n } = useApp()
+  const upDays = data.filter((d) => (typeof d === 'string' ? d : d.status) === 'up').length
+  const degradedDays = data.filter(
+    (d) => (typeof d === 'string' ? d : d.status) === 'degraded',
+  ).length
+  const downDays = data.filter((d) => (typeof d === 'string' ? d : d.status) === 'down').length
+  const stats = [
+    { label: 'SLA', value: `${sla.toFixed(2)}%`, cl: sla >= target ? t.status.up : t.status.down },
+    { label: i18n.target, value: `${target}%`, cl: t.text.primary },
+    { label: i18n.operational, value: `${upDays}d`, cl: t.status.up },
+    { label: i18n.degraded, value: `${degradedDays}d`, cl: t.status.degraded },
+    { label: i18n.down, value: `${downDays}d`, cl: t.status.down },
+  ]
+  return (
+    <div>
+      <div
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 20 }}
+      >
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            style={{
+              backgroundColor: t.bg.input,
+              borderRadius: R.sm,
+              padding: '10px 12px',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                color: t.text.muted,
+                marginBottom: 4,
+                textTransform: 'uppercase',
+                letterSpacing: '.03em',
+                minHeight: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {s.label}
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                fontFamily: F.mono,
+                color: s.cl,
+                fontFeatureSettings: "'tnum'",
+              }}
+            >
+              {s.value}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          backgroundColor: t.bg.input,
+          borderRadius: R.sm,
+          padding: '16px 14px 12px',
+          overflow: 'hidden',
+        }}
+      >
+        <UptimeBar data={data} barHeight={40} />
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginTop: 8,
+            fontSize: 10,
+            color: t.text.muted,
+            fontFamily: F.mono,
+          }}
+        >
+          <span>{i18n.ago90}</span>
+          <span>{i18n.today}</span>
+        </div>
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
+          {data.map((d, i) => {
+            const s = typeof d === 'string' ? d : d.status
+            return (
+              <div
+                key={`cell-${typeof d === 'string' ? i : d.date}`}
+                title={typeof d === 'string' ? '' : `${d.date}: ${d.uptime?.toFixed(1)}%`}
+                style={{
+                  aspectRatio: '1',
+                  borderRadius: 3,
+                  backgroundColor: t.status[s],
+                  opacity: 0.7,
+                }}
+              />
+            )
+          })}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 8,
+            marginTop: 8,
+            fontSize: 10,
+            color: t.text.muted,
+            fontFamily: F.mono,
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                backgroundColor: t.status.up,
+                opacity: 0.7,
+              }}
+            />{' '}
+            {i18n.operational}
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                backgroundColor: t.status.degraded,
+                opacity: 0.7,
+              }}
+            />{' '}
+            {i18n.degraded}
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                backgroundColor: t.status.down,
+                opacity: 0.7,
+              }}
+            />{' '}
+            {i18n.down}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function IncidentDetailModal({ data }) {
+  const { t, i18n } = useApp()
+  const [showCount, setShowCount] = useState(5)
+  const incidents: {
+    start: number
+    end: number
+    severity: string
+    date: string
+    endDate: string
+  }[] = []
+  let cur: { start: number; severity: string; date: string } | null = null
+  for (let i = 0; i < data.length; i++) {
+    const s = typeof data[i] === 'string' ? data[i] : data[i].status
+    if (s !== 'up') {
+      if (!cur) cur = { start: i, severity: s, date: data[i].date || '' }
+      if (s === 'down') cur.severity = 'down'
+    } else if (cur) {
+      incidents.push({ ...cur, end: i - 1, endDate: data[i - 1].date || '' })
+      cur = null
+    }
+  }
+  if (cur)
+    incidents.push({ ...cur, end: data.length - 1, endDate: data[data.length - 1].date || '' })
+
+  const durations = incidents.map((inc) => inc.end - inc.start + 1)
+  const avgDur = durations.length
+    ? (durations.reduce((a, b) => a + b, 0) / durations.length).toFixed(1)
+    : '0'
+  const longest = durations.length ? Math.max(...durations) : 0
+  const upDays = data.filter((d) => (typeof d === 'string' ? d : d.status) === 'up').length
+  const sevLabel = { down: i18n.down, degraded: i18n.degraded, maintenance: i18n.maintenance }
+  const visible = incidents.slice(0, showCount)
+  const hasMore = incidents.length > showCount
+
+  const stats = [
+    { label: i18n.totalIncidents, value: `${incidents.length}` },
+    { label: i18n.avgDuration, value: `${avgDur}${i18n.dUnit}` },
+    { label: i18n.longestDown, value: `${longest}${i18n.dUnit}` },
+    { label: i18n.daysClean, value: `${upDays}/${data.length}` },
+  ]
+  return (
+    <div>
+      <div
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 20 }}
+      >
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            style={{
+              backgroundColor: t.bg.input,
+              borderRadius: R.sm,
+              padding: '10px 12px',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                color: t.text.muted,
+                marginBottom: 4,
+                textTransform: 'uppercase',
+                letterSpacing: '.03em',
+                minHeight: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {s.label}
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                fontFamily: F.mono,
+                color: t.text.primary,
+                fontFeatureSettings: "'tnum'",
+              }}
+            >
+              {s.value}
+            </div>
+          </div>
+        ))}
+      </div>
+      {incidents.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 24, color: t.text.muted, fontSize: 13 }}>
+          {i18n.noIncidents}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {visible.map((inc) => {
+            const dur = inc.end - inc.start + 1
+            return (
+              <div
+                key={inc.start}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  backgroundColor: t.bg.input,
+                  borderRadius: R.sm,
+                  padding: '10px 14px',
+                  fontSize: 12,
+                  fontFamily: F.mono,
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: t.status[inc.severity],
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ color: t.text.primary }}>{inc.date}</span>
+                {inc.date !== inc.endDate && (
+                  <span style={{ color: t.text.muted }}>→ {inc.endDate}</span>
+                )}
+                <span style={{ color: t.text.muted }}>
+                  {dur}
+                  {i18n.dUnit}
+                </span>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: 10,
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    backgroundColor: `${t.status[inc.severity]}18`,
+                    color: t.status[inc.severity],
+                    fontWeight: 600,
+                  }}
+                >
+                  {sevLabel[inc.severity] || inc.severity}
+                </span>
+              </div>
+            )
+          })}
+          {hasMore && (
+            <button
+              type="button"
+              onClick={() => setShowCount((c) => c + 5)}
+              style={{
+                background: 'none',
+                border: `1px dashed ${t.border}`,
+                borderRadius: R.sm,
+                padding: '10px 0',
+                fontSize: 12,
+                color: t.text.secondary,
+                cursor: 'pointer',
+                fontFamily: F.sans,
+                transition: 'border-color .2s, color .2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = t.accent
+                e.currentTarget.style.color = t.accent
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = t.border
+                e.currentTarget.style.color = t.text.secondary
+              }}
+            >
+              {i18n.loadMore} ({incidents.length - showCount})
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1677,13 +2848,13 @@ function ProbeCard({ probe, onEdit, onDuplicate, onDelete }) {
 }
 
 function ProbeForm({ probe, onSave, onCancel }) {
-  const { t, i18n } = useApp()
+  const { t, i18n, lang } = useApp()
   const [form, setForm] = useState(
     probe || {
       name: '',
       type: 'http',
       url: '',
-      interval: '30s',
+      interval: '60s',
       timeout: '5s',
       desc: '',
       mode: 'server',
@@ -1691,7 +2862,7 @@ function ProbeForm({ probe, onSave, onCancel }) {
     },
   )
   const upd = (k, v) => setForm((p) => ({ ...p, [k]: v }))
-  const nameError = form.name.length > 6
+  const nameError = form.name.length > 32
   const isClient = form.mode === 'client'
 
   const serverTypeOpts = [
@@ -1701,21 +2872,16 @@ function ProbeForm({ probe, onSave, onCancel }) {
   ]
   const intervalOpts = [
     { value: '10s', label: '10s' },
-    { value: '15s', label: '15s' },
     { value: '30s', label: '30s' },
     { value: '60s', label: '60s' },
     { value: '300s', label: '5m' },
     { value: '600s', label: '10m' },
     { value: '3600s', label: '1h' },
-    { value: '86400s', label: '1d' },
   ]
   const timeoutOpts = [
     { value: '2s', label: '2s' },
-    { value: '3s', label: '3s' },
     { value: '5s', label: '5s' },
     { value: '10s', label: '10s' },
-    { value: '30s', label: '30s' },
-    { value: '60s', label: '60s' },
   ]
   const modeOpts = [
     { value: 'server', label: i18n.serverProbes },
@@ -1742,7 +2908,12 @@ function ProbeForm({ probe, onSave, onCancel }) {
         >
           {i18n.probeName}
         </span>
-        <Input value={form.name} onChange={(v) => upd('name', v)} placeholder="api-gw" />
+        <Input
+          value={form.name}
+          onChange={(v) => upd('name', v)}
+          placeholder={lang === 'zh' ? '测试服务' : 'Test Service'}
+          maxLength={32}
+        />
         {nameError && (
           <span style={{ fontSize: 11, color: t.status.down, marginTop: 4, display: 'block' }}>
             {i18n.nameTooLong}
@@ -1783,23 +2954,114 @@ function ProbeForm({ probe, onSave, onCancel }) {
         <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
           {i18n.probeUrl}
         </span>
-        <Input
-          value={form.url}
-          onChange={(v) => upd('url', v)}
-          placeholder={isClient ? '—' : 'https://api.example.com/health'}
-        />
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-        <div>
-          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
-            {i18n.probeInterval}
-          </span>
-          <Select
-            value={form.interval}
-            onChange={(v) => upd('interval', v)}
-            options={intervalOpts}
+        {isClient ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <div
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                backgroundColor: t.bg.input,
+                border: `1px solid ${t.border}`,
+                borderRadius: 8,
+                fontSize: 13,
+                color: t.text.muted,
+                fontFamily: F.mono,
+                userSelect: 'all',
+              }}
+            >
+              https://pulse.longye.site/metrics/push
+            </div>
+            <a
+              href="https://www.baidu.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              title={lang === 'zh' ? '查看接入文档' : 'View integration docs'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 32,
+                height: 32,
+                borderRadius: 6,
+                backgroundColor: t.bg.input,
+                border: `1px solid ${t.border}`,
+                color: t.text.muted,
+                textDecoration: 'none',
+                flexShrink: 0,
+                transition: 'color .15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = t.accent
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = t.text.muted
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <title>{lang === 'zh' ? '查看接入文档' : 'View integration docs'}</title>
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
+          </div>
+        ) : (
+          <Input
+            value={form.url}
+            onChange={(v) => upd('url', v)}
+            placeholder={
+              form.type === 'websocket'
+                ? 'wss://api.example.com/ws'
+                : form.type === 'tcp'
+                  ? 'api.example.com:3306'
+                  : 'https://api.example.com/health'
+            }
           />
+        )}
+      </div>
+      <div>
+        <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+          {i18n.probeInterval}
+        </span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+          {intervalOpts.map((o) => (
+            <button
+              type="button"
+              key={o.value}
+              onClick={() => upd('interval', o.value)}
+              style={{
+                padding: '6px 0',
+                borderRadius: 6,
+                fontSize: 12,
+                fontFamily: F.mono,
+                cursor: 'pointer',
+                border: `1px solid ${o.value === form.interval ? `${t.accent}55` : t.border}`,
+                backgroundColor: o.value === form.interval ? t.accentMuted : 'transparent',
+                color: o.value === form.interval ? t.text.primary : t.text.secondary,
+                transition: 'all .15s',
+              }}
+            >
+              {o.label}
+            </button>
+          ))}
         </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
           <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
             {i18n.probeTimeout}
@@ -1812,8 +3074,12 @@ function ProbeForm({ probe, onSave, onCancel }) {
           </span>
           <Input
             value={String(form.target ?? 99)}
-            onChange={(v) => upd('target', Number(v) || 0)}
+            onChange={(v) => {
+              const filtered = v.replace(/[^0-9.]/g, '')
+              if (filtered.length <= 5) upd('target', filtered)
+            }}
             placeholder="99.9"
+            maxLength={5}
           />
         </div>
       </div>
@@ -1825,7 +3091,13 @@ function ProbeForm({ probe, onSave, onCancel }) {
           variant="primary"
           disabled={nameError || !form.name}
           onClick={() =>
-            onSave({ ...form, id: form.id || uid(), status: form.status || 'up', desc: form.type })
+            onSave({
+              ...form,
+              id: form.id || uid(),
+              status: form.status || 'up',
+              desc: form.type,
+              target: Number(form.target) || 99,
+            })
           }
         >
           {i18n.save}
@@ -1837,8 +3109,8 @@ function ProbeForm({ probe, onSave, onCancel }) {
 
 function ProbesPage() {
   const { t, i18n } = useApp()
-  const [probes, setProbes] = useState(initProbes)
-  const [modal, setModal] = useState<{ type: string; probe?: (typeof initProbes)[number] } | null>(
+  const [probes, setProbes] = useState(allProbes)
+  const [modal, setModal] = useState<{ type: string; probe?: (typeof allProbes)[number] } | null>(
     null,
   )
   const [delConfirm, setDelConfirm] = useState<string | null>(null)
@@ -1869,15 +3141,10 @@ function ProbesPage() {
     flash(i18n.saved)
   }
 
-  const GroupLabel = ({ children }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 12px' }}>
-      <div style={{ height: 1, flex: 1, backgroundColor: t.border }} />
-      <span style={{ fontSize: 12, color: t.text.muted, fontWeight: 500, whiteSpace: 'nowrap' }}>
-        {children}
-      </span>
-      <div style={{ height: 1, flex: 1, backgroundColor: t.border }} />
-    </div>
-  )
+  const [probeTab, setProbeTab] = useState<'server' | 'client'>('server')
+  const visibleProbes = probeTab === 'server' ? serverProbes : clientProbes
+  const [probePage, setProbePage] = useState(1)
+  const pagedProbes = visibleProbes.slice((probePage - 1) * PAGE_SIZE, probePage * PAGE_SIZE)
 
   return (
     <div>
@@ -1889,17 +3156,70 @@ function ProbesPage() {
           marginBottom: 16,
         }}
       >
-        <div style={{ fontSize: 13, color: t.text.secondary }}>
-          {probes.length} {i18n.probes.toLowerCase()}
+        <div
+          style={{
+            display: 'flex',
+            gap: 0,
+            borderRadius: 8,
+            overflow: 'hidden',
+            border: `1px solid ${t.border}`,
+          }}
+        >
+          {[
+            { key: 'server' as const, label: i18n.serverProbes },
+            { key: 'client' as const, label: i18n.clientProbes },
+          ].map((tb) => (
+            <button
+              type="button"
+              key={tb.key}
+              onClick={() => {
+                setProbeTab(tb.key)
+                setProbePage(1)
+              }}
+              style={{
+                padding: '6px 16px',
+                fontSize: 12,
+                fontWeight: 600,
+                fontFamily: F.sans,
+                cursor: 'pointer',
+                border: 'none',
+                backgroundColor: probeTab === tb.key ? t.accent : 'transparent',
+                color: probeTab === tb.key ? '#fff' : t.text.secondary,
+                transition: 'all .15s',
+              }}
+            >
+              {tb.label}
+            </button>
+          ))}
         </div>
-        <Btn variant="primary" onClick={() => setModal({ type: 'add' })}>
+        <Btn
+          variant="primary"
+          onClick={() =>
+            setModal({
+              type: 'add',
+              probe:
+                probeTab === 'client'
+                  ? {
+                      id: '',
+                      name: '',
+                      type: 'push',
+                      url: '',
+                      interval: '30s',
+                      timeout: '5s',
+                      desc: '',
+                      mode: 'client',
+                      status: 'up',
+                    }
+                  : undefined,
+            })
+          }
+        >
           + {i18n.addProbe}
         </Btn>
       </div>
 
-      <GroupLabel>{i18n.serverProbes}</GroupLabel>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {serverProbes.map((p) => (
+        {pagedProbes.map((p) => (
           <ProbeCard
             key={p.id}
             probe={p}
@@ -1910,22 +3230,18 @@ function ProbesPage() {
             onDelete={(id) => setDelConfirm(id)}
           />
         ))}
+        {visibleProbes.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 40, color: t.text.muted, fontSize: 13 }}>
+            {probeTab === 'server' ? i18n.serverProbes : i18n.clientProbes} — {'No data'}
+          </div>
+        )}
       </div>
-
-      <GroupLabel>{i18n.clientProbes}</GroupLabel>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {clientProbes.map((p) => (
-          <ProbeCard
-            key={p.id}
-            probe={p}
-            onEdit={(pr) => setModal({ type: 'edit', probe: pr })}
-            onDuplicate={(pr) =>
-              setModal({ type: 'dup', probe: { ...pr, name: `${pr.name}-copy`, id: '' } })
-            }
-            onDelete={(id) => setDelConfirm(id)}
-          />
-        ))}
-      </div>
+      <Pagination
+        total={visibleProbes.length}
+        page={probePage}
+        pageSize={PAGE_SIZE}
+        onPageChange={setProbePage}
+      />
 
       {/* Add/Edit/Dup modal */}
       <Modal
@@ -2041,6 +3357,23 @@ function SettingsHint({ children, t }) {
   )
 }
 
+function SettingsRow({
+  label,
+  hint,
+  children,
+}: { label: string; hint: string; children: React.ReactNode }) {
+  const { t } = useApp()
+  return (
+    <div className="settings-row">
+      <div>
+        <SettingsLabel t={t}>{label}</SettingsLabel>
+        <SettingsHint t={t}>{hint}</SettingsHint>
+      </div>
+      <div>{children}</div>
+    </div>
+  )
+}
+
 function SettingsPage({ projectName, setProjectName }) {
   const { t, i18n } = useApp()
   const [retention, setRetention] = useState('90d')
@@ -2142,20 +3475,6 @@ function SettingsPage({ projectName, setProjectName }) {
       { value: 'Europe/London', label: 'Europe/London (UTC+1)' },
     ],
     [],
-  )
-
-  const SettingsRow = ({
-    label,
-    hint,
-    children: ctrl,
-  }: { label: string; hint: string; children: React.ReactNode }) => (
-    <div className="settings-row">
-      <div>
-        <SettingsLabel t={t}>{label}</SettingsLabel>
-        <SettingsHint t={t}>{hint}</SettingsHint>
-      </div>
-      <div>{ctrl}</div>
-    </div>
   )
 
   return (
@@ -2742,14 +4061,66 @@ function TabNav({ active, onChange }) {
   )
 }
 
-function ListHeader() {
+function SortableHeader({
+  label,
+  field,
+  sort,
+  onSort,
+  align = 'left',
+  className,
+}: {
+  label: string
+  field: string
+  sort: string
+  onSort: (s: string) => void
+  align?: string
+  className?: string
+}) {
+  const { t } = useApp()
+  const asc = `${field}-asc`
+  const desc = `${field}-desc`
+  const isAsc = sort === asc
+  const isDesc = sort === desc
+  const active = isAsc || isDesc
+  const next = isAsc ? desc : asc
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={() => onSort(active && isDesc ? 'default' : next)}
+      style={{
+        background: 'none',
+        border: 'none',
+        padding: 0,
+        cursor: 'pointer',
+        fontSize: 'inherit',
+        fontWeight: 'inherit',
+        fontFamily: 'inherit',
+        textTransform: 'inherit' as React.CSSProperties['textTransform'],
+        letterSpacing: 'inherit',
+        color: active ? t.text.primary : t.text.muted,
+        textAlign: align as React.CSSProperties['textAlign'],
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: align === 'center' ? 'center' : 'flex-start',
+        gap: 3,
+        transition: 'color .15s',
+      }}
+    >
+      {label}
+      <span style={{ fontSize: 9, opacity: active ? 1 : 0.3 }}>{isDesc ? '▼' : '▲'}</span>
+    </button>
+  )
+}
+
+function ListHeader({ sort, onSort }: { sort: string; onSort: (s: string) => void }) {
   const { t, i18n } = useApp()
   return (
     <div
       className="svc-row"
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(140px,1.2fr) minmax(160px,2fr) 80px 70px 76px',
+        gridTemplateColumns: 'minmax(140px,1.2fr) minmax(160px,2fr) 76px 70px 80px',
         gap: 14,
         padding: '8px 20px',
         fontSize: 11,
@@ -2759,13 +4130,18 @@ function ListHeader() {
         letterSpacing: '.05em',
       }}
     >
-      <span>{i18n.service}</span>
+      <SortableHeader label={i18n.service} field="name" sort={sort} onSort={onSort} />
       <span className="hide-mobile">{i18n.availability90}</span>
-      <span style={{ textAlign: 'center' }}>{i18n.sla}</span>
-      <span className="hide-mobile" style={{ textAlign: 'right' }}>
-        {i18n.latency}
-      </span>
-      <span style={{ textAlign: 'right' }}>{i18n.status}</span>
+      <span style={{ textAlign: 'center' }}>{i18n.status}</span>
+      <SortableHeader
+        label={i18n.latency}
+        field="latency"
+        sort={sort}
+        onSort={onSort}
+        align="center"
+        className="hide-mobile"
+      />
+      <SortableHeader label={i18n.sla} field="sla" sort={sort} onSort={onSort} align="center" />
     </div>
   )
 }
@@ -2773,6 +4149,11 @@ function ListHeader() {
 /* ================================================================
    ROOT APP
    ================================================================ */
+// Redirect non-root paths to / (SPA uses hash routing only)
+if (window.location.pathname !== '/') {
+  window.location.replace(`/${window.location.hash}`)
+}
+
 export default function App() {
   const [theme, setTheme] = useState(() => {
     try {
@@ -2790,22 +4171,25 @@ export default function App() {
   })
   const [selectedId, setSelectedId] = useState(null)
   const validTabs = ['overview', 'probes', 'incidents', 'settings']
-  const [tab, setTabState] = useState(() => {
-    const hash = window.location.hash.slice(1)
-    return validTabs.includes(hash) ? hash : 'overview'
-  })
+  const parseTabFromHash = useCallback(() => {
+    const m = window.location.hash.match(/tab=(\d+)/)
+    if (m) {
+      const idx = Number(m[1]) - 1
+      return validTabs[idx] || 'overview'
+    }
+    return 'overview'
+  }, [])
+  const [tab, setTabState] = useState(parseTabFromHash)
   const setTab = useCallback((id: string) => {
     setTabState(id)
-    window.location.hash = id === 'overview' ? '' : id
+    const idx = validTabs.indexOf(id) + 1
+    window.location.hash = idx <= 1 ? '' : `tab=${idx}`
   }, [])
   useEffect(() => {
-    const onHash = () => {
-      const hash = window.location.hash.slice(1)
-      setTabState(validTabs.includes(hash) ? hash : 'overview')
-    }
+    const onHash = () => setTabState(parseTabFromHash())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
-  }, [])
+  }, [parseTabFromHash])
   const [filter, setFilter] = useState('all')
   const [projectName, setProjectName] = useState('Pulse')
 
@@ -2836,11 +4220,42 @@ export default function App() {
   const i18n = msg[lang]
   const ctx = useMemo(() => ({ t, i18n, lang, theme }), [t, i18n, lang, theme])
 
-  const filtered = useMemo(
-    () => (filter === 'all' ? initSvcs : initSvcs.filter((s) => s.status === filter)),
-    [filter],
-  )
-  const selectedSvc = initSvcs.find((s) => s.id === selectedId) || null
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState('default')
+  const searchRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        searchRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [])
+  const filtered = useMemo(() => {
+    let list = filter === 'all' ? allSvcs : allSvcs.filter((s) => s.status === filter)
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      list = list.filter(
+        (s) => s.name.toLowerCase().includes(q) || s.nameZh.toLowerCase().includes(q),
+      )
+    }
+    if (sort === 'latency-asc') list = [...list].sort((a, b) => a.latency - b.latency)
+    else if (sort === 'latency-desc') list = [...list].sort((a, b) => b.latency - a.latency)
+    else if (sort === 'sla-asc') list = [...list].sort((a, b) => a.sla - b.sla)
+    else if (sort === 'sla-desc') list = [...list].sort((a, b) => b.sla - a.sla)
+    else if (sort === 'name-asc') list = [...list].sort((a, b) => a.name.localeCompare(b.name))
+    else if (sort === 'name-desc') list = [...list].sort((a, b) => b.name.localeCompare(a.name))
+    return list
+  }, [filter, search, sort])
+  const [svcPage, setSvcPage] = useState(1)
+  // Page reset handled in setFilter/setSearch/setSort handlers
+  const pagedSvcs = useMemo(() => {
+    const start = (svcPage - 1) * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [filtered, svcPage])
+  const selectedSvc = allSvcs.find((s) => s.id === selectedId) || null
 
   return (
     <AppCtx.Provider value={ctx}>
@@ -2865,7 +4280,7 @@ export default function App() {
         @keyframes checkPop{0%{transform:scale(0) rotate(-45deg);opacity:0}50%{transform:scale(1.2) rotate(0deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}
         @keyframes savedPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 10px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
         .settings-row{display:grid;grid-template-columns:280px 1fr;gap:32px;align-items:start}
-        @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr 80px 76px!important;gap:8px!important}}
+        @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr 80px 76px!important;gap:8px!important}.filter-bar{flex-wrap:wrap!important}.filter-chips{display:grid!important;grid-template-columns:repeat(4,1fr)!important;width:100%!important}.filter-chips button{justify-content:center!important}.search-box{max-width:none!important;width:100%!important;flex:auto!important}}
         @media(max-width:600px){.resp-cols{grid-template-columns:1fr!important}.stat-grid{grid-template-columns:1fr 1fr!important}}
       `}</style>
 
@@ -2883,72 +4298,165 @@ export default function App() {
           {tab === 'overview' && (
             <>
               <OverviewCards />
-              <div style={{ display: 'flex', gap: 8, margin: '20px 0 12px', flexWrap: 'wrap' }}>
-                {[
-                  { id: 'all', label: i18n.all, count: initSvcs.length },
-                  {
-                    id: 'up',
-                    label: i18n.operational,
-                    count: initSvcs.filter((s) => s.status === 'up').length,
-                  },
-                  {
-                    id: 'degraded',
-                    label: i18n.degraded,
-                    count: initSvcs.filter((s) => s.status === 'degraded').length,
-                  },
-                  {
-                    id: 'down',
-                    label: i18n.down,
-                    count: initSvcs.filter((s) => s.status === 'down').length,
-                  },
-                ].map((f) => (
-                  <button
-                    type="button"
-                    key={f.id}
-                    onClick={() => setFilter(f.id)}
-                    style={{
-                      background: filter === f.id ? t.accentMuted : 'transparent',
-                      border: `1px solid ${filter === f.id ? `${t.accent}44` : t.border}`,
-                      borderRadius: 8,
-                      padding: '6px 14px',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 500,
-                      color: filter === f.id ? t.text.primary : t.text.secondary,
-                      transition: 'all .15s',
-                      fontFamily: F.sans,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    {f.id !== 'all' && (
-                      <span
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          backgroundColor: t.status[f.id],
-                        }}
-                      />
-                    )}
-                    {f.label}
-                    <span
+              <div
+                className="filter-bar"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '20px 0 12px' }}
+              >
+                <div className="filter-chips" style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {[
+                    { id: 'all', label: i18n.all, count: allSvcs.length },
+                    {
+                      id: 'up',
+                      label: i18n.operational,
+                      count: allSvcs.filter((s) => s.status === 'up').length,
+                    },
+                    {
+                      id: 'degraded',
+                      label: i18n.degraded,
+                      count: allSvcs.filter((s) => s.status === 'degraded').length,
+                    },
+                    {
+                      id: 'down',
+                      label: i18n.down,
+                      count: allSvcs.filter((s) => s.status === 'down').length,
+                    },
+                    {
+                      id: 'maintenance',
+                      label: i18n.maintenance,
+                      count: allSvcs.filter((s) => s.status === 'maintenance').length,
+                    },
+                  ].map((f) => (
+                    <button
+                      type="button"
+                      key={f.id}
+                      onClick={() => {
+                        setFilter(f.id)
+                        setSvcPage(1)
+                      }}
                       style={{
-                        fontFamily: F.mono,
-                        fontSize: 11,
-                        color: t.text.muted,
-                        marginLeft: 2,
+                        background: filter === f.id ? t.accentMuted : 'transparent',
+                        border: `1px solid ${filter === f.id ? `${t.accent}44` : t.border}`,
+                        borderRadius: 8,
+                        padding: '6px 14px',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: filter === f.id ? t.text.primary : t.text.secondary,
+                        transition: 'all .15s',
+                        fontFamily: F.sans,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
                       }}
                     >
-                      {f.count}
-                    </span>
-                  </button>
-                ))}
+                      {f.id !== 'all' && (
+                        <span
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            backgroundColor: t.status[f.id],
+                          }}
+                        />
+                      )}
+                      {f.label}
+                      <span
+                        style={{
+                          fontFamily: F.mono,
+                          fontSize: 11,
+                          color: t.text.muted,
+                          marginLeft: 2,
+                        }}
+                      >
+                        {f.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                {allSvcs.length > PAGE_SIZE && (
+                  <div
+                    className="search-box"
+                    style={{
+                      position: 'relative',
+                      minWidth: 0,
+                      maxWidth: 280,
+                      marginLeft: 'auto',
+                      width: 280,
+                    }}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={t.text.muted}
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        position: 'absolute',
+                        left: 10,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <title>search</title>
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      ref={searchRef}
+                      value={search}
+                      onChange={(e) => {
+                        setSearch(e.target.value)
+                        setSvcPage(1)
+                      }}
+                      placeholder={i18n.search}
+                      style={{
+                        width: '100%',
+                        padding: '7px 48px 7px 32px',
+                        backgroundColor: t.bg.input,
+                        border: `1px solid ${t.border}`,
+                        borderRadius: 8,
+                        color: t.text.primary,
+                        fontSize: 12,
+                        fontFamily: F.sans,
+                        outline: 'none',
+                        transition: 'border-color .2s',
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = `${t.accent}66`
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = t.border
+                      }}
+                    />
+                    <kbd
+                      style={{
+                        position: 'absolute',
+                        right: 8,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        fontSize: 10,
+                        fontFamily: F.mono,
+                        color: t.text.muted,
+                        backgroundColor: t.bg.card,
+                        border: `1px solid ${t.border}`,
+                        pointerEvents: 'none',
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      ⌘K
+                    </kbd>
+                  </div>
+                )}
               </div>
               <div
                 className="main-grid"
-                style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 16, marginTop: 8 }}
+                style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 16 }}
               >
                 <div
                   style={{
@@ -2959,9 +4467,15 @@ export default function App() {
                     boxShadow: t.shadow,
                   }}
                 >
-                  <ListHeader />
+                  <ListHeader
+                    sort={sort}
+                    onSort={(s) => {
+                      setSort(s)
+                      setSvcPage(1)
+                    }}
+                  />
                   <div style={{ borderTop: `1px solid ${t.borderSubtle}` }}>
-                    {filtered.map((s) => (
+                    {pagedSvcs.map((s) => (
                       <ServiceRow
                         key={s.id}
                         svc={s}
@@ -2981,6 +4495,12 @@ export default function App() {
                         —
                       </div>
                     )}
+                    <Pagination
+                      total={filtered.length}
+                      page={svcPage}
+                      pageSize={PAGE_SIZE}
+                      onPageChange={setSvcPage}
+                    />
                   </div>
                 </div>
                 <div
@@ -2993,7 +4513,7 @@ export default function App() {
                     boxShadow: t.shadow,
                   }}
                 >
-                  <DetailPanel svc={selectedSvc} />
+                  <DetailPanel svc={selectedSvc} totalSvcs={allSvcs.length} />
                 </div>
               </div>
               <div

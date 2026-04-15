@@ -1,4 +1,4 @@
-app = "pulse"
+app = "erchoc-pulse"
 primary_region = "nrt"
 
 [build]

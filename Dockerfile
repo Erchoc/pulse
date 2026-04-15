@@ -14,6 +14,7 @@ RUN pnpm install --frozen-lockfile
 COPY packages/server/ ./packages/server/
 COPY packages/web/ ./packages/web/
 COPY packages/shared/ ./packages/shared/
+COPY tsconfig.base.json ./
 
 RUN pnpm --filter @pulse/web build && pnpm --filter @pulse/server build
 

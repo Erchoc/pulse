@@ -31,6 +31,8 @@ const msg = {
     probes: 'Probes',
     incidents: 'Incidents',
     alerts: 'Alerts',
+    events: 'Events & Alerts',
+    eventsShort: 'Events',
     alertsComingSoon: 'Alert rules coming soon',
     apiDocLink: 'View API documentation',
     settings: 'Settings',
@@ -181,6 +183,8 @@ const msg = {
     probes: '探针',
     incidents: '事件',
     alerts: '告警',
+    events: '事件告警',
+    eventsShort: '事件',
     alertsComingSoon: '告警规则即将推出',
     apiDocLink: '查看接入文档',
     settings: '设置',
@@ -4464,7 +4468,7 @@ const TAB_ICONS: Record<string, (active: boolean, color: string) => React.ReactN
       <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
     </svg>
   ),
-  incidents: (a, c) => (
+  events: (a, c) => (
     <svg
       width="20"
       height="20"
@@ -4475,26 +4479,10 @@ const TAB_ICONS: Record<string, (active: boolean, color: string) => React.ReactN
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <title>Incidents</title>
-      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-  ),
-  alerts: (a, c) => (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={c}
-      strokeWidth={a ? 2.2 : 1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <title>Alerts</title>
+      <title>Events</title>
       <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
       <path d="M13.73 21a2 2 0 01-3.46 0" />
+      <line x1="12" y1="2" x2="12" y2="4" />
     </svg>
   ),
   settings: (a, c) => (
@@ -4521,15 +4509,16 @@ function TabNav({
   pwa,
 }: { active: string; onChange: (id: string) => void; pwa?: boolean }) {
   const { t, i18n } = useApp()
-  const tabs = [
-    { id: 'overview', label: i18n.overview },
-    { id: 'probes', label: i18n.probes },
-    { id: 'incidents', label: i18n.incidents },
-    { id: 'alerts', label: i18n.alerts },
-    { id: 'settings', label: i18n.settings },
-  ]
+  // PWA: 4 tabs (events = incidents + alerts merged), PC: 5 tabs
+  const isEventsActive = active === 'events' || active === 'incidents' || active === 'alerts'
 
   if (pwa) {
+    const pwaTabs = [
+      { id: 'overview', label: i18n.overview },
+      { id: 'probes', label: i18n.probes },
+      { id: 'events', label: i18n.eventsShort },
+      { id: 'settings', label: i18n.settings },
+    ]
     return (
       <nav
         className="pwa-tab-bar"
@@ -4549,8 +4538,8 @@ function TabNav({
           WebkitBackdropFilter: 'blur(20px)',
         }}
       >
-        {tabs.map((tb) => {
-          const isActive = active === tb.id
+        {pwaTabs.map((tb) => {
+          const isActive = tb.id === 'events' ? isEventsActive : active === tb.id
           const color = isActive ? t.accent : t.text.muted
           return (
             <button
@@ -4576,11 +4565,13 @@ function TabNav({
                 position: 'relative',
               }}
             >
+              {TAB_ICONS[tb.id](isActive, color)}
+              <span>{tb.label}</span>
               {isActive && (
                 <span
                   style={{
                     position: 'absolute',
-                    top: 0,
+                    bottom: 0,
                     left: '50%',
                     transform: 'translateX(-50%)',
                     width: 20,
@@ -4590,8 +4581,6 @@ function TabNav({
                   }}
                 />
               )}
-              {TAB_ICONS[tb.id](isActive, color)}
-              <span>{tb.label}</span>
             </button>
           )
         })}
@@ -4599,6 +4588,12 @@ function TabNav({
     )
   }
 
+  const pcTabs = [
+    { id: 'overview', label: i18n.overview },
+    { id: 'probes', label: i18n.probes },
+    { id: 'events', label: i18n.events },
+    { id: 'settings', label: i18n.settings },
+  ]
   return (
     <nav
       style={{
@@ -4609,28 +4604,31 @@ function TabNav({
         overflowX: 'auto',
       }}
     >
-      {tabs.map((tb) => (
-        <button
-          type="button"
-          key={tb.id}
-          onClick={() => onChange(tb.id)}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '8px 16px 12px',
-            fontSize: 13,
-            fontWeight: active === tb.id ? 600 : 400,
-            color: active === tb.id ? t.text.primary : t.text.muted,
-            borderBottom: active === tb.id ? `2px solid ${t.accent}` : '2px solid transparent',
-            transition: 'all .15s',
-            fontFamily: F.sans,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {tb.label}
-        </button>
-      ))}
+      {pcTabs.map((tb) => {
+        const isActive = tb.id === 'events' ? isEventsActive : active === tb.id
+        return (
+          <button
+            type="button"
+            key={tb.id}
+            onClick={() => onChange(tb.id)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '8px 16px 12px',
+              fontSize: 13,
+              fontWeight: isActive ? 600 : 400,
+              color: isActive ? t.text.primary : t.text.muted,
+              borderBottom: isActive ? `2px solid ${t.accent}` : '2px solid transparent',
+              transition: 'all .15s',
+              fontFamily: F.sans,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {tb.label}
+          </button>
+        )
+      })}
     </nav>
   )
 }
@@ -4745,7 +4743,7 @@ export default function App() {
     }
   })
   const [selectedId, setSelectedId] = useState(null)
-  const validTabs = ['overview', 'probes', 'incidents', 'alerts', 'settings']
+  const validTabs = ['overview', 'probes', 'events', 'settings']
   const parseTabFromHash = useCallback(() => {
     const m = window.location.hash.match(/tab=(\d+)/)
     if (m) {
@@ -5175,8 +5173,8 @@ export default function App() {
           {/* ──── PROBES ──── */}
           {tab === 'probes' && <ProbesPage />}
 
-          {/* ──── INCIDENTS ──── */}
-          {tab === 'incidents' && (
+          {/* ──── EVENTS (incidents + alerts) ──── */}
+          {tab === 'events' && (
             <div
               style={{
                 display: 'flex',
@@ -5191,27 +5189,7 @@ export default function App() {
                 boxShadow: t.shadow,
               }}
             >
-              Incidents {i18n.comingSoon}
-            </div>
-          )}
-
-          {/* ──── ALERTS ──── */}
-          {tab === 'alerts' && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: 300,
-                color: t.text.muted,
-                fontSize: 14,
-                backgroundColor: t.bg.card,
-                borderRadius: R.lg,
-                border: `1px solid ${t.border}`,
-                boxShadow: t.shadow,
-              }}
-            >
-              {i18n.alertsComingSoon}
+              {i18n.events} — {i18n.comingSoon}
             </div>
           )}
 

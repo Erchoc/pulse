@@ -137,3 +137,13 @@ Service (服务) ─── 业务单元，用户关心的监控对象
 **问题**: 移动端 filter chips 用 `grid-template-columns: repeat(4, 1fr)` 硬编码 4 列，当 chip 数量变化（如加入"维护中"变成 5 个）就会换行，且 chip 内中文文字在窄 button 中折行。
 **方案**: 改为 `display: flex` + `flex: 1` + `white-space: nowrap` + 缩小 padding/font，让任意数量 chip 均在一行内等宽排布。
 **教训**: 响应式布局不要硬编码列数，用 flex 自适应或 `auto-fit` 才能应对内容动态变化。
+
+### 12. 服务列表分页兜底值
+**问题**: 左侧服务列表高度随数据条数变化频繁跳动，视觉不稳定。
+**方案**: `PAGE_SIZE = 8`，动态计算 `Math.max(8, ...)` 兜底 8 行，对齐右侧详情面板最小高度。
+**教训**: 分页兜底值应与布局约束对齐，避免列表高度在数据变化时频繁重排。
+
+## 文档维护
+
+- **SWAGGER_OPENAPI.md**: API 接口文档（参数、响应、mock 示例），每次改动服务端接口必须同步更新
+- **测试报告**: `pnpm test` 自动在 `test-reports/` 目录输出报告文件（web.json、go-server.txt、probe.txt）

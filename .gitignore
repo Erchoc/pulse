@@ -8,3 +8,6 @@ packages/*/dist
 
 # Go
 dist/
+
+# Test reports
+test-reports/

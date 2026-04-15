@@ -11,6 +11,7 @@
     "build:probe": "make -C packages/probe build",
     "start": "make -C packages/go-server dev",
     "ship": "fly deploy",
+    "pretest": "mkdir -p test-reports",
     "test": "pnpm -r test && make -C packages/go-server test && make -C packages/probe test",
     "test:go": "make -C packages/go-server test && make -C packages/probe test",
     "test:unit": "pnpm -r test:unit",

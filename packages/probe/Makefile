@@ -10,7 +10,7 @@ build:
 	CGO_ENABLED=0 go build -o $(BUILD_DIR)/$(APP_NAME) ./cmd/pulse-probe
 
 test:
-	go test ./...
+	go test -v -count=1 ./... 2>&1 | tee ../../test-reports/probe.txt
 
 clean:
 	rm -f $(BUILD_DIR)/$(APP_NAME)

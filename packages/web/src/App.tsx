@@ -791,7 +791,7 @@ const allProbes = isMockPage ? genMockProbes() : _initProbes
 /* ================================================================
    Helpers
    ================================================================ */
-const PAGE_SIZE = 10
+const PAGE_SIZE = 8
 const fmtSLA = (v) => `${v.toFixed(2)}%`
 const slaColor = (sla, tgt, t) =>
   sla >= tgt ? t.status.up : sla >= tgt - 0.5 ? t.status.degraded : t.status.down
@@ -4547,7 +4547,7 @@ export default function App() {
     const ROW_H = 68
     const OVERHEAD = 80
     const calc = () => {
-      const rows = Math.max(3, Math.floor((el.offsetHeight - OVERHEAD) / ROW_H))
+      const rows = Math.max(8, Math.floor((el.offsetHeight - OVERHEAD) / ROW_H))
       setSvcPageSize(rows)
     }
     calc()

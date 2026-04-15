@@ -3,5 +3,10 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   plugins: [react()],
-  test: { environment: 'jsdom', globals: true },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    reporters: ['default', 'json'],
+    outputFile: '../../test-reports/web.json',
+  },
 })

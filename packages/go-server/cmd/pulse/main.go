@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/pulsemonitor/pulse/internal/api"
 )
@@ -17,10 +21,28 @@ func main() {
 	slog.SetDefault(logger)
 
 	srv := api.NewServer()
-	addr := fmt.Sprintf("127.0.0.1:%d", *port)
-	slog.Info("starting pulse server", "addr", addr)
-	if err := srv.Start(addr); err != nil {
-		slog.Error("server failed", "error", err)
-		os.Exit(1)
+	listenAddr := fmt.Sprintf("127.0.0.1:%d", *port)
+	slog.Info("starting pulse server", "addr", fmt.Sprintf("http://localhost:%d", *port))
+
+	// Graceful shutdown on SIGINT / SIGTERM
+	go func() {
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-quit
+		slog.Info("shutting down", "signal", sig.String())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(ctx); err != nil {
+			slog.Error("shutdown error", "error", err)
+		}
+	}()
+
+	if err := srv.Start(listenAddr); err != nil {
+		// ErrServerClosed is expected after graceful shutdown
+		if err.Error() != "http: Server closed" {
+			slog.Error("server failed", "error", err)
+			os.Exit(1)
+		}
 	}
+	slog.Info("server stopped")
 }

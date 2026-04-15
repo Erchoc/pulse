@@ -11,9 +11,9 @@ const msg = {
     overview: 'Overview',
     probes: 'Probes',
     incidents: 'Incidents',
-    alerts: 'OpenAPI',
-    alertsDesc: 'OpenAPI integration hub — connect your monitoring data with external systems.',
-    alertsDocLink: 'View API documentation',
+    alerts: 'Alerts',
+    alertsComingSoon: 'Alert rules coming soon',
+    apiDocLink: 'View API documentation',
     settings: 'Settings',
     overallSLA: 'Overall SLA',
     servicesUp: 'Services Up',
@@ -114,7 +114,7 @@ const msg = {
     webhookFailNetwork: 'Could not reach endpoint — check that the URL is accessible',
     samplePayload: 'Request Body Example',
     payloadHint: 'POST request body sent by Pulse when a probe anomaly is detected',
-    apiIntegration: 'API Integration',
+    apiIntegration: 'OpenAPI Integration',
     apiHint:
       'Use this API key to integrate with the Pulse REST API. Include it in the X-API-Key header for all requests. The API provides endpoints for querying probe status, SLA metrics, and managing probes programmatically.',
     apiKey: 'API Key',
@@ -161,9 +161,9 @@ const msg = {
     overview: '总览',
     probes: '探针',
     incidents: '事件',
-    alerts: 'OpenAPI',
-    alertsDesc: 'OpenAPI 接入集成 — 将监控数据与外部系统对接。',
-    alertsDocLink: '查看接入文档',
+    alerts: '告警',
+    alertsComingSoon: '告警规则即将推出',
+    apiDocLink: '查看接入文档',
     settings: '设置',
     overallSLA: '整体 SLA',
     servicesUp: '服务状态',
@@ -259,7 +259,7 @@ const msg = {
     webhookFailNetwork: '无法连接对端，请确认地址可达',
     samplePayload: '请求体示例',
     payloadHint: '探测异常时 Pulse 向此地址发送的 POST 请求体',
-    apiIntegration: 'API 集成',
+    apiIntegration: 'OpenAPI 接入集成',
     apiHint:
       '使用此 API Key 对接 Pulse REST API。在所有请求的 X-API-Key 请求头中传入此密钥。API 提供探针状态查询、SLA 指标获取、探针管理等接口。',
     apiKey: 'API Key',
@@ -1848,7 +1848,7 @@ function ServiceRow({ svc, selected, onSelect }) {
         </span>
       </div>
       <div
-        className="hide-mobile"
+        className="hide-mobile hide-tablet"
         style={{
           fontFamily: F.mono,
           fontSize: 12,
@@ -3576,7 +3576,7 @@ function SettingsRow({
   label,
   hint,
   children,
-}: { label: string; hint: string; children: React.ReactNode }) {
+}: { label: string; hint: React.ReactNode; children: React.ReactNode }) {
   const { t } = useApp()
   return (
     <div className="settings-row">
@@ -3908,7 +3908,22 @@ function SettingsPage({ projectName, setProjectName }) {
 
       {/* API Integration */}
       <SettingsSection t={t}>
-        <SettingsRow label={i18n.apiIntegration} hint={i18n.apiHint}>
+        <SettingsRow
+          label={i18n.apiIntegration}
+          hint={
+            <>
+              {i18n.apiHint}{' '}
+              <a
+                href="/api/docs"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: t.accent }}
+              >
+                {i18n.apiDocLink} →
+              </a>
+            </>
+          }
+        >
           <div>
             <div style={{ fontSize: 11, color: t.text.muted, fontWeight: 500, marginBottom: 6 }}>
               {i18n.apiKey}
@@ -4355,7 +4370,7 @@ function ListHeader({ sort, onSort }: { sort: string; onSort: (s: string) => voi
         sort={sort}
         onSort={onSort}
         align="center"
-        className="hide-mobile"
+        className="hide-mobile hide-tablet"
       />
       <SortableHeader label={i18n.sla} field="sla" sort={sort} onSort={onSort} align="center" />
     </div>
@@ -4518,6 +4533,7 @@ export default function App() {
         @keyframes checkPop{0%{transform:scale(0) rotate(-45deg);opacity:0}50%{transform:scale(1.2) rotate(0deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}
         @keyframes savedPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 10px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
         .settings-row{display:grid;grid-template-columns:280px 1fr;gap:32px;align-items:start}
+        @media(max-width:1200px){.main-grid{grid-template-columns:1fr 320px!important}.svc-row{grid-template-columns:minmax(120px,1.2fr) minmax(120px,1.5fr) 76px 80px!important}.hide-tablet{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}}
         @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr 80px 76px!important;gap:8px!important}.filter-bar{flex-wrap:wrap!important}.filter-chips{display:flex!important;width:100%!important;gap:4px!important}.filter-chips button{flex:1!important;min-width:0!important;justify-content:center!important;white-space:nowrap!important;padding:6px 6px!important;font-size:12px!important}.search-box{max-width:none!important;width:100%!important;flex:auto!important}}
         @media(max-width:600px){.resp-cols{grid-template-columns:1fr!important}.stat-grid{grid-template-columns:1fr 1fr!important}}
       `}</style>
@@ -4831,28 +4847,18 @@ export default function App() {
             <div
               style={{
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 12,
                 height: 300,
+                color: t.text.muted,
+                fontSize: 14,
                 backgroundColor: t.bg.card,
                 borderRadius: R.lg,
                 border: `1px solid ${t.border}`,
                 boxShadow: t.shadow,
-                padding: 24,
-                textAlign: 'center',
               }}
             >
-              <span style={{ fontSize: 14, color: t.text.muted }}>{i18n.alertsDesc}</span>
-              <a
-                href="/api/docs"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ fontSize: 13, color: t.accent, textDecoration: 'underline' }}
-              >
-                {i18n.alertsDocLink} →
-              </a>
+              {i18n.alertsComingSoon}
             </div>
           )}
 

@@ -126,3 +126,14 @@ Service (服务) ─── 业务单元，用户关心的监控对象
 **问题**: 分派 subagent 执行 Go API 任务时，subagent 在 prompt 中明确收到"git add 和 git commit 分两个 Bash 调用"的指示，但仍然用了 `git add && git commit` 链式操作。
 **原因**: Subagent 有独立的上下文窗口，RTK hook 的限制写在全局 CLAUDE.md 和 prompt 中，但 subagent 倾向于合并"简单"的 git 操作。
 **教训**: 给 subagent 的 prompt 中，git 规范必须用 **加粗+大写** 强调，并在 commit 步骤中显式写成两个独立命令块而非一个代码块。
+
+### 10. Stat card 标题高度不一致（反复出现 ×4）
+**问题**: 多处 stat card 的标题（如 UPTIME (90D) vs AVG LATENCY）因文字长度不同导致高度不一致，下方数值不在同一水平线。
+**出现位置**: LatencyDetailModal、AvailabilityDetailModal、IncidentDetailModal、DetailPanel 主面板——每次只修了一个地方，其他地方忘了。
+**方案**: 标题 div 加 `minHeight: 28, display: 'flex', alignItems: 'center'`。
+**教训**: 项目中有多处重复的 stat card 模式但没有抽成共享组件，修一处容易漏其他。如果同一模式出现 3+ 次，应该抽组件。
+
+### 11. 移动端 filter chip 换行
+**问题**: 移动端 filter chips 用 `grid-template-columns: repeat(4, 1fr)` 硬编码 4 列，当 chip 数量变化（如加入"维护中"变成 5 个）就会换行，且 chip 内中文文字在窄 button 中折行。
+**方案**: 改为 `display: flex` + `flex: 1` + `white-space: nowrap` + 缩小 padding/font，让任意数量 chip 均在一行内等宽排布。
+**教训**: 响应式布局不要硬编码列数，用 flex 自适应或 `auto-fit` 才能应对内容动态变化。

@@ -131,8 +131,10 @@ const msg = {
     regionEu: 'Europe',
     regionUsEast: 'US East',
     regionUsWest: 'US West',
+    regionDomesticHint:
+      'Default 3-region domestic deployment to avoid false positives from ISP network issues. For overseas services, select at least one overseas probe.',
     regionOverseasWarn:
-      'Single-region probes are free. Multi-region overseas probes incur cross-border bandwidth costs. Enable as needed for your business.',
+      'Overseas probes are used to monitor services deployed in the corresponding regions. May incur minor cross-border bandwidth costs.',
     probeDesc: 'Description',
     probeMode: 'Probe Mode',
     nameTooLong: 'Name must be 32 characters or less',
@@ -319,8 +321,10 @@ const msg = {
     regionEu: '欧洲',
     regionUsEast: '美东',
     regionUsWest: '美西',
+    regionDomesticHint:
+      '默认国内三区部署探针程序，避免 ISP 网络原因导致误识别服务宕机。海外部署的项目请至少勾选一个海外探针。',
     regionOverseasWarn:
-      '单区部署探针不收费，多区部署探针需要收取企业跨境带宽成本，请根据实际海外业务需要按需开启。',
+      '海外探针主要用于请求对应国家/区域部署的服务，防止国内跨境链路波动导致 SLA 统计偏差, 可能产生少量的跨境带宽使用成本。',
     probeDesc: '描述',
     probeMode: '探测模式',
     nameTooLong: '名称不超过 32 个字符',
@@ -3380,7 +3384,7 @@ function ProbeForm({ probe, onSave, onCancel }) {
       url: '',
       interval: '60s',
       timeout: '5s',
-      regions: ['zhangjiakou'],
+      regions: ['zhangjiakou', 'shenzhen', 'shanghai'],
       desc: '',
       mode: 'server',
       target: 99,
@@ -3628,22 +3632,37 @@ function ProbeForm({ probe, onSave, onCancel }) {
             )
           })}
         </div>
-        {(form.regions || []).some((r) => ['sea', 'eu', 'us-east', 'us-west'].includes(r)) && (
+        <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div
             style={{
-              marginTop: 4,
               padding: '6px 10px',
               borderRadius: 6,
               fontSize: 11,
               lineHeight: 1.5,
-              color: t.status.down,
-              backgroundColor: `${t.status.down}12`,
-              border: `1px solid ${t.status.down}25`,
+              color: t.text.muted,
+              backgroundColor: t.bg.input,
             }}
           >
-            {i18n.regionOverseasWarn}
+            {i18n.regionDomesticHint}
           </div>
-        )}
+          {(form.regions || []).some((r) =>
+            ['hongkong', 'sea', 'eu', 'us-east', 'us-west'].includes(r),
+          ) && (
+            <div
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                fontSize: 11,
+                lineHeight: 1.5,
+                color: t.status.down,
+                backgroundColor: `${t.status.down}12`,
+                border: `1px solid ${t.status.down}25`,
+              }}
+            >
+              {i18n.regionOverseasWarn}
+            </div>
+          )}
+        </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
@@ -4677,34 +4696,34 @@ function Header({
         justifyContent: 'space-between',
         padding: '16px 0',
         marginBottom: 8,
-        flexWrap: 'wrap',
-        gap: 12,
+        gap: 8,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <img
           src="/favicon.png"
           alt={brandDisplay}
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: R.sm,
-          }}
+          style={{ width: 32, height: 32, borderRadius: R.sm, flexShrink: 0 }}
         />
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h1
             style={{
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: 700,
               color: t.text.primary,
               margin: 0,
               fontFamily: F.display,
               letterSpacing: '-.02em',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
             }}
           >
             {brandDisplay}
           </h1>
-          <span style={{ fontSize: 11, color: t.text.muted }}>{i18n.tagline}</span>
+          <span className="hide-mobile" style={{ fontSize: 11, color: t.text.muted }}>
+            {i18n.tagline}
+          </span>
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

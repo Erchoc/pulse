@@ -49,6 +49,16 @@ func NewServer() *echo.Echo {
 	v1.GET("/settings", getSettings)
 	v1.POST("/settings/webhook/test", testWebhook)
 
+	// Status Pages (management)
+	v1.GET("/status-pages", listStatusPages)
+	v1.POST("/status-pages", createStatusPage)
+	v1.PUT("/status-pages/:id", updateStatusPage)
+	v1.DELETE("/status-pages/:id", deleteStatusPage)
+
+	// Public status (no auth)
+	v1.GET("/status/services", getPublicStatus)
+	v1.GET("/status/:slug", getStatusBySlug)
+
 	return e
 }
 
@@ -113,6 +123,73 @@ func endMaintenance(c echo.Context) error {
 
 func getMaintenanceHistory(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]any{"data": []any{}, "total": 0})
+}
+
+func listStatusPages(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]any{"data": []any{}, "total": 0})
+}
+
+func createStatusPage(c echo.Context) error {
+	var req struct {
+		Name       string   `json:"name"`
+		Slug       string   `json:"slug"`
+		ServiceIDs []string `json:"service_ids"`
+	}
+	if err := c.Bind(&req); err != nil || req.Name == "" || req.Slug == "" {
+		return c.JSON(http.StatusBadRequest, map[string]any{
+			"error": map[string]string{"code": "INVALID_REQUEST", "message": "name and slug are required"},
+		})
+	}
+	return c.JSON(http.StatusCreated, map[string]any{
+		"data": map[string]any{
+			"id":          "sp-" + req.Slug,
+			"name":        req.Name,
+			"slug":        req.Slug,
+			"service_ids": req.ServiceIDs,
+			"created_at":  time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}
+
+func updateStatusPage(c echo.Context) error {
+	id := c.Param("id")
+	var req struct {
+		Name       string   `json:"name"`
+		Slug       string   `json:"slug"`
+		ServiceIDs []string `json:"service_ids"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]any{
+			"error": map[string]string{"code": "INVALID_REQUEST", "message": "invalid request body"},
+		})
+	}
+	return c.JSON(http.StatusOK, map[string]any{
+		"data": map[string]any{
+			"id":          id,
+			"name":        req.Name,
+			"slug":        req.Slug,
+			"service_ids": req.ServiceIDs,
+			"updated_at":  time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}
+
+func deleteStatusPage(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]any{"data": map[string]string{"status": "deleted"}})
+}
+
+func getPublicStatus(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]any{"data": []any{}, "total": 0})
+}
+
+func getStatusBySlug(c echo.Context) error {
+	slug := c.Param("slug")
+	return c.JSON(http.StatusOK, map[string]any{
+		"data": map[string]any{
+			"slug":     slug,
+			"services": []any{},
+		},
+	})
 }
 
 func testWebhook(c echo.Context) error {

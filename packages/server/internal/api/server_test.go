@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -296,6 +297,44 @@ func TestWebhookTestMissingURL(t *testing.T) {
 	}
 	if errObj["message"] != "url is required" {
 		t.Errorf("expected message='url is required', got %v", errObj["message"])
+	}
+}
+
+func TestStatusPageRoutes(t *testing.T) {
+	e := NewServer()
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+		status int
+	}{
+		{"list status pages", http.MethodGet, "/api/v1/status-pages", "", http.StatusOK},
+		{"create status page", http.MethodPost, "/api/v1/status-pages", `{"name":"Public","slug":"public","service_ids":["svc-1"]}`, http.StatusCreated},
+		{"create status page missing fields", http.MethodPost, "/api/v1/status-pages", `{"name":""}`, http.StatusBadRequest},
+		{"update status page", http.MethodPut, "/api/v1/status-pages/sp-1", `{"name":"Updated","slug":"updated"}`, http.StatusOK},
+		{"delete status page", http.MethodDelete, "/api/v1/status-pages/sp-1", "", http.StatusOK},
+		{"get public status", http.MethodGet, "/api/v1/status/services", "", http.StatusOK},
+		{"get status by slug", http.MethodGet, "/api/v1/status/my-page", "", http.StatusOK},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var body io.Reader
+			if tc.body != "" {
+				body = strings.NewReader(tc.body)
+			}
+			req := httptest.NewRequest(tc.method, tc.path, body)
+			if tc.body != "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+			if rec.Code != tc.status {
+				t.Errorf("expected %d, got %d, body: %s", tc.status, rec.Code, rec.Body.String())
+			}
+		})
 	}
 }
 

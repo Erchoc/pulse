@@ -32,11 +32,14 @@ export default defineConfig({
       manifest: false, // use existing public/manifest.json
     }),
     {
-      name: 'doc-page',
+      name: 'spa-routes',
       configureServer(server) {
         server.middlewares.use((req, _res, next) => {
           if (req.url === '/doc' || req.url === '/doc/') {
             req.url = '/doc/index.html'
+          }
+          if (req.url?.startsWith('/status')) {
+            req.url = '/index.html'
           }
           next()
         })

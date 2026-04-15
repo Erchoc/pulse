@@ -4190,6 +4190,40 @@ function EventsPage({ isPWA }: { isPWA: boolean }) {
     (navigator as unknown as { standalone?: boolean }).standalone === true
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
 
+  // ── Platform detection (navigator.platform lies on Apple Silicon) ──
+  const [platformLabel, setPlatformLabel] = useState(() => {
+    if (isIOS) return 'iOS'
+    const ua = navigator.userAgent
+    if (/Android/.test(ua)) return 'Android'
+    if (/Mac/.test(ua)) return 'macOS'
+    if (/Win/.test(ua)) return 'Windows'
+    if (/Linux/.test(ua)) return 'Linux'
+    return navigator.platform
+  })
+  useEffect(() => {
+    const uad = (
+      navigator as unknown as {
+        userAgentData?: {
+          getHighEntropyValues?: (
+            h: string[],
+          ) => Promise<{ architecture?: string; platform?: string }>
+        }
+      }
+    ).userAgentData
+    if (uad?.getHighEntropyValues) {
+      uad
+        .getHighEntropyValues(['architecture', 'platform'])
+        .then((v) => {
+          const arch = v.architecture === 'arm' ? 'Apple Silicon' : v.architecture || ''
+          const plat = v.platform || platformLabel
+          setPlatformLabel(arch ? `${plat} (${arch})` : plat)
+        })
+        .catch(() => {
+          /* noop */
+        })
+    }
+  }, [platformLabel])
+
   // ── Permission state ──
   const [permission, setPermission] = useState<string>(() =>
     hasNotifAPI ? Notification.permission : 'unavailable',
@@ -4451,7 +4485,7 @@ function EventsPage({ isPWA }: { isPWA: boolean }) {
               ok={isSecure}
               t={t}
             />
-            <PushCapRow label="Platform" value={isIOS ? 'iOS' : navigator.platform} ok t={t} />
+            <PushCapRow label="Platform" value={platformLabel} ok t={t} />
 
             <div
               style={{

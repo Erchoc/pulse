@@ -398,7 +398,8 @@ export default function StatusPage({ services, projectName, t, i18n, lang }: Sta
 
       <div
         style={{
-          minHeight: '100vh',
+          height: '100vh',
+          overflow: 'hidden',
           background: t.bg.base,
           fontFamily: F.sans,
           color: t.text.primary,

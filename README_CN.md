@@ -85,7 +85,7 @@ pnpm install
 # 同时启动前端 (端口 3000) + Go 服务端 (端口 7758)
 pnpm dev
 
-# 运行全部测试 (web + go-server + probe)
+# 运行全部测试 (web + server + probe)
 pnpm test
 
 # 完整验证：lint + 类型检查 + 测试 + 构建
@@ -132,10 +132,8 @@ pnpm ship   # 部署到 Fly.io
 ```
 packages/
   web/          React 19 + Vite 6 前端 SPA（TypeScript，内联样式）
-  go-server/    Go API 服务端（Echo v4，SQLite）
+  server/       Go API 服务端（Echo v4，SQLite）
   probe/        独立探针采集端二进制（pulse-probe）
-  server/       Node.js Fastify 静态文件服务（旧版）
-  shared/       共享 TypeScript 类型定义
 ```
 
 ## 技术栈

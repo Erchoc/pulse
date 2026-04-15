@@ -86,7 +86,7 @@ pnpm install
 # Start frontend (port 3000) + Go server (port 7758) concurrently
 pnpm dev
 
-# Run all tests (web + go-server + probe)
+# Run all tests (web + server + probe)
 pnpm test
 
 # Lint + typecheck + test + build
@@ -133,10 +133,8 @@ Build the Go server with embedded SPA and run it directly — no Node.js require
 ```
 packages/
   web/          React 19 + Vite 6 SPA (TypeScript, inline styles)
-  go-server/    Go API server (Echo v4, SQLite)
+  server/       Go API server (Echo v4, SQLite)
   probe/        Standalone probe collector binary (pulse-probe)
-  server/       Node.js Fastify static file server (legacy)
-  shared/       Shared TypeScript types
 ```
 
 ## Tech Stack

@@ -10,7 +10,7 @@ build:
 	CGO_ENABLED=1 go build -o $(BUILD_DIR)/$(APP_NAME) ./cmd/pulse
 
 test:
-	go test -v -count=1 ./... 2>&1 | tee ../../test-reports/go-server.txt
+	go test -v -count=1 ./... 2>&1 | tee ../../test-reports/server.txt
 
 clean:
 	rm -f $(BUILD_DIR)/$(APP_NAME)

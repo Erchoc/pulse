@@ -1,23 +1,30 @@
-FROM node:24-alpine
+FROM golang:1.23-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@10.12.4 --activate
+RUN apk add --no-cache gcc musl-dev nodejs npm
 
 WORKDIR /app
 
+# Install pnpm and build frontend
+RUN npm install -g pnpm@10.12.4
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
-COPY packages/server/package.json ./packages/server/
 COPY packages/web/package.json ./packages/web/
-COPY packages/shared/package.json ./packages/shared/
-
+COPY tsconfig.base.json ./
 RUN pnpm install --frozen-lockfile
 
-COPY packages/server/ ./packages/server/
 COPY packages/web/ ./packages/web/
-COPY packages/shared/ ./packages/shared/
-COPY tsconfig.base.json ./
+RUN pnpm --filter @pulse/web build
 
-RUN pnpm --filter @pulse/web build && pnpm --filter @pulse/server build
+# Build Go server
+COPY packages/server/ ./packages/server/
+RUN cd packages/server && CGO_ENABLED=1 go build -o /app/pulse ./cmd/pulse
 
-EXPOSE 3000
+# --- Runtime ---
+FROM alpine:3.20
 
-CMD ["node", "packages/server/dist/index.js"]
+RUN apk add --no-cache ca-certificates
+COPY --from=builder /app/pulse /usr/local/bin/pulse
+COPY --from=builder /app/packages/web/dist /srv/web
+
+EXPOSE 8080
+
+CMD ["pulse", "--port", "8080"]

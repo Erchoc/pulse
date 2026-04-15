@@ -5,10 +5,8 @@
 ```
 packages/
   web/        — Vite + React SPA (TypeScript, inline styles)
-  go-server/  — Go API Server (Echo framework)
+  server/     — Go API Server (Echo framework)
   probe/      — Go 采集端二进制 (pulse-probe)
-  server/     — Node.js Fastify server (暂不使用)
-  shared/     — 共享 TypeScript 类型
 ```
 
 ## 技术栈
@@ -66,7 +64,7 @@ Service (服务) ─── 业务单元，用户关心的监控对象
 
 - Go 1.23+，Echo v4 框架
 - `slog` 结构化日志
-- `CGO_ENABLED=1` for go-server (SQLite), `CGO_ENABLED=0` for probe
+- `CGO_ENABLED=1` for server (SQLite), `CGO_ENABLED=0` for probe
 - Go proxy: `GOPROXY=https://goproxy.cn,direct` (配置在 .mise.toml)
 - 测试: `go test ./...`
 
@@ -152,4 +150,4 @@ Service (服务) ─── 业务单元，用户关心的监控对象
 ## 文档维护
 
 - **SWAGGER_OPENAPI.md**: API 接口文档（参数、响应、mock 示例），每次改动服务端接口必须同步更新
-- **测试报告**: `pnpm test` 自动在 `test-reports/` 目录输出报告文件（web.json、go-server.txt、probe.txt）
+- **测试报告**: `pnpm test` 自动在 `test-reports/` 目录输出报告文件（web.json、server.txt、probe.txt）

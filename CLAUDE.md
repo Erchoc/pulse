@@ -143,6 +143,12 @@ Service (服务) ─── 业务单元，用户关心的监控对象
 **方案**: `PAGE_SIZE = 8`，动态计算 `Math.max(8, ...)` 兜底 8 行，对齐右侧详情面板最小高度。
 **教训**: 分页兜底值应与布局约束对齐，避免列表高度在数据变化时频繁重排。
 
+### 13. RTK index.lock 不止链式操作会触发
+**问题**: 两个独立的 `git add` Bash 调用间隔太短，RTK hook 把每个 git 命令改写成 `rtk git ...` 子进程，前一个 rtk 还没释放 lock 后一个就启动了，一样撞 `index.lock`。
+**错误操作**: 直接 `rm -f .git/index.lock` 强删——可能破坏正在进行的 git 操作。
+**正确做法**: git 操作失败后等 1-2 秒再重试，让 RTK 进程自然释放 lock。只有确认没有其他 git 进程运行时才 `rm -f`。
+**教训**: 不只是 `git add && git commit` 会冲突，任何两个紧密连续的 git 写操作都可能撞 lock，包括两次 `git add`。
+
 ## 文档维护
 
 - **SWAGGER_OPENAPI.md**: API 接口文档（参数、响应、mock 示例），每次改动服务端接口必须同步更新

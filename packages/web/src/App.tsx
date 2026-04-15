@@ -233,6 +233,11 @@ const msg = {
     incidentLogHint:
       'Historical incident and alert records will appear here once monitoring is active.',
     noEvents: 'No events yet',
+    pushPromptTitle: 'Stay Informed',
+    pushPromptBody:
+      'Get instant alerts when your services go down or recover. You can change this anytime in settings.',
+    pushPromptAllow: 'Enable Notifications',
+    pushPromptLater: 'Maybe Later',
     setMaintenance: 'Set Maintenance',
     endMaintenance: 'End Maintenance',
     maintenanceReason: 'Reason',
@@ -473,6 +478,10 @@ const msg = {
     incidentLog: '事件记录',
     incidentLogHint: '监控启动后，历史事件和告警记录将显示在此处。',
     noEvents: '暂无事件',
+    pushPromptTitle: '保持知情',
+    pushPromptBody: '服务宕机或恢复时即时收到告警通知。你随时可以在设置中更改。',
+    pushPromptAllow: '开启通知',
+    pushPromptLater: '以后再说',
     setMaintenance: '设置维护',
     endMaintenance: '结束维护',
     maintenanceReason: '维护原因',
@@ -4185,6 +4194,166 @@ function PushCapRow({
   )
 }
 
+function PushPermissionPrompt({ onDismiss }: { onDismiss: () => void }) {
+  const { t, i18n } = useApp()
+  const hasNotifAPI = typeof Notification !== 'undefined'
+
+  const handleAllow = useCallback(async () => {
+    if (!hasNotifAPI) {
+      onDismiss()
+      return
+    }
+    const result = await Notification.requestPermission()
+    onDismiss()
+    if (result === 'granted') {
+      new Notification(i18n.testPushTitle, {
+        body: i18n.pushSent,
+        icon: '/icon-192.png',
+        badge: '/favicon.png',
+      })
+    }
+  }, [hasNotifAPI, onDismiss, i18n.testPushTitle, i18n.pushSent])
+
+  return (
+    <div
+      role="presentation"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1001,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+      onClick={onDismiss}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onDismiss()
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,.5)',
+          backdropFilter: 'blur(4px)',
+        }}
+      />
+      <div
+        role="presentation"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        style={{
+          position: 'relative',
+          backgroundColor: t.bg.card,
+          borderRadius: R.lg,
+          border: `1px solid ${t.border}`,
+          boxShadow: '0 20px 60px rgba(0,0,0,.4)',
+          width: '100%',
+          maxWidth: 360,
+          padding: '32px 28px 24px',
+          textAlign: 'center',
+          animation: 'fadeSlide .25s ease',
+        }}
+      >
+        {/* Bell icon */}
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            backgroundColor: `${t.accent}12`,
+            border: `1px solid ${t.accent}25`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 20px',
+          }}
+        >
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={t.accent}
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <title>Notifications</title>
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 01-3.46 0" />
+          </svg>
+        </div>
+
+        <h3
+          style={{
+            fontSize: 18,
+            fontWeight: 700,
+            fontFamily: F.display,
+            color: t.text.primary,
+            margin: '0 0 8px',
+            letterSpacing: '-.02em',
+          }}
+        >
+          {i18n.pushPromptTitle}
+        </h3>
+        <p
+          style={{
+            fontSize: 13,
+            color: t.text.secondary,
+            lineHeight: 1.6,
+            margin: '0 0 24px',
+          }}
+        >
+          {i18n.pushPromptBody}
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button
+            type="button"
+            onClick={handleAllow}
+            style={{
+              width: '100%',
+              padding: '12px 20px',
+              borderRadius: 10,
+              fontSize: 14,
+              fontWeight: 600,
+              fontFamily: F.sans,
+              cursor: 'pointer',
+              border: 'none',
+              backgroundColor: t.accent,
+              color: '#fff',
+              transition: 'opacity .15s',
+            }}
+          >
+            {i18n.pushPromptAllow}
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            style={{
+              width: '100%',
+              padding: '10px 20px',
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 500,
+              fontFamily: F.sans,
+              cursor: 'pointer',
+              border: 'none',
+              backgroundColor: 'transparent',
+              color: t.text.muted,
+              transition: 'color .15s',
+            }}
+          >
+            {i18n.pushPromptLater}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function EventsPage({ isPWA }: { isPWA: boolean }) {
   const { t, i18n } = useApp()
 
@@ -6189,6 +6358,15 @@ export default function App() {
   })
   const [webhookModalOpen, setWebhookModalOpen] = useState(false)
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false)
+  const [showPushPrompt, setShowPushPrompt] = useState(() => {
+    if (typeof Notification === 'undefined') return false
+    if (Notification.permission !== 'default') return false
+    try {
+      return !sessionStorage.getItem('pulse-push-prompted')
+    } catch {
+      return false
+    }
+  })
   const [theme, setTheme] = useState(() => {
     try {
       return (localStorage.getItem('pulse-theme') as 'dark' | 'light') || 'dark'
@@ -6752,6 +6930,18 @@ export default function App() {
           </div>
           <WebhookModal open={webhookModalOpen} onClose={() => setWebhookModalOpen(false)} />
           <ApiKeyModal open={apiKeyModalOpen} onClose={() => setApiKeyModalOpen(false)} />
+          {showPushPrompt && (
+            <PushPermissionPrompt
+              onDismiss={() => {
+                setShowPushPrompt(false)
+                try {
+                  sessionStorage.setItem('pulse-push-prompted', '1')
+                } catch {
+                  /* noop */
+                }
+              }}
+            />
+          )}
           {isPWA && <TabNav active={tab} onChange={setTab} pwa isAdmin={isAdmin} />}
         </div>
       )}

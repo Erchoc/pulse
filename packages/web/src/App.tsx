@@ -189,6 +189,10 @@ const msg = {
     saved: 'Saved!',
     copied: 'Copied!',
     copy: 'Copy',
+    webhookNotif: 'Webhook Notification',
+    apiIntegrationShort: 'API Integration',
+    darkMode: 'Dark Mode',
+    logout: 'Sign Out',
     setMaintenance: 'Set Maintenance',
     endMaintenance: 'End Maintenance',
     maintenanceReason: 'Reason',
@@ -389,6 +393,10 @@ const msg = {
     saved: '已保存！',
     copied: '已复制！',
     copy: '复制',
+    webhookNotif: 'Webhook 通知',
+    apiIntegrationShort: 'API 接入',
+    darkMode: '深色模式',
+    logout: '退出登录',
     setMaintenance: '设置维护',
     endMaintenance: '结束维护',
     maintenanceReason: '维护原因',
@@ -5260,6 +5268,22 @@ if (
 
 export default function App() {
   const isPWA = useIsPWA()
+  const [isAdmin] = useState(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('role') === 'admin'
+    if (fromUrl) {
+      try {
+        sessionStorage.setItem('pulse-role', 'admin')
+      } catch {
+        /* noop */
+      }
+      return true
+    }
+    try {
+      return sessionStorage.getItem('pulse-role') === 'admin'
+    } catch {
+      return false
+    }
+  })
   const [theme, setTheme] = useState(() => {
     try {
       return (localStorage.getItem('pulse-theme') as 'dark' | 'light') || 'dark'

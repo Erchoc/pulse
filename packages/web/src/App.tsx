@@ -4826,6 +4826,431 @@ function SettingsPage({ projectName, setProjectName, siteNotif, onNotifChange, i
 }
 
 /* ================================================================
+   WebhookModal
+   ================================================================ */
+function WebhookModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t, i18n } = useApp()
+  const [webhookUrl, setWebhookUrl] = useState('')
+  const [webhookTested, setWebhookTested] = useState<string | null>(null)
+  const [webhookError, setWebhookError] = useState('')
+  const [showPayload, setShowPayload] = useState(false)
+  const [saveState, setSaveState] = useState('idle')
+
+  const handleTestWebhook = useCallback(() => {
+    if (!webhookUrl) return
+    setWebhookTested('testing')
+    setWebhookError('')
+    fetch('/api/v1/settings/webhook/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: webhookUrl, body: WEBHOOK_PAYLOAD_SAMPLE }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setWebhookTested('success')
+          setTimeout(() => setWebhookTested(null), 4000)
+        } else {
+          setWebhookTested('fail')
+          setWebhookError(
+            data.status_code
+              ? i18n.webhookFailDetail.replace('{status}', String(data.status_code))
+              : data.error || i18n.webhookFailNetwork,
+          )
+        }
+      })
+      .catch(() => {
+        setWebhookTested('fail')
+        setWebhookError(i18n.webhookFailNetwork)
+      })
+  }, [webhookUrl, i18n.webhookFailDetail, i18n.webhookFailNetwork])
+
+  const handleSave = useCallback(() => {
+    setSaveState('saving')
+    setTimeout(() => {
+      setSaveState('saved')
+      setTimeout(() => {
+        setSaveState('idle')
+        onClose()
+      }, 1200)
+    }, 1000)
+  }, [onClose])
+
+  return (
+    <Modal open={open} onClose={onClose} title={i18n.webhookNotif} width={520}>
+      <div style={{ padding: '16px 24px 24px' }}>
+        <p style={{ color: t.text.secondary, fontSize: 13, margin: '0 0 16px', lineHeight: 1.6 }}>
+          {i18n.webhookHint}
+        </p>
+
+        {/* URL input + Test button */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            marginBottom: 8,
+          }}
+        >
+          <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+            <Input
+              value={webhookUrl}
+              onChange={setWebhookUrl}
+              placeholder="https://hooks.example.com/sentinel"
+            />
+          </div>
+          <Btn
+            variant="default"
+            onClick={handleTestWebhook}
+            loading={webhookTested === 'testing'}
+            disabled={!webhookUrl}
+          >
+            {i18n.testWebhook}
+          </Btn>
+        </div>
+
+        {/* Localhost warning */}
+        {/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(webhookUrl) && (
+          <div
+            style={{
+              marginTop: 8,
+              padding: '6px 10px',
+              fontSize: 12,
+              color: t.status.degraded,
+              backgroundColor: `${t.status.degraded}0a`,
+              border: `1px solid ${t.status.degraded}22`,
+              borderRadius: 8,
+              lineHeight: 1.5,
+            }}
+          >
+            {i18n.webhookLocalWarn}
+          </div>
+        )}
+
+        {/* Success feedback */}
+        {webhookTested === 'success' && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: '8px 12px',
+              fontSize: 12,
+              color: t.status.up,
+              backgroundColor: `${t.status.up}0a`,
+              border: `1px solid ${t.status.up}22`,
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              animation: 'fadeSlide .2s ease',
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <title>OK</title>
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            {i18n.webhookSuccess}
+          </div>
+        )}
+
+        {/* Fail feedback */}
+        {webhookTested === 'fail' && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: '8px 12px',
+              fontSize: 12,
+              color: t.status.down,
+              backgroundColor: `${t.status.down}0a`,
+              border: `1px solid ${t.status.down}22`,
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 6,
+              lineHeight: 1.5,
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ flexShrink: 0, marginTop: 2 }}
+            >
+              <title>Error</title>
+              <circle cx="12" cy="12" r="10" />
+              <line x1="15" y1="9" x2="9" y2="15" />
+              <line x1="9" y1="9" x2="15" y2="15" />
+            </svg>
+            <span>{webhookError || i18n.webhookFail}</span>
+          </div>
+        )}
+
+        {/* Collapsible payload preview */}
+        <button
+          type="button"
+          onClick={() => setShowPayload((p) => !p)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: t.accent,
+            fontSize: 12,
+            cursor: 'pointer',
+            marginTop: 12,
+            padding: 0,
+            fontFamily: F.sans,
+          }}
+        >
+          {showPayload ? '▾' : '▸'} {i18n.samplePayload}
+        </button>
+        {showPayload && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 11, color: t.text.muted, marginBottom: 6 }}>
+              {i18n.payloadHint}
+            </div>
+            <pre
+              style={{
+                backgroundColor: t.bg.input,
+                padding: 12,
+                borderRadius: R.sm,
+                fontSize: 11,
+                fontFamily: F.mono,
+                color: t.text.secondary,
+                overflowX: 'auto',
+                margin: 0,
+                border: `1px solid ${t.border}`,
+                lineHeight: 1.6,
+                maxWidth: '100%',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+              }}
+            >
+              {WEBHOOK_PAYLOAD_SAMPLE}
+            </pre>
+          </div>
+        )}
+
+        {/* Bottom row */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+          <Btn variant="ghost" onClick={onClose}>
+            {i18n.cancel}
+          </Btn>
+          <Btn
+            variant="default"
+            onClick={handleSave}
+            loading={saveState === 'saving'}
+            disabled={saveState !== 'idle'}
+          >
+            {saveState === 'saved' ? i18n.saved : i18n.save}
+          </Btn>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+/* ================================================================
+   ApiKeyModal
+   ================================================================ */
+function ApiKeyModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t, i18n } = useApp()
+  const [apiKey, setApiKey] = useState(() => genApiKey())
+  const [oldApiKey, setOldApiKey] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [regenConfirm, setRegenConfirm] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const flash = useCallback((m: string) => {
+    setToast(m)
+    setTimeout(() => setToast(null), 2200)
+  }, [])
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard?.writeText(apiKey)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [apiKey])
+
+  const handleRegen = useCallback(() => {
+    setOldApiKey(apiKey)
+    setApiKey(genApiKey())
+    setRegenConfirm(false)
+    flash(i18n.regenerated)
+  }, [apiKey, flash, i18n.regenerated])
+
+  return (
+    <Modal open={open} onClose={onClose} title={i18n.apiIntegrationShort} width={520}>
+      <div style={{ padding: '16px 24px 24px' }}>
+        <p style={{ color: t.text.secondary, fontSize: 13, margin: '0 0 16px', lineHeight: 1.6 }}>
+          {i18n.apiHint}{' '}
+          <a href="/doc" style={{ color: t.accent }}>
+            {i18n.apiDocLink} →
+          </a>
+        </p>
+
+        <div style={{ fontSize: 11, color: t.text.muted, fontWeight: 500, marginBottom: 6 }}>
+          {i18n.apiKey}
+        </div>
+
+        {/* Masked key + copy + regen */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <code
+            style={{
+              flex: '1 1 200px',
+              minWidth: 0,
+              padding: '8px 12px',
+              backgroundColor: t.bg.input,
+              borderRadius: 8,
+              fontFamily: F.mono,
+              fontSize: 12,
+              color: t.text.muted,
+              border: `1px solid ${t.border}`,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              letterSpacing: '.05em',
+            }}
+          >
+            {`${apiKey.slice(0, 7)}${'•'.repeat(20)}${apiKey.slice(-4)}`}
+          </code>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={handleCopy}
+              title={i18n.copy}
+              style={{
+                background: 'none',
+                border: `1px solid ${copied ? `${t.status.up}55` : t.border}`,
+                borderRadius: 6,
+                padding: '6px 8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all .2s',
+                color: copied ? t.status.up : t.text.muted,
+                backgroundColor: copied ? `${t.status.up}10` : 'transparent',
+              }}
+            >
+              {copied ? (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ animation: 'checkPop .3s ease-out' }}
+                >
+                  <title>Copied</title>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <title>Copy</title>
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              )}
+            </button>
+            <Btn small variant="danger" onClick={() => setRegenConfirm(true)}>
+              {i18n.regenerate}
+            </Btn>
+          </div>
+        </div>
+
+        {/* Old key display */}
+        {oldApiKey && (
+          <div style={{ marginTop: 10 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: t.status.degraded,
+                fontWeight: 500,
+                marginBottom: 4,
+              }}
+            >
+              {i18n.oldKey}
+            </div>
+            <code
+              style={{
+                display: 'block',
+                padding: '6px 10px',
+                backgroundColor: t.bg.input,
+                borderRadius: 6,
+                fontFamily: F.mono,
+                fontSize: 11,
+                color: t.text.muted,
+                border: `1px dashed ${t.status.degraded}33`,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {oldApiKey}
+            </code>
+          </div>
+        )}
+
+        {/* Inline regen confirmation (not a nested Modal) */}
+        {regenConfirm && (
+          <div
+            style={{
+              marginTop: 14,
+              padding: '12px 14px',
+              backgroundColor: `${t.status.down}08`,
+              border: `1px solid ${t.status.down}22`,
+              borderRadius: 8,
+              animation: 'fadeSlide .2s ease',
+            }}
+          >
+            <p
+              style={{ color: t.text.secondary, fontSize: 13, margin: '0 0 12px', lineHeight: 1.5 }}
+            >
+              {i18n.regenerateConfirm}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <Btn variant="ghost" onClick={() => setRegenConfirm(false)}>
+                {i18n.cancel}
+              </Btn>
+              <Btn variant="danger" onClick={handleRegen}>
+                {i18n.confirm}
+              </Btn>
+            </div>
+          </div>
+        )}
+
+        <Toast message={toast} visible={!!toast} />
+      </div>
+    </Modal>
+  )
+}
+
+/* ================================================================
    Layout: Header, Tabs
    ================================================================ */
 const RANGE_DAYS: Record<string, number> = {

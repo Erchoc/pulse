@@ -11,6 +11,8 @@ const msg = {
     overview: 'Overview',
     probes: 'Probes',
     incidents: 'Incidents',
+    alerts: 'Alerts',
+    alertsComingSoon: 'Alert rules coming soon',
     settings: 'Settings',
     overallSLA: 'Overall SLA',
     servicesUp: 'Services Up',
@@ -158,6 +160,8 @@ const msg = {
     overview: '总览',
     probes: '探针',
     incidents: '事件',
+    alerts: '告警',
+    alertsComingSoon: '告警规则即将推出',
     settings: '设置',
     overallSLA: '整体 SLA',
     servicesUp: '服务状态',
@@ -437,7 +441,7 @@ const _initProbes = [
     type: 'tcp',
     url: 'db-primary.internal:5432',
     interval: '10s',
-    timeout: '2s',
+    timeout: '3s',
     desc: 'tcp',
     mode: 'server',
     status: 'up',
@@ -448,7 +452,7 @@ const _initProbes = [
     type: 'http',
     url: 'https://cdn.example.com/probe',
     interval: '60s',
-    timeout: '10s',
+    timeout: '8s',
     desc: 'http',
     mode: 'server',
     status: 'up',
@@ -771,7 +775,7 @@ function genMockProbes(n = 110) {
       type: isClient ? 'push' : types[i % types.length],
       url: isClient ? '—' : `https://svc-${i}.example.com/health`,
       interval: intervals[i % intervals.length],
-      timeout: ['2s', '5s', '10s'][i % 3],
+      timeout: ['3s', '5s', '8s'][i % 3],
       desc: isClient ? 'push' : types[i % types.length],
       mode: isClient ? 'client' : 'server',
       status: statuses[Math.floor(Math.random() * statuses.length)],
@@ -1081,7 +1085,7 @@ function Select({ value, onChange, options }) {
     setOpen(!open)
   }
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+    <div ref={ref} style={{ position: 'relative' }}>
       <button
         ref={btnRef}
         type="button"
@@ -1096,6 +1100,7 @@ function Select({ value, onChange, options }) {
           fontFamily: F.sans,
           cursor: 'pointer',
           textAlign: 'left',
+          width: '100%',
           minWidth: 160,
           transition: 'border-color .2s',
           position: 'relative',
@@ -3063,9 +3068,9 @@ function ProbeForm({ probe, onSave, onCancel }) {
     { value: '3600s', label: '1h' },
   ]
   const timeoutOpts = [
-    { value: '2s', label: '2s' },
+    { value: '3s', label: '3s' },
     { value: '5s', label: '5s' },
-    { value: '10s', label: '10s' },
+    { value: '8s', label: '8s' },
   ]
   const modeOpts = [
     { value: 'server', label: i18n.serverProbes },
@@ -4207,6 +4212,7 @@ function TabNav({ active, onChange }) {
     { id: 'overview', label: i18n.overview },
     { id: 'probes', label: i18n.probes },
     { id: 'incidents', label: i18n.incidents },
+    { id: 'alerts', label: i18n.alerts },
     { id: 'settings', label: i18n.settings },
   ]
   return (
@@ -4354,7 +4360,7 @@ export default function App() {
     }
   })
   const [selectedId, setSelectedId] = useState(null)
-  const validTabs = ['overview', 'probes', 'incidents', 'settings']
+  const validTabs = ['overview', 'probes', 'incidents', 'alerts', 'settings']
   const parseTabFromHash = useCallback(() => {
     const m = window.location.hash.match(/tab=(\d+)/)
     if (m) {
@@ -4787,6 +4793,26 @@ export default function App() {
               }}
             >
               Incidents {i18n.comingSoon}
+            </div>
+          )}
+
+          {/* ──── ALERTS ──── */}
+          {tab === 'alerts' && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 300,
+                color: t.text.muted,
+                fontSize: 14,
+                backgroundColor: t.bg.card,
+                borderRadius: R.lg,
+                border: `1px solid ${t.border}`,
+                boxShadow: t.shadow,
+              }}
+            >
+              {i18n.alertsComingSoon}
             </div>
           )}
 

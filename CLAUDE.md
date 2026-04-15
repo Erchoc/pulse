@@ -19,6 +19,17 @@ packages/
 - **Hooks**: Lefthook pre-commit (biome check + typecheck)
 - **工具链**: mise (Node 24 + Go 1.23), pnpm workspace
 
+## 领域模型
+
+```
+Service (服务) ─── 业务单元，用户关心的监控对象
+  └── Probe (探针) ─── 技术检测点，执行实际健康检查
+```
+
+- **探针 → 服务: N:1**（多个探针属于一个服务，一个探针只属于一个服务）
+- 服务的 SLA = 其所有探针综合可用性的计算结果
+- 维护模式设在**服务级别**：维护期间该服务下所有探针的故障不计入 SLA，告警仅通知操作人
+
 ## 前端规范
 
 ### 样式
@@ -101,3 +112,17 @@ packages/
 ### 7. 复制按钮布局抖动
 **问题**: 点击复制后文字从"复制"变"已复制！"导致按钮宽度变化，触发 layout reflow。
 **方案**: 改用 SVG 图标按钮（clipboard → checkmark 动画），固定宽度零布局偏移。
+
+### 8. SVG 图表左右留白
+**问题**: MiniChart 的 SVG 用 `viewBox="0 0 200 80"` + `style={{ width: '100%' }}`，当容器比 viewBox 宽高比更宽时，SVG 默认 `preserveAspectRatio="xMidYMid meet"` 会保持宽高比并在左右留白居中。调 padding、margin、leftPad 都无效。
+**尝试过的方案**:
+- 缩减容器 padding → 无效，空白来自 SVG 自身
+- 负 margin 突破父级 padding → 卡片比其他区域更宽，视觉不一致
+- SVG 内部 leftPad 给 Y 轴标注 → 压缩绘图区，曲线更短
+**最终方案**: 设置 `preserveAspectRatio="none"`，SVG 内容拉伸填满容器宽高，曲线撑满全宽。Y 轴 min/max 标注改用 HTML 绝对定位浮在图表上方。
+**教训**: SVG `width: 100%` 不等于内容撑满——`preserveAspectRatio` 才是控制 viewBox 到 viewport 映射的关键属性。
+
+### 9. Subagent 链式 git 操作
+**问题**: 分派 subagent 执行 Go API 任务时，subagent 在 prompt 中明确收到"git add 和 git commit 分两个 Bash 调用"的指示，但仍然用了 `git add && git commit` 链式操作。
+**原因**: Subagent 有独立的上下文窗口，RTK hook 的限制写在全局 CLAUDE.md 和 prompt 中，但 subagent 倾向于合并"简单"的 git 操作。
+**教训**: 给 subagent 的 prompt 中，git 规范必须用 **加粗+大写** 强调，并在 commit 步骤中显式写成两个独立命令块而非一个代码块。

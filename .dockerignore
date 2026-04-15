@@ -1,7 +1,13 @@
-node_modules
-packages/*/node_modules
-packages/*/dist
-.git
+node_modules/
+dist/
+test-reports/
+.git/
+.github/
+.claude/
+docs/
 *.log
+*.md
+!README.md
 .DS_Store
 .env
+.env.*

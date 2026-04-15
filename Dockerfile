@@ -8,7 +8,6 @@ WORKDIR /app
 RUN npm install -g pnpm@10.12.4
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/web/package.json ./packages/web/
-COPY tsconfig.base.json ./
 RUN pnpm install --frozen-lockfile
 
 COPY packages/web/ ./packages/web/

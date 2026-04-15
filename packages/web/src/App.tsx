@@ -122,6 +122,13 @@ const msg = {
     probeUrl: 'Address',
     probeInterval: 'Interval',
     probeTimeout: 'Timeout',
+    probeRegion: 'Deploy Region',
+    regionCnSingle: 'CN Single',
+    regionCnMulti: 'CN Multi',
+    regionSea: 'Southeast Asia',
+    regionEu: 'Europe',
+    regionUsEast: 'US East',
+    regionUsWest: 'US West',
     probeDesc: 'Description',
     probeMode: 'Probe Mode',
     nameTooLong: 'Name must be 32 characters or less',
@@ -299,6 +306,13 @@ const msg = {
     probeUrl: '地址',
     probeInterval: '间隔',
     probeTimeout: '超时',
+    probeRegion: '部署区域',
+    regionCnSingle: '国内单点',
+    regionCnMulti: '国内多点',
+    regionSea: '东南亚',
+    regionEu: '欧洲',
+    regionUsEast: '美东',
+    regionUsWest: '美西',
     probeDesc: '描述',
     probeMode: '探测模式',
     nameTooLong: '名称不超过 32 个字符',
@@ -3316,6 +3330,7 @@ function ProbeForm({ probe, onSave, onCancel }) {
       url: '',
       interval: '60s',
       timeout: '5s',
+      region: 'cn-single',
       desc: '',
       mode: 'server',
       target: 99,
@@ -3513,6 +3528,40 @@ function ProbeForm({ probe, onSave, onCancel }) {
                 border: `1px solid ${o.value === form.interval ? `${t.accent}55` : t.border}`,
                 backgroundColor: o.value === form.interval ? t.accentMuted : 'transparent',
                 color: o.value === form.interval ? t.text.primary : t.text.secondary,
+                transition: 'all .15s',
+              }}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+          {i18n.probeRegion}
+        </span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+          {[
+            { value: 'cn-single', label: i18n.regionCnSingle },
+            { value: 'cn-multi', label: i18n.regionCnMulti },
+            { value: 'sea', label: i18n.regionSea },
+            { value: 'eu', label: i18n.regionEu },
+            { value: 'us-east', label: i18n.regionUsEast },
+            { value: 'us-west', label: i18n.regionUsWest },
+          ].map((o) => (
+            <button
+              type="button"
+              key={o.value}
+              onClick={() => upd('region', o.value)}
+              style={{
+                padding: '6px 0',
+                borderRadius: 6,
+                fontSize: 12,
+                fontFamily: F.sans,
+                cursor: 'pointer',
+                border: `1px solid ${o.value === form.region ? `${t.accent}55` : t.border}`,
+                backgroundColor: o.value === form.region ? t.accentMuted : 'transparent',
+                color: o.value === form.region ? t.text.primary : t.text.secondary,
                 transition: 'all .15s',
               }}
             >

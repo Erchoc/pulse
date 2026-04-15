@@ -11,8 +11,9 @@ const msg = {
     overview: 'Overview',
     probes: 'Probes',
     incidents: 'Incidents',
-    alerts: 'Alerts',
-    alertsComingSoon: 'Alert rules coming soon',
+    alerts: 'OpenAPI',
+    alertsDesc: 'OpenAPI integration hub — connect your monitoring data with external systems.',
+    alertsDocLink: 'View API documentation',
     settings: 'Settings',
     overallSLA: 'Overall SLA',
     servicesUp: 'Services Up',
@@ -160,8 +161,9 @@ const msg = {
     overview: '总览',
     probes: '探针',
     incidents: '事件',
-    alerts: '告警',
-    alertsComingSoon: '告警规则即将推出',
+    alerts: 'OpenAPI',
+    alertsDesc: 'OpenAPI 接入集成 — 将监控数据与外部系统对接。',
+    alertsDocLink: '查看接入文档',
     settings: '设置',
     overallSLA: '整体 SLA',
     servicesUp: '服务状态',
@@ -4516,7 +4518,7 @@ export default function App() {
         @keyframes checkPop{0%{transform:scale(0) rotate(-45deg);opacity:0}50%{transform:scale(1.2) rotate(0deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}
         @keyframes savedPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 10px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
         .settings-row{display:grid;grid-template-columns:280px 1fr;gap:32px;align-items:start}
-        @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr 80px 76px!important;gap:8px!important}.filter-bar{flex-wrap:wrap!important}.filter-chips{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(0,1fr))!important;width:100%!important}.filter-chips button{justify-content:center!important}.search-box{max-width:none!important;width:100%!important;flex:auto!important}}
+        @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr 80px 76px!important;gap:8px!important}.filter-bar{flex-wrap:wrap!important}.filter-chips{display:flex!important;width:100%!important;gap:4px!important}.filter-chips button{flex:1!important;min-width:0!important;justify-content:center!important;white-space:nowrap!important;padding:6px 6px!important;font-size:12px!important}.search-box{max-width:none!important;width:100%!important;flex:auto!important}}
         @media(max-width:600px){.resp-cols{grid-template-columns:1fr!important}.stat-grid{grid-template-columns:1fr 1fr!important}}
       `}</style>
 
@@ -4829,18 +4831,28 @@ export default function App() {
             <div
               style={{
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
+                gap: 12,
                 height: 300,
-                color: t.text.muted,
-                fontSize: 14,
                 backgroundColor: t.bg.card,
                 borderRadius: R.lg,
                 border: `1px solid ${t.border}`,
                 boxShadow: t.shadow,
+                padding: 24,
+                textAlign: 'center',
               }}
             >
-              {i18n.alertsComingSoon}
+              <span style={{ fontSize: 14, color: t.text.muted }}>{i18n.alertsDesc}</span>
+              <a
+                href="/api/docs"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 13, color: t.accent, textDecoration: 'underline' }}
+              >
+                {i18n.alertsDocLink} →
+              </a>
             </div>
           )}
 

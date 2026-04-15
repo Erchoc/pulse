@@ -6207,7 +6207,7 @@ export default function App() {
 
             {/* ──── PROBES ──── */}
             {tab === 'probes' && (
-              <div style={{ paddingBottom: isPWA ? 80 : 0 }}>
+              <div style={{ paddingBottom: isPWA ? 32 : 0 }}>
                 <ProbesPage />
               </div>
             )}

@@ -1576,7 +1576,8 @@ function Modal({ open, onClose, title, children, width = 480 }) {
           width: '100%',
           maxWidth: width,
           maxHeight: '90vh',
-          overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
           animation: 'fadeSlide .2s ease',
         }}
       >
@@ -1586,6 +1587,7 @@ function Modal({ open, onClose, title, children, width = 480 }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
+            flexShrink: 0,
           }}
         >
           <h3 style={{ fontSize: 16, fontWeight: 700, color: t.text.primary, margin: 0 }}>
@@ -1606,7 +1608,7 @@ function Modal({ open, onClose, title, children, width = 480 }) {
             ✕
           </button>
         </div>
-        <div style={{ padding: 24 }}>{children}</div>
+        <div style={{ padding: 24, overflow: 'auto', flex: 1 }}>{children}</div>
       </div>
     </div>
   )
@@ -1882,6 +1884,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
   const [availOpen, setAvailOpen] = useState(false)
   const [incidentOpen, setIncidentOpen] = useState(false)
   const [maintModalOpen, setMaintModalOpen] = useState(false)
+  const [endMaintConfirm, setEndMaintConfirm] = useState(false)
   if (!svc)
     return (
       <div
@@ -1952,15 +1955,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
               </Btn>
             )}
             {svc.maintenance && (
-              <Btn
-                small
-                variant="danger"
-                onClick={() => {
-                  if (confirm(i18n.confirmEndMaintenance)) {
-                    onToggleMaintenance(svc.id, null)
-                  }
-                }}
-              >
+              <Btn small variant="danger" onClick={() => setEndMaintConfirm(true)}>
                 {i18n.endMaintenance}
               </Btn>
             )}
@@ -2289,6 +2284,32 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
             setMaintModalOpen(false)
           }}
         />
+      </Modal>
+      <Modal
+        open={endMaintConfirm}
+        onClose={() => setEndMaintConfirm(false)}
+        title={i18n.endMaintenance}
+        width={360}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <p style={{ margin: 0, fontSize: 13, color: t.text.secondary }}>
+            {i18n.confirmEndMaintenance}
+          </p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Btn variant="ghost" onClick={() => setEndMaintConfirm(false)}>
+              {i18n.cancel}
+            </Btn>
+            <Btn
+              variant="danger"
+              onClick={() => {
+                onToggleMaintenance(svc.id, null)
+                setEndMaintConfirm(false)
+              }}
+            >
+              {i18n.confirm}
+            </Btn>
+          </div>
+        </div>
       </Modal>
     </div>
   )
@@ -4495,7 +4516,7 @@ export default function App() {
         @keyframes checkPop{0%{transform:scale(0) rotate(-45deg);opacity:0}50%{transform:scale(1.2) rotate(0deg);opacity:1}100%{transform:scale(1) rotate(0deg);opacity:1}}
         @keyframes savedPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4)}70%{box-shadow:0 0 0 10px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
         .settings-row{display:grid;grid-template-columns:280px 1fr;gap:32px;align-items:start}
-        @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr 80px 76px!important;gap:8px!important}.filter-bar{flex-wrap:wrap!important}.filter-chips{display:grid!important;grid-template-columns:repeat(4,1fr)!important;width:100%!important}.filter-chips button{justify-content:center!important}.search-box{max-width:none!important;width:100%!important;flex:auto!important}}
+        @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr 80px 76px!important;gap:8px!important}.filter-bar{flex-wrap:wrap!important}.filter-chips{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(0,1fr))!important;width:100%!important}.filter-chips button{justify-content:center!important}.search-box{max-width:none!important;width:100%!important;flex:auto!important}}
         @media(max-width:600px){.resp-cols{grid-template-columns:1fr!important}.stat-grid{grid-template-columns:1fr 1fr!important}}
       `}</style>
 

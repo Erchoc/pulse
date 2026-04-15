@@ -67,12 +67,7 @@ interface Theme {
   bg: { base: string; card: string; elevated: string }
   border: string
   text: { primary: string; secondary: string; muted: string }
-  status: {
-    up: string
-    degraded: string
-    down: string
-    maintenance: string
-  }
+  status: { up: string; degraded: string; down: string; maintenance: string }
   shadow: string
   accent: string
 }
@@ -124,85 +119,8 @@ function setCachedServices(services: StatusService[]) {
   try {
     sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: services }))
   } catch {
-    /* quota exceeded — ignore */
+    /* quota exceeded */
   }
-}
-
-/* ================================================================
-   SVG Icons (replace emoji for consistent rendering)
-   ================================================================ */
-function CheckIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <title>Operational</title>
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  )
-}
-
-function AlertIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <title>Degraded</title>
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-  )
-}
-
-function XIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <title>Outage</title>
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  )
-}
-
-function WrenchIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <title>Maintenance</title>
-      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-    </svg>
-  )
 }
 
 /* ================================================================
@@ -230,7 +148,7 @@ function statusColor(status: string, t: Theme): string {
 }
 
 /* ================================================================
-   DayPopover
+   DayPopover — shown when clicking a bar segment
    ================================================================ */
 interface PopoverData {
   day: BarDay
@@ -249,29 +167,21 @@ function DayPopover({
 
   useEffect(() => {
     if (!ref.current) return
-    const el = ref.current
-    const bw = el.offsetWidth
-    const bh = el.offsetHeight
+    const bw = ref.current.offsetWidth
+    const bh = ref.current.offsetHeight
     const vw = window.innerWidth
-    const vh = window.innerHeight
     const r = data.rect
-
     let left = r.left + r.width / 2 - bw / 2
     let top = r.top - bh - 8
-
     if (left < 8) left = 8
     if (left + bw > vw - 8) left = vw - bw - 8
     if (top < 8) top = r.bottom + 8
-    if (top + bh > vh - 8) top = vh - bh - 8
-
     setPos({ top, left })
   }, [data])
 
   const downMinutes = (100 - data.day.uptime) * 14.4
   const downtimeStr = formatDowntime(downMinutes, i18n.noDowntime)
-
-  const dateObj = new Date(data.day.date)
-  const dateStr = dateObj.toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', {
+  const dateStr = new Date(data.day.date).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -287,125 +197,71 @@ function DayPopover({
         zIndex: 9999,
         background: t.bg.elevated,
         border: `1px solid ${t.border}`,
-        borderRadius: 10,
-        padding: '10px 14px',
+        borderRadius: 8,
+        padding: '8px 12px',
         boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-        minWidth: 180,
+        minWidth: 170,
         fontFamily: F.sans,
         pointerEvents: 'none',
       }}
     >
       <div
         style={{
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: 600,
           color: t.text.secondary,
-          marginBottom: 8,
+          marginBottom: 6,
           fontFamily: F.display,
         }}
       >
         {dateStr}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {[
+        {
+          label: i18n.statusUptime,
+          value: `${data.day.uptime.toFixed(2)}%`,
+          color: statusColor(data.day.status, t),
+        },
+        { label: i18n.dayDowntime, value: downtimeStr, color: t.text.primary },
+        {
+          label: i18n.dayAvgLatency,
+          value: data.avgLatency > 0 ? `${data.avgLatency}ms` : '—',
+          color: t.text.primary,
+        },
+      ].map((row) => (
         <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 16,
-          }}
+          key={row.label}
+          style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 3 }}
         >
-          <span style={{ fontSize: 12, color: t.text.muted }}>{i18n.statusUptime}</span>
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: statusColor(data.day.status, t),
-              fontFamily: F.mono,
-            }}
-          >
-            {data.day.uptime.toFixed(2)}%
+          <span style={{ fontSize: 11, color: t.text.muted }}>{row.label}</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: row.color, fontFamily: F.mono }}>
+            {row.value}
           </span>
         </div>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 16,
-          }}
-        >
-          <span style={{ fontSize: 12, color: t.text.muted }}>{i18n.dayDowntime}</span>
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: t.text.primary,
-              fontFamily: F.mono,
-            }}
-          >
-            {downtimeStr}
-          </span>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 16,
-          }}
-        >
-          <span style={{ fontSize: 12, color: t.text.muted }}>{i18n.dayAvgLatency}</span>
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: t.text.primary,
-              fontFamily: F.mono,
-            }}
-          >
-            {data.avgLatency > 0 ? `${data.avgLatency}ms` : '—'}
-          </span>
-        </div>
-      </div>
+      ))}
     </div>
   )
 }
 
 /* ================================================================
-   UptimeBar — flex layout, bars fill container naturally
+   ServiceRow — compact single-row per service (status.claude.com style)
    ================================================================ */
-function UptimeBar({
-  bar,
-  ld,
+function ServiceRow({
+  svc,
   t,
   i18n,
   lang,
-}: {
-  bar: BarDay[]
-  ld: LdEntry[]
-  t: Theme
-  i18n: I18n
-  lang: string
-}) {
+}: { svc: StatusService; t: Theme; i18n: I18n; lang: string }) {
   const [popover, setPopover] = useState<PopoverData | null>(null)
-
-  // Take only last 90 days
-  const days = useMemo(() => bar.slice(-STATUS_BAR_DAYS), [bar])
+  const days = useMemo(() => svc.bar.slice(-STATUS_BAR_DAYS), [svc.bar])
+  const address = addresses[svc.id] ?? `${svc.id}.example.com`
+  const name = lang === 'zh' ? svc.nameZh : svc.name
 
   const handleBarClick = (day: BarDay, idx: number, e: React.MouseEvent) => {
     e.stopPropagation()
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const ldIdx = Math.floor((idx / days.length) * ld.length)
-    const avgLatency = ld[ldIdx]?.v ?? 0
-    setPopover({ day, avgLatency: Math.round(avgLatency), rect })
-  }
-
-  const handleBarKeyDown = (day: BarDay, idx: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-      const ldIdx = Math.floor((idx / days.length) * ld.length)
-      const avgLatency = ld[ldIdx]?.v ?? 0
-      setPopover({ day, avgLatency: Math.round(avgLatency), rect })
-    }
-    if (e.key === 'Escape') setPopover(null)
+    const ldIdx = Math.floor((idx / days.length) * svc.ld.length)
+    setPopover({ day, avgLatency: Math.round(svc.ld[ldIdx]?.v ?? 0), rect })
   }
 
   useEffect(() => {
@@ -415,302 +271,172 @@ function UptimeBar({
     return () => window.removeEventListener('click', handler)
   }, [popover])
 
+  const slaColor =
+    svc.sla >= svc.target
+      ? t.status.up
+      : svc.sla >= svc.target - 0.5
+        ? t.status.degraded
+        : t.status.down
+
   return (
-    <>
+    <div style={{ padding: '5px 0' }}>
+      {/* Name row: dot + name + protocol + address */}
       <div
-        style={{
-          display: 'flex',
-          alignItems: 'stretch',
-          gap: 1.5,
-          height: 32,
-          width: '100%',
-          minWidth: 0,
-        }}
+        className="sp-name-row"
+        style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}
       >
-        {days.map((day, idx) => (
-          <div
-            key={day.date}
-            role="button"
-            tabIndex={0}
-            title={day.date}
-            onClick={(e) => handleBarClick(day, idx, e)}
-            onKeyDown={(e) => handleBarKeyDown(day, idx, e)}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              background: statusColor(day.status, t),
-              borderRadius: 2,
-              cursor: 'pointer',
-              opacity: 0.8,
-              transition: 'opacity 0.1s',
-            }}
-            onMouseEnter={(e) => {
-              ;(e.currentTarget as HTMLElement).style.opacity = '1'
-            }}
-            onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLElement).style.opacity = '0.8'
-            }}
-          />
-        ))}
+        <span
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: statusColor(svc.status, t),
+            flexShrink: 0,
+          }}
+        />
+        <span style={{ fontWeight: 600, fontSize: 13, color: t.text.primary }}>{name}</span>
+        <span
+          style={{
+            fontSize: 10,
+            fontFamily: F.mono,
+            fontWeight: 600,
+            color: typeColors[svc.type] ?? t.text.muted,
+            background: `${typeColors[svc.type] ?? t.text.muted}15`,
+            borderRadius: 4,
+            padding: '1px 5px',
+            textTransform: 'uppercase',
+            letterSpacing: '.03em',
+          }}
+        >
+          {svc.type}
+        </span>
+        <span
+          className="sp-address"
+          style={{ fontSize: 11, fontFamily: F.mono, color: t.text.muted, marginLeft: 'auto' }}
+        >
+          {address}
+        </span>
       </div>
-      {popover && <DayPopover data={popover} t={t} i18n={i18n} lang={lang} />}
-    </>
-  )
-}
 
-/* ================================================================
-   ServiceCard
-   ================================================================ */
-function ServiceCard({
-  svc,
-  t,
-  i18n,
-  lang,
-}: {
-  svc: StatusService
-  t: Theme
-  i18n: I18n
-  lang: string
-}) {
-  const address = addresses[svc.id] ?? `${svc.id}.example.com`
-  const name = lang === 'zh' ? svc.nameZh : svc.name
-
-  return (
-    <div
-      style={{
-        background: t.bg.card,
-        border: `1px solid ${t.border}`,
-        borderRadius: 12,
-        padding: '16px 20px',
-        boxShadow: t.shadow,
-      }}
-    >
-      {/* Header row */}
-      <div
-        className="status-svc-header"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 12,
-          gap: 8,
-        }}
-      >
-        {/* Left: dot + name */}
+      {/* Bar row: bars fill width, percentage at end */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div
           style={{
+            flex: 1,
             display: 'flex',
-            alignItems: 'center',
-            gap: 8,
+            alignItems: 'stretch',
+            gap: 1,
+            height: 18,
             minWidth: 0,
           }}
         >
-          <span
-            style={{
-              width: 9,
-              height: 9,
-              borderRadius: '50%',
-              background: statusColor(svc.status, t),
-              flexShrink: 0,
-              display: 'inline-block',
-            }}
-          />
-          <span
-            style={{
-              fontFamily: F.display,
-              fontWeight: 600,
-              fontSize: 15,
-              color: t.text.primary,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {name}
-          </span>
+          {days.map((day, idx) => (
+            <div
+              key={day.date}
+              role="button"
+              tabIndex={0}
+              title={day.date}
+              onClick={(e) => handleBarClick(day, idx, e)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ')
+                  handleBarClick(day, idx, e as unknown as React.MouseEvent)
+                if (e.key === 'Escape') setPopover(null)
+              }}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                background: statusColor(day.status, t),
+                borderRadius: 2,
+                cursor: 'pointer',
+                opacity: 0.8,
+                transition: 'opacity 0.1s',
+              }}
+              onMouseEnter={(e) => {
+                ;(e.currentTarget as HTMLElement).style.opacity = '1'
+              }}
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLElement).style.opacity = '0.8'
+              }}
+            />
+          ))}
         </div>
-
-        {/* Right: meta badges */}
-        <div
-          className="status-svc-meta"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            flexShrink: 0,
-          }}
-        >
-          <span
-            style={{
-              fontSize: 11,
-              fontFamily: F.mono,
-              fontWeight: 600,
-              color: typeColors[svc.type] ?? t.text.muted,
-              background: `${typeColors[svc.type] ?? t.text.muted}18`,
-              border: `1px solid ${typeColors[svc.type] ?? t.text.muted}40`,
-              borderRadius: 5,
-              padding: '2px 7px',
-              letterSpacing: '0.02em',
-              textTransform: 'uppercase',
-            }}
-          >
-            {svc.type}
-          </span>
-          <span
-            className="status-address"
-            style={{
-              fontSize: 12,
-              fontFamily: F.mono,
-              color: t.text.secondary,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              maxWidth: 240,
-            }}
-          >
-            {address}
-          </span>
-        </div>
-      </div>
-
-      {/* Bar row */}
-      <div className="status-bar-row" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span
-          className="status-days-label"
-          style={{
-            fontSize: 11,
-            color: t.text.muted,
-            fontFamily: F.mono,
-            flexShrink: 0,
-            minWidth: 36,
-          }}
-        >
-          {i18n.statusDays.replace('{n}', String(STATUS_BAR_DAYS))}
-        </span>
-
-        <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
-          <UptimeBar bar={svc.bar} ld={svc.ld} t={t} i18n={i18n} lang={lang} />
-        </div>
-
-        <span
-          className="status-uptime-pct"
           style={{
             fontSize: 13,
             fontFamily: F.mono,
             fontWeight: 600,
-            color:
-              svc.sla >= svc.target
-                ? t.status.up
-                : svc.sla >= svc.target - 0.5
-                  ? t.status.degraded
-                  : t.status.down,
+            color: slaColor,
             flexShrink: 0,
-            minWidth: 56,
+            minWidth: 54,
             textAlign: 'right',
           }}
         >
           {svc.sla.toFixed(2)}%
         </span>
-        <span
-          className="status-uptime-label"
-          style={{ fontSize: 11, color: t.text.muted, flexShrink: 0 }}
-        >
-          {i18n.statusUptime}
-        </span>
       </div>
+      {popover && <DayPopover data={popover} t={t} i18n={i18n} lang={lang} />}
     </div>
   )
 }
 
 /* ================================================================
-   StatusBanner — SVG icons, clean design
+   StatusBanner — subtle, professional
    ================================================================ */
-function StatusBanner({
-  overall,
-  t,
-  i18n,
-}: {
-  overall: string
-  t: Theme
-  i18n: I18n
-}) {
-  const config: Record<string, { color: string; label: string; Icon: () => React.JSX.Element }> = {
-    operational: { color: t.status.up, label: i18n.allOperational, Icon: CheckIcon },
-    partial: { color: t.status.degraded, label: i18n.partialOutage, Icon: AlertIcon },
-    major: { color: t.status.down, label: i18n.majorOutage, Icon: XIcon },
-    maintenance: { color: t.status.maintenance, label: i18n.underMaintenance, Icon: WrenchIcon },
+function StatusBanner({ overall, t, i18n }: { overall: string; t: Theme; i18n: I18n }) {
+  const config: Record<string, { color: string; label: string }> = {
+    operational: { color: t.status.up, label: i18n.allOperational },
+    partial: { color: t.status.degraded, label: i18n.partialOutage },
+    major: { color: t.status.down, label: i18n.majorOutage },
+    maintenance: { color: t.status.maintenance, label: i18n.underMaintenance },
   }
-  const { color, label, Icon } = config[overall] ?? config.operational
+  const { color, label } = config[overall] ?? config.operational
 
   return (
     <div
       style={{
-        background: color,
-        borderRadius: 12,
-        padding: '14px 24px',
+        background: `${color}14`,
+        border: `1px solid ${color}30`,
+        borderRadius: 8,
+        padding: '8px 16px',
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
-        marginBottom: 28,
+        gap: 8,
+        marginBottom: 10,
       }}
     >
       <span
         style={{
-          width: 28,
-          height: 28,
+          width: 8,
+          height: 8,
           borderRadius: '50%',
-          background: 'rgba(255,255,255,0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
+          background: color,
           flexShrink: 0,
+          boxShadow: `0 0 6px ${color}60`,
         }}
-      >
-        <Icon />
-      </span>
-      <span
-        style={{
-          fontFamily: F.sans,
-          fontWeight: 600,
-          fontSize: 15,
-          color: '#fff',
-          letterSpacing: '0.01em',
-        }}
-      >
-        {label}
-      </span>
+      />
+      <span style={{ fontFamily: F.sans, fontWeight: 600, fontSize: 13, color }}>{label}</span>
     </div>
   )
 }
 
 /* ================================================================
-   StatusPage (default export)
+   StatusPage
    ================================================================ */
 export default function StatusPage({ services, projectName, t, i18n, lang }: StatusPageProps) {
-  // Cache services on mount
   useEffect(() => {
     setCachedServices(services)
   }, [services])
 
-  // Sort by SLA ascending — worst availability first
   const sortedServices = useMemo(() => [...services].sort((a, b) => a.sla - b.sla), [services])
-
   const overall = useMemo(() => getOverallStatus(sortedServices), [sortedServices])
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap');
-
         @media(max-width:640px) {
-          .status-svc-header { flex-direction:column!important; align-items:flex-start!important; gap:6px!important }
-          .status-svc-meta { flex-direction:row!important; flex-wrap:wrap!important; gap:6px!important }
-          .status-address { display:none!important }
-          .status-bar-row { flex-wrap:wrap!important; gap:6px!important }
-          .status-days-label { display:none!important }
-          .status-uptime-label { display:none!important }
-          .status-uptime-pct { order:1!important; font-size:12px!important; min-width:auto!important }
+          .sp-address { display:none!important }
+          .sp-name-row { flex-wrap:wrap!important }
         }
       `}</style>
 
@@ -722,22 +448,16 @@ export default function StatusPage({ services, projectName, t, i18n, lang }: Sta
           color: t.text.primary,
         }}
       >
-        <div
-          style={{
-            maxWidth: 900,
-            margin: '0 auto',
-            padding: '0 20px 60px',
-          }}
-        >
+        <div style={{ maxWidth: 860, margin: '0 auto', padding: '0 20px 24px' }}>
           {/* Header */}
           <header
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '28px 0',
+              padding: '16px 0',
               borderBottom: `1px solid ${t.border}`,
-              marginBottom: 32,
+              marginBottom: 10,
             }}
           >
             <div>
@@ -745,20 +465,14 @@ export default function StatusPage({ services, projectName, t, i18n, lang }: Sta
                 style={{
                   fontFamily: F.display,
                   fontWeight: 700,
-                  fontSize: 22,
+                  fontSize: 20,
                   margin: 0,
                   color: t.text.primary,
                 }}
               >
                 {projectName}
               </h1>
-              <p
-                style={{
-                  margin: '4px 0 0',
-                  fontSize: 13,
-                  color: t.text.muted,
-                }}
-              >
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: t.text.muted }}>
                 {i18n.statusPageTitle}
               </p>
             </div>
@@ -767,10 +481,10 @@ export default function StatusPage({ services, projectName, t, i18n, lang }: Sta
               disabled
               style={{
                 fontFamily: F.sans,
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 500,
-                padding: '7px 16px',
-                borderRadius: 8,
+                padding: '6px 14px',
+                borderRadius: 6,
                 border: `1px solid ${t.border}`,
                 background: 'transparent',
                 color: t.text.muted,
@@ -785,32 +499,50 @@ export default function StatusPage({ services, projectName, t, i18n, lang }: Sta
           {/* Status Banner */}
           <StatusBanner overall={overall} t={t} i18n={i18n} />
 
-          {/* Service List — sorted by SLA asc (worst first) */}
+          {/* Service List — compact rows, no cards */}
           <div
             style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
+              background: t.bg.card,
+              border: `1px solid ${t.border}`,
+              borderRadius: 12,
+              padding: '4px 16px',
+              boxShadow: t.shadow,
             }}
           >
-            {sortedServices.map((svc) => (
-              <ServiceCard key={svc.id} svc={svc} t={t} i18n={i18n} lang={lang} />
+            {/* Range labels */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '4px 0 0',
+                fontSize: 10,
+                color: t.text.muted,
+                fontFamily: F.mono,
+              }}
+            >
+              <span>{i18n.statusDays.replace('{n}', String(STATUS_BAR_DAYS))}</span>
+              <span>{i18n.statusUptime}</span>
+            </div>
+
+            {sortedServices.map((svc, idx) => (
+              <div key={svc.id}>
+                {idx > 0 && <div style={{ height: 1, background: t.border, opacity: 0.5 }} />}
+                <ServiceRow svc={svc} t={t} i18n={i18n} lang={lang} />
+              </div>
             ))}
           </div>
 
           {/* Footer */}
           <footer
             style={{
-              marginTop: 48,
-              paddingTop: 20,
-              borderTop: `1px solid ${t.border}`,
+              marginTop: 20,
               textAlign: 'center',
-              fontSize: 12,
+              fontSize: 11,
               color: t.text.muted,
               fontFamily: F.mono,
             }}
           >
-            <span>{i18n.poweredBy}</span>
+            {i18n.poweredBy}
           </footer>
         </div>
       </div>

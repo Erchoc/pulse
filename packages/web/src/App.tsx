@@ -3949,12 +3949,7 @@ function SettingsPage({ projectName, setProjectName }) {
           hint={
             <>
               {i18n.apiHint}{' '}
-              <a
-                href="/doc.html"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: t.accent }}
-              >
+              <a href="/doc" target="_blank" rel="noopener noreferrer" style={{ color: t.accent }}>
                 {i18n.apiDocLink} →
               </a>
             </>
@@ -4417,7 +4412,7 @@ function ListHeader({ sort, onSort }: { sort: string; onSort: (s: string) => voi
    ROOT APP
    ================================================================ */
 // Redirect non-root paths to / (SPA uses hash routing only)
-if (window.location.pathname !== '/' && window.location.pathname !== '/doc.html') {
+if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/doc')) {
   window.location.replace(`/${window.location.hash}`)
 }
 
@@ -4539,22 +4534,30 @@ export default function App() {
     return list
   }, [allSvcs, filter, search, sort])
   const [svcPage, setSvcPage] = useState(1)
+  const listContainerRef = useRef<HTMLDivElement>(null)
   const detailRef = useRef<HTMLDivElement>(null)
   const [svcPageSize, setSvcPageSize] = useState(PAGE_SIZE)
-  useEffect(() => {
-    const el = detailRef.current
+  const recalcPageSize = useCallback(() => {
+    const el = listContainerRef.current
     if (!el) return
     const ROW_H = 68
     const OVERHEAD = 80
-    const calc = () => {
-      const rows = Math.max(8, Math.floor((el.offsetHeight - OVERHEAD) / ROW_H))
-      setSvcPageSize(rows)
-    }
-    calc()
-    const ro = new ResizeObserver(calc)
+    const rows = Math.max(8, Math.floor((el.offsetHeight - OVERHEAD) / ROW_H))
+    setSvcPageSize(rows)
+  }, [])
+  useEffect(() => {
+    const el = listContainerRef.current
+    if (!el) return
+    recalcPageSize()
+    const ro = new ResizeObserver(recalcPageSize)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [recalcPageSize])
+  useEffect(() => {
+    // selectedId triggers recalc after detail panel content changes
+    void selectedId
+    requestAnimationFrame(recalcPageSize)
+  }, [selectedId, recalcPageSize])
   const pagedSvcs = useMemo(() => {
     const start = (svcPage - 1) * svcPageSize
     return filtered.slice(start, start + svcPageSize)
@@ -4768,6 +4771,7 @@ export default function App() {
                 style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 16 }}
               >
                 <div
+                  ref={listContainerRef}
                   style={{
                     backgroundColor: t.bg.card,
                     borderRadius: R.lg,

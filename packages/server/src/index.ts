@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import fastifyStatic from '@fastify/static'
 import Fastify from 'fastify'
 
-const PORT = Number(process.env.PORT ?? 7758)
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const PORT = Number(process.env.PORT ?? 3000)
 const ENV = process.env.NODE_ENV ?? 'production'
 
 function ts() {
@@ -22,6 +27,18 @@ app.addHook('onSend', async (req, reply) => {
 })
 
 app.get('/health', async () => ({ status: 'ok', ts: ts() }))
+
+// Serve web SPA static files
+const webDist = resolve(__dirname, '../../web/dist')
+if (existsSync(webDist)) {
+  app.register(fastifyStatic, { root: webDist, wildcard: false })
+  // /doc without trailing slash → redirect to /doc/
+  app.get('/doc', async (_req, reply) => reply.redirect('/doc/'))
+  // SPA fallback: serve index.html for non-API, non-file routes
+  app.setNotFoundHandler(async (_req, reply) => {
+    return reply.sendFile('index.html')
+  })
+}
 
 const start = async () => {
   await app.listen({ port: PORT, host: '0.0.0.0' })

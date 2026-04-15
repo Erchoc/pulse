@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pulse API Documentation</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root { --bg: #0f1117; --card: #161822; --border: #1e2030; --text: #e2e4ea; --muted: #6b7084; --accent: #818cf8; --green: #059669; --red: #f87171; --yellow: #fbbf24; }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #f8f9fc; --card: #fff; --border: #e5e7eb; --text: #111827; --muted: #6b7280; --accent: #6366f1; --green: #059669; --red: #dc2626; --yellow: #d97706; }
+    }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+    .container { max-width: 960px; margin: 0 auto; padding: 48px 24px 80px; }
+    .back { color: var(--accent); text-decoration: none; font-size: 13px; display: inline-block; margin-bottom: 24px; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 12px; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); margin-bottom: 24px; }
+    .note { background: color-mix(in srgb, var(--accent) 6%, transparent); border-left: 3px solid var(--accent); padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13px; color: var(--muted); margin: 16px 0 32px; }
+    .note code { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+    .toc { margin-bottom: 32px; }
+    .toc a { color: var(--accent); text-decoration: none; font-size: 13px; display: block; padding: 4px 0; }
+    .toc a:hover { text-decoration: underline; }
+
+    h2 { font-size: 18px; font-weight: 600; margin: 36px 0 12px; padding-top: 28px; border-top: 1px solid var(--border); scroll-margin-top: 24px; }
+    h2:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+
+    .endpoint { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
+    .endpoint-header { padding: 14px 20px; cursor: pointer; display: flex; align-items: center; gap: 10px; user-select: none; }
+    .endpoint-header:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+    .endpoint-body { padding: 0 20px 16px; border-top: 1px solid var(--border); display: none; }
+    .endpoint.open .endpoint-body { display: block; }
+    .endpoint-header .arrow { color: var(--muted); font-size: 10px; margin-left: auto; transition: transform .2s; }
+    .endpoint.open .arrow { transform: rotate(90deg); }
+
+    .method { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace; min-width: 54px; text-align: center; }
+    .get { background: var(--green); color: #fff; }
+    .post { background: var(--accent); color: #fff; }
+    .delete { background: var(--red); color: #fff; }
+    .put { background: var(--yellow); color: #000; }
+    .path { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+    .desc { font-size: 13px; color: var(--muted); margin-top: 8px; }
+    code { font-family: 'JetBrains Mono', monospace; background: var(--border); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7; margin: 10px 0; }
+
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+    th { text-align: left; padding: 8px 12px; background: var(--border); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    td code { font-size: 11px; }
+    .required { color: var(--red); font-weight: 600; font-size: 11px; }
+    .optional { color: var(--muted); font-size: 11px; }
+
+    .label { display: inline-block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin: 14px 0 6px; }
+
+    .footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+
+    @media (max-width: 600px) {
+      .container { padding: 24px 16px 60px; }
+      h1 { font-size: 22px; }
+      .endpoint-header { padding: 12px 14px; gap: 8px; }
+      table { font-size: 12px; }
+      th, td { padding: 6px 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a class="back" href="/">← Back to Pulse</a>
+    <h1>Pulse API Documentation</h1>
+    <p class="subtitle">REST API v1 · Base URL: <code>/api/v1</code> · Content-Type: <code>application/json</code></p>
+    <span class="badge">v0.1.0</span>
+
+    <div class="note">
+      所有 API 请求需要 <code>X-API-Key</code> Header。可在 <strong>Settings → OpenAPI Integration</strong> 中获取 API Key。
+    </div>
+
+    <nav class="toc">
+      <a href="#health">Health</a>
+      <a href="#probes">Probes — 探针管理</a>
+      <a href="#push">Push — 客户端心跳</a>
+      <a href="#services">Services — 服务管理</a>
+      <a href="#maintenance">Maintenance — 维护模式</a>
+      <a href="#settings">Settings — 设置管理</a>
+      <a href="#errors">Error Codes — 错误码</a>
+      <a href="#webhook">Webhook Payload — 推送载荷</a>
+    </nav>
+
+    <!-- ────── Health ────── -->
+    <h2 id="health">Health</h2>
+    <div class="endpoint open">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="method get">GET</span>
+        <span class="path">/healthz</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">服务健康检查，无需认证。</p>
+        <span class="label">Response 200</span>
+        <pre>{
+  "status": "ok"
+}</pre>
+      </div>
+    </div>
+
+    <!-- ────── Probes ────── -->
+    <h2 id="probes">Probes — 探针管理</h2>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="method get">GET</span>
+        <span class="path">/api/v1/probes</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">获取探针列表，支持过滤和分页。</p>
+        <span class="label">Query Parameters</span>
+        <table>
+          <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+          <tr><td><code>mode</code></td><td>string</td><td><span class="optional">可选</span> server | client</td></tr>
+          <tr><td><code>type</code></td><td>string</td><td><span class="optional">可选</span> http | tcp | dns | icmp | websocket | push</td></tr>
+          <tr><td><code>enabled</code></td><td>boolean</td><td><span class="optional">可选</span> 过滤启用状态</td></tr>
+          <tr><td><code>service_id</code></td><td>string</td><td><span class="optional">可选</span> 按服务 ID 过滤</td></tr>
+          <tr><td><code>page</code></td><td>int</td><td><span class="optional">可选</span> 页码，默认 1</td></tr>
+          <tr><td><code>page_size</code></td><td>int</td><td><span class="optional">可选</span> 每页数量，默认 8</td></tr>
+        </table>
+        <span class="label">Response 200</span>
+        <pre>{
+  "data": [
+    {
+      "id": "probe-1",
+      "name": "Prod API Health",
+      "type": "http",
+      "mode": "server",
+      "target": "https://api.example.com/healthz",
+      "interval_s": 30,
+      "timeout_s": 5,
+      "retries": 1,
+      "expect": { "status_codes": [200], "keyword": "ok" },
+      "metadata": { "region": "us-east-1" },
+      "enabled": true,
+      "service_id": "svc-1",
+      "created_at": "2026-01-15T08:00:00Z",
+      "updated_at": "2026-04-10T12:30:00Z"
+    }
+  ],
+  "total": 1
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="method post">POST</span>
+        <span class="path">/api/v1/probes</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">创建新探针。</p>
+        <span class="label">Request Body</span>
+        <table>
+          <tr><th>��段</th><th>类型</th><th>说明</th></tr>
+          <tr><td><code>name</code></td><td>string</td><td><span class="required">必填</span> 探针名称</td></tr>
+          <tr><td><code>type</code></td><td>string</td><td><span class="required">必填</span> http | tcp | websocket | dns | icmp | push</td></tr>
+          <tr><td><code>mode</code></td><td>string</td><td><span class="required">必填</span> server（主动探测）| client（被动接收）</td></tr>
+          <tr><td><code>target</code></td><td>string</td><td><span class="required">必填</span> URL / host:port / push token</td></tr>
+          <tr><td><code>interval_s</code></td><td>int</td><td><span class="optional">可选</span> 检测间隔（秒），默认 30</td></tr>
+          <tr><td><code>timeout_s</code></td><td>int</td><td><span class="optional">可选</span> 超时时间（秒），默认 5</td></tr>
+          <tr><td><code>retries</code></td><td>int</td><td><span class="optional">可选</span> 重试次数，默认 1</td></tr>
+          <tr><td><code>expect</code></td><td>object</td><td><span class="optional">可选</span> { status_codes: int[], keyword: string }</td></tr>
+          <tr><td><code>metadata</code></td><td>object</td><td><span class="optional">可选</span> 自定义标签键值对</td></tr>
+          <tr><td><code>service_id</code></td><td>string</td><td><span class="optional">可选</span> 关联服务 ID</td></tr>
+        </table>
+        <span class="label">Response 201</span>
+        <pre>{
+  "data": {
+    "id": "probe-abc123",
+    "name": "Prod API Health",
+    "type": "http",
+    "mode": "server",
+    "target": "https://api.example.com/healthz",
+    "interval_s": 30,
+    "timeout_s": 5,
+    "retries": 1,
+    "enabled": true,
+    "created_at": "2026-04-15T10:00:00Z",
+    "updated_at": "2026-04-15T10:00:00Z"
+  }
+}</pre>
+      </div>
+    </div>
+
+    <!-- ────── Push ────── -->
+    <h2 id="push">Push — 客户端心跳</h2>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="method post">POST</span>
+        <span class="path">/api/v1/push/:token</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">客户端模式探针心跳上报。适用于无法被外部探测的内网服务或 IoT 设备。</p>
+        <span class="label">Path Parameters</span>
+        <table>
+          <tr><th>参数</th><th>类���</th><th>说明</th></tr>
+          <tr><td><code>token</code></td><td>string</td><td><span class="required">必填</span> 探针的 push token</td></tr>
+        </table>
+        <span class="label">Request Body（可选）</span>
+        <table>
+          <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+          <tr><td><code>status</code></td><td>string</td><td><span class="optional">可选</span> up | degraded，默认 up</td></tr>
+          <tr><td><code>latency_ms</code></td><td>number</td><td><span class="optional">可选</span> 客户端自测延迟（ms）</td></tr>
+          <tr><td><code>message</code></td><td>string</td><td><span class="optional">可选</span> 附加信息</td></tr>
+        </table>
+        <span class="label">Response 200</span>
+        <pre>{
+  "ok": true
+}</pre>
+      </div>
+    </div>
+
+    <!-- ────── Services ────── -->
+    <h2 id="services">Services — 服务管理</h2>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="method get">GET</span>
+        <span class="path">/api/v1/services</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">获取服务列表，包含 SLA 指标和维护状态。</p>
+        <span class="label">Query Parameters</span>
+        <table>
+          <tr><th>参数</th><th>���型</th><th>说明</th></tr>
+          <tr><td><code>page</code></td><td>int</td><td><span class="optional">可选</span> 页码，默认 1</td></tr>
+          <tr><td><code>page_size</code></td><td>int</td><td><span class="optional">��选</span> 每页数量，默认 8</td></tr>
+        </table>
+        <span class="label">Response 200</span>
+        <pre>{
+  "data": [
+    {
+      "id": "svc-1",
+      "name": "Production API",
+      "description": "主要生产环境 API 集���",
+      "sla_target": 99.9,
+      "maintenance": false,
+      "maintenance_reason": null,
+      "maintenance_start_at": null,
+      "maintenance_end_at": null,
+      "probe_count": 3,
+      "created_at": "2026-01-01T00:00:00Z",
+      "updated_at": "2026-04-10T12:00:00Z"
+    }
+  ],
+  "total": 1
+}</pre>
+      </div>
+    </div>
+
+    <!-- ────── Maintenance ────── -->
+    <h2 id="maintenance">Maintenance — 维护模式</h2>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="method post">POST</span>
+        <span class="path">/api/v1/services/:id/maintenance</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">开启维护模式。维护期间探针故障不计入 SLA，告警仅通知操作人。</p>
+        <span class="label">Path Parameters</span>
+        <table>
+          <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+          <tr><td><code>id</code></td><td>string</td><td><span class="required">必填</span> 服务 ID</td></tr>
+        </table>
+        <span class="label">Request Body</span>
+        <table>
+          <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+          <tr><td><code>reason</code></td><td>string</td><td><span class="required">必填</span> 维护原因</td></tr>
+          <tr><td><code>end_at</code></td><td>string</td><td><span class="optional">可选</span> 预计结束时间（RFC3339），null = 手动结束</td></tr>
+          <tr><td><code>notify_users</code></td><td>string[]</td><td><span class="optional">可选</span> 需通知的用户 ID 列��</td></tr>
+        </table>
+        <span class="label">Response 200</span>
+        <pre>{
+  "data": {
+    "service_id": "svc-1",
+    "maintenance": true,
+    "reason": "DB migration",
+    "end_at": "2026-04-15T18:00:00Z",
+    "notify_users": ["user-1"],
+    "start_at": "2026-04-15T10:00:00Z"
+  }
+}</pre>
+        <span class="label">Error 400</span>
+        <pre>{
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "invalid request body"
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="method delete">DELETE</span>
+        <span class="path">/api/v1/services/:id/maintenance</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">结束维护模式。</p>
+        <span class="label">Response 200</span>
+        <pre>{
+  "data": {
+    "service_id": "svc-1",
+    "maintenance": false,
+    "ended_at": "2026-04-15T14:00:00Z"
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="method get">GET</span>
+        <span class="path">/api/v1/services/:id/maintenance/history</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">获取服务维护历史记录。</p>
+        <span class="label">Response 200</span>
+        <pre>{
+  "data": [
+    {
+      "id": "maint-1",
+      "service_id": "svc-1",
+      "reason": "DB migration",
+      "start_at": "2026-04-15T10:00:00Z",
+      "end_at": "2026-04-15T14:00:00Z",
+      "operator": "user-1",
+      "created_at": "2026-04-15T10:00:00Z"
+    }
+  ],
+  "total": 1
+}</pre>
+      </div>
+    </div>
+
+    <!-- ────── Settings ────── -->
+    <h2 id="settings">Settings — 设置管理</h2>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="method get">GET</span>
+        <span class="path">/api/v1/settings</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">获取全局设置。</p>
+        <span class="label">Response 200</span>
+        <pre>{
+  "data": {
+    "project_name": "Pulse",
+    "data_retention": "90d",
+    "sla_window": "30d",
+    "sla_timezone": "Asia/Shanghai",
+    "webhook_url": "https://hooks.example.com/pulse",
+    "api_key": "pk_live_****abcd"
+  }
+}</pre>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="method post">POST</span>
+        <span class="path">/api/v1/settings/webhook/test</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">通过服务端代理测试 Webhook 连通性（绕过前端 CORS 限制）。</p>
+        <span class="label">Request Body</span>
+        <table>
+          <tr><th>字段</th><th>��型</th><th>说明</th></tr>
+          <tr><td><code>url</code></td><td>string</td><td><span class="required">必填</span> 目标 Webhook URL</td></tr>
+          <tr><td><code>body</code></td><td>string</td><td><span class="optional">可选</span> 自定义 JSON 载荷字符串</td></tr>
+        </table>
+        <span class="label">Response 200（成功）</span>
+        <pre>{
+  "success": true,
+  "status_code": 200,
+  "response_body": "ok"
+}</pre>
+        <span class="label">Response 200（连接失败��</span>
+        <pre>{
+  "success": false,
+  "error": "dial tcp: lookup invalid: no such host",
+  "status_code": 0
+}</pre>
+      </div>
+    </div>
+
+    <!-- ────── Errors ────── -->
+    <h2 id="errors">Error Codes — 错误码</h2>
+    <table>
+      <tr><th>HTTP</th><th>Code</th><th>说明</th></tr>
+      <tr><td>400</td><td><code>INVALID_REQUEST</code></td><td>请求参数校验失败</td></tr>
+      <tr><td>401</td><td><code>UNAUTHORIZED</code></td><td>未提供或无效的 API Key</td></tr>
+      <tr><td>403</td><td><code>FORBIDDEN</code></td><td>无权限执行此操作</td></tr>
+      <tr><td>404</td><td><code>PROBE_NOT_FOUND</code></td><td>探针不存在</td></tr>
+      <tr><td>404</td><td><code>SERVICE_NOT_FOUND</code></td><td>服务不存在</td></tr>
+      <tr><td>409</td><td><code>ALREADY_IN_MAINTENANCE</code></td><td>服务已在维护中</td></tr>
+      <tr><td>409</td><td><code>NOT_IN_MAINTENANCE</code></td><td>服务未在维护中</td></tr>
+      <tr><td>429</td><td><code>RATE_LIMITED</code></td><td>请求频率超���</td></tr>
+      <tr><td>500</td><td><code>INTERNAL_ERROR</code></td><td>服务内部错误</td></tr>
+    </table>
+
+    <!-- ────── Webhook Payload ────── -->
+    <h2 id="webhook">Webhook Payload — 推送载荷</h2>
+    <p class="desc" style="margin-bottom: 12px">探针状态变化时推送到配置的 Webhook URL：</p>
+    <pre>{
+  "event": "probe_anomaly",
+  "probe_id": "probe-1",
+  "probe_name": "Prod API Health",
+  "service_id": "svc-1",
+  "service_name": "Production API",
+  "from": "up",
+  "to": "down",
+  "timestamp": "2026-04-14T13:22:01Z",
+  "latency_ms": 5023,
+  "status_code": 503,
+  "message": "Health check failed: HTTP 503",
+  "maintenance": false,
+  "error": {
+    "type": "HTTP_ERROR",
+    "retry_count": 3,
+    "last_error": "status 503 Service Unavailable"
+  }
+}</pre>
+    <table>
+      <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+      <tr><td><code>event</code></td><td>string</td><td>probe_anomaly | probe_recovery | maintenance_start | maintenance_end</td></tr>
+      <tr><td><code>from</code> / <code>to</code></td><td>string</td><td>状态: up | down | degraded</td></tr>
+      <tr><td><code>maintenance</code></td><td>boolean</td><td>维护中的 anomaly 仅记录不计入 SLA</td></tr>
+    </table>
+
+    <h2>Example Request</h2>
+    <pre>curl -H "X-API-Key: your-api-key" \
+     https://your-pulse-instance/api/v1/services</pre>
+
+    <div class="footer">
+      Pulse v0.1.0 · Go + React
+    </div>
+  </div>
+</body>
+</html>

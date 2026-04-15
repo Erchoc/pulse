@@ -89,7 +89,7 @@ const msg = {
     uptime90: 'Uptime ({n})',
     estDowntime: 'Est. Downtime/yr',
     avgLat: 'Avg Latency',
-    responseTime: 'Response Time — 72h',
+    responseTime: 'Response Time — {n}',
     details: 'Details',
     availability: 'Availability — {n}',
     incidentHistory: 'Incident History — {n}',
@@ -101,7 +101,7 @@ const msg = {
     nMore: '+{n} more',
     dUnit: 'd',
     loadMore: 'Load more events',
-    ago72: '72h ago',
+    ago72: '{n} ago',
     now: 'now',
     ago90: '{n} ago',
     today: 'today',
@@ -264,7 +264,7 @@ const msg = {
     uptime90: '可用率 ({n})',
     estDowntime: '预计年停机',
     avgLat: '平均延迟',
-    responseTime: '响应时间 — 近 72 小时',
+    responseTime: '响应时间 — {n}',
     details: '详情',
     availability: '可用性 — {n}',
     incidentHistory: '事件历史 — {n}',
@@ -276,7 +276,7 @@ const msg = {
     nMore: '+{n} 更多',
     dUnit: '天',
     loadMore: '加载更多事件',
-    ago72: '72小时前',
+    ago72: '{n}前',
     now: '现在',
     ago90: '{n}前',
     today: '今天',
@@ -2303,7 +2303,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
             justifyContent: 'space-between',
           }}
         >
-          {i18n.responseTime}
+          {i18n.responseTime.replace('{n}', rangeLabel)}
           <button
             type="button"
             onClick={() => setLatencyOpen(true)}
@@ -2362,7 +2362,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
               zIndex: 1,
             }}
           >
-            <span>{i18n.ago72}</span>
+            <span>{i18n.ago72.replace('{n}', rangeLabel)}</span>
             <span style={{ display: 'flex', gap: 10 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                 <span
@@ -2492,7 +2492,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
       <Modal
         open={latencyOpen}
         onClose={() => setLatencyOpen(false)}
-        title={`${dn} — ${i18n.responseTime}`}
+        title={`${dn} — ${i18n.responseTime.replace('{n}', rangeLabel)}`}
         width={640}
       >
         <LatencyDetailModal data={svc.ld} color={c} />
@@ -2557,7 +2557,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
 }
 
 function LatencyDetailModal({ data, color }) {
-  const { t, i18n } = useApp()
+  const { t, i18n, rangeLabel } = useApp()
   const vals = data.map((d) => d.v)
   const p95s = data.map((d) => d.p95)
   const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
@@ -2629,7 +2629,7 @@ function LatencyDetailModal({ data, color }) {
             padding: '0 4px',
           }}
         >
-          <span>{i18n.ago72}</span>
+          <span>{i18n.ago72.replace('{n}', rangeLabel)}</span>
           <span style={{ display: 'flex', gap: 10 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <span
@@ -5026,13 +5026,19 @@ export default function App() {
   const t = themes[theme]
   const i18n = msg[lang]
   const rangeLabel = rangeDaysLabel(timeRange, lang)
+
+  // Sync theme-color meta for PWA status bar
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) meta.setAttribute('content', t.bg.base)
+  }, [t.bg.base])
   const ctx = useMemo(
     () => ({ t, i18n, lang, theme, rangeLabel }),
     [t, i18n, lang, theme, rangeLabel],
   )
 
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState('default')
+  const [sort, setSort] = useState('sla-asc')
   const searchRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -5067,9 +5073,9 @@ export default function App() {
   return (
     <AppCtx.Provider value={ctx}>
       <div
+        className={isPWA ? 'pwa-safe-top' : undefined}
         style={{
           minHeight: '100vh',
-          paddingTop: isPWA ? 'env(safe-area-inset-top, 0px)' : undefined,
           backgroundColor: t.bg.base,
           color: t.text.primary,
           fontFamily: F.sans,
@@ -5081,6 +5087,7 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
         html,body{overscroll-behavior:none;-webkit-overflow-scrolling:touch}
+        @media all and (display-mode:standalone){.pwa-safe-top{padding-top:env(safe-area-inset-top,20px)}}
         ::-webkit-scrollbar{width:0;display:none}
         *{scrollbar-width:none}
         @keyframes pulse-ring{0%{transform:scale(.8);opacity:.4}100%{transform:scale(1.6);opacity:0}}

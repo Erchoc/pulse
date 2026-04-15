@@ -5169,8 +5169,12 @@ function ListHeader({ sort, onSort }: { sort: string; onSort: (s: string) => voi
 /* ================================================================
    ROOT APP
    ================================================================ */
-// Redirect non-root paths to / (SPA uses hash routing only)
-if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/doc')) {
+// Redirect non-root paths to / (SPA uses hash routing only, except /doc and /status)
+if (
+  window.location.pathname !== '/' &&
+  !window.location.pathname.startsWith('/doc') &&
+  !window.location.pathname.startsWith('/status')
+) {
   window.location.replace(`/${window.location.hash}`)
 }
 

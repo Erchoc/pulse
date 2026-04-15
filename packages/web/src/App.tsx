@@ -4282,21 +4282,8 @@ function SettingsPage({ projectName, setProjectName, siteNotif, onNotifChange, i
   const [retention, setRetention] = useState('90d')
   const [slaWindow, setSlaWindow] = useState('30d')
   const [timezone, setTimezone] = useState('UTC')
-  const [webhookUrl, setWebhookUrl] = useState('')
-  const [apiKey, setApiKey] = useState(() => genApiKey())
-  const [oldApiKey, setOldApiKey] = useState<string | null>(null)
   const [saveState, setSaveState] = useState('idle')
-  const [webhookTested, setWebhookTested] = useState<string | null>(null)
-  const [showPayload, setShowPayload] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [regenConfirm, setRegenConfirm] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
-
-  const flash = useCallback((m) => {
-    setToast(m)
-    setTimeout(() => setToast(null), 2200)
-  }, [])
 
   const handleSave = useCallback(() => {
     setSaveState('saving')
@@ -4304,48 +4291,6 @@ function SettingsPage({ projectName, setProjectName, siteNotif, onNotifChange, i
       setSaveState('saved')
       setTimeout(() => setSaveState('idle'), 1800)
     }, 1200)
-  }, [])
-
-  const [webhookError, setWebhookError] = useState('')
-  const handleTestWebhook = useCallback(() => {
-    if (!webhookUrl) return
-    setWebhookTested('testing')
-    setWebhookError('')
-    fetch('/api/v1/settings/webhook/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: webhookUrl, body: WEBHOOK_PAYLOAD_SAMPLE }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setWebhookTested('success')
-          setTimeout(() => setWebhookTested(null), 4000)
-        } else {
-          setWebhookTested('fail')
-          setWebhookError(
-            data.status_code
-              ? i18n.webhookFailDetail.replace('{status}', String(data.status_code))
-              : data.error || i18n.webhookFailNetwork,
-          )
-        }
-      })
-      .catch(() => {
-        setWebhookTested('fail')
-        setWebhookError(i18n.webhookFailNetwork)
-      })
-  }, [webhookUrl, i18n.webhookFailDetail, i18n.webhookFailNetwork])
-
-  const handleRegen = useCallback(() => {
-    setOldApiKey(apiKey)
-    setApiKey(genApiKey())
-    setRegenConfirm(false)
-    flash(i18n.regenerated)
-  }, [apiKey, flash, i18n.regenerated])
-  const handleCopy = useCallback((text: string) => {
-    navigator.clipboard?.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
   }, [])
 
   const retentionOpts = useMemo(
@@ -4437,163 +4382,6 @@ function SettingsPage({ projectName, setProjectName, siteNotif, onNotifChange, i
         </div>
       </SettingsSection>
 
-      {/* Webhook */}
-      <SettingsSection t={t}>
-        <SettingsRow label={i18n.webhookUrl} hint={i18n.webhookHint}>
-          <div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-                <Input
-                  value={webhookUrl}
-                  onChange={setWebhookUrl}
-                  placeholder="https://hooks.example.com/sentinel"
-                />
-              </div>
-              <Btn
-                variant="default"
-                onClick={handleTestWebhook}
-                loading={webhookTested === 'testing'}
-                disabled={!webhookUrl}
-              >
-                {i18n.testWebhook}
-              </Btn>
-            </div>
-            {/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(webhookUrl) && (
-              <div
-                style={{
-                  marginTop: 8,
-                  padding: '6px 10px',
-                  fontSize: 12,
-                  color: t.status.degraded,
-                  backgroundColor: `${t.status.degraded}0a`,
-                  border: `1px solid ${t.status.degraded}22`,
-                  borderRadius: 8,
-                  lineHeight: 1.5,
-                }}
-              >
-                {i18n.webhookLocalWarn}
-              </div>
-            )}
-            {webhookTested === 'success' && (
-              <div
-                style={{
-                  marginTop: 10,
-                  padding: '8px 12px',
-                  fontSize: 12,
-                  color: t.status.up,
-                  backgroundColor: `${t.status.up}0a`,
-                  border: `1px solid ${t.status.up}22`,
-                  borderRadius: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  animation: 'fadeSlide .2s ease',
-                }}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <title>OK</title>
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                {i18n.webhookSuccess}
-              </div>
-            )}
-            {webhookTested === 'fail' && (
-              <div
-                style={{
-                  marginTop: 10,
-                  padding: '8px 12px',
-                  fontSize: 12,
-                  color: t.status.down,
-                  backgroundColor: `${t.status.down}0a`,
-                  border: `1px solid ${t.status.down}22`,
-                  borderRadius: 8,
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 6,
-                  lineHeight: 1.5,
-                }}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ flexShrink: 0, marginTop: 2 }}
-                >
-                  <title>Error</title>
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="15" y1="9" x2="9" y2="15" />
-                  <line x1="9" y1="9" x2="15" y2="15" />
-                </svg>
-                <span>{webhookError || i18n.webhookFail}</span>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowPayload((p) => !p)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: t.accent,
-                fontSize: 12,
-                cursor: 'pointer',
-                marginTop: 12,
-                padding: 0,
-                fontFamily: F.sans,
-              }}
-            >
-              {showPayload ? '▾' : '▸'} {i18n.samplePayload}
-            </button>
-            {showPayload && (
-              <div style={{ marginTop: 10 }}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: t.text.muted,
-                    marginBottom: 6,
-                  }}
-                >
-                  {i18n.payloadHint}
-                </div>
-                <pre
-                  style={{
-                    backgroundColor: t.bg.input,
-                    padding: 12,
-                    borderRadius: R.sm,
-                    fontSize: 11,
-                    fontFamily: F.mono,
-                    color: t.text.secondary,
-                    overflowX: 'auto',
-                    margin: 0,
-                    border: `1px solid ${t.border}`,
-                    lineHeight: 1.6,
-                    maxWidth: '100%',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all',
-                  }}
-                >
-                  {WEBHOOK_PAYLOAD_SAMPLE}
-                </pre>
-              </div>
-            )}
-          </div>
-        </SettingsRow>
-      </SettingsSection>
-
       {/* Site Notification */}
       <SiteNotifSection
         t={t}
@@ -4602,134 +4390,6 @@ function SettingsPage({ projectName, setProjectName, siteNotif, onNotifChange, i
         onNotifChange={onNotifChange}
         isPWA={isPWA}
       />
-
-      {/* API Integration */}
-      <SettingsSection t={t}>
-        <SettingsRow
-          label={i18n.apiIntegration}
-          hint={
-            <>
-              {i18n.apiHint}{' '}
-              <a href="/doc" target="_blank" rel="noopener noreferrer" style={{ color: t.accent }}>
-                {i18n.apiDocLink} →
-              </a>
-            </>
-          }
-        >
-          <div>
-            <div style={{ fontSize: 11, color: t.text.muted, fontWeight: 500, marginBottom: 6 }}>
-              {i18n.apiKey}
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <code
-                style={{
-                  flex: '1 1 200px',
-                  minWidth: 0,
-                  padding: '8px 12px',
-                  backgroundColor: t.bg.input,
-                  borderRadius: 8,
-                  fontFamily: F.mono,
-                  fontSize: 12,
-                  color: t.text.muted,
-                  border: `1px solid ${t.border}`,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  letterSpacing: '.05em',
-                }}
-              >
-                {`${apiKey.slice(0, 7)}${'•'.repeat(20)}${apiKey.slice(-4)}`}
-              </code>
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(apiKey)}
-                  title={i18n.copy}
-                  style={{
-                    background: 'none',
-                    border: `1px solid ${copied ? `${t.status.up}55` : t.border}`,
-                    borderRadius: 6,
-                    padding: '6px 8px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'all .2s',
-                    color: copied ? t.status.up : t.text.muted,
-                    backgroundColor: copied ? `${t.status.up}10` : 'transparent',
-                  }}
-                >
-                  {copied ? (
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{ animation: 'checkPop .3s ease-out' }}
-                    >
-                      <title>Copied</title>
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  ) : (
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <title>Copy</title>
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                    </svg>
-                  )}
-                </button>
-                <Btn small variant="danger" onClick={() => setRegenConfirm(true)}>
-                  {i18n.regenerate}
-                </Btn>
-              </div>
-            </div>
-            {oldApiKey && (
-              <div style={{ marginTop: 10 }}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: t.status.degraded,
-                    fontWeight: 500,
-                    marginBottom: 4,
-                  }}
-                >
-                  {i18n.oldKey}
-                </div>
-                <code
-                  style={{
-                    display: 'block',
-                    padding: '6px 10px',
-                    backgroundColor: t.bg.input,
-                    borderRadius: 6,
-                    fontFamily: F.mono,
-                    fontSize: 11,
-                    color: t.text.muted,
-                    border: `1px dashed ${t.status.degraded}33`,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {oldApiKey}
-                </code>
-              </div>
-            )}
-          </div>
-        </SettingsRow>
-      </SettingsSection>
 
       {/* Save button */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, marginBottom: 24 }}>
@@ -4799,28 +4459,6 @@ function SettingsPage({ projectName, setProjectName, siteNotif, onNotifChange, i
               : i18n.saveSettings}
         </button>
       </div>
-
-      {/* Regen confirm modal */}
-      <Modal
-        open={regenConfirm}
-        onClose={() => setRegenConfirm(false)}
-        title={i18n.regenerate}
-        width={380}
-      >
-        <p style={{ color: t.text.secondary, fontSize: 13, marginBottom: 20 }}>
-          {i18n.regenerateConfirm}
-        </p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <Btn variant="ghost" onClick={() => setRegenConfirm(false)}>
-            {i18n.cancel}
-          </Btn>
-          <Btn variant="danger" onClick={handleRegen}>
-            {i18n.confirm}
-          </Btn>
-        </div>
-      </Modal>
-
-      <Toast message={toast} visible={!!toast} />
     </div>
   )
 }
@@ -5786,7 +5424,8 @@ function TabNav({
   active,
   onChange,
   pwa,
-}: { active: string; onChange: (id: string) => void; pwa?: boolean }) {
+  isAdmin,
+}: { active: string; onChange: (id: string) => void; pwa?: boolean; isAdmin?: boolean }) {
   const { t, i18n } = useApp()
   // PWA: 4 tabs (events = incidents + alerts merged), PC: 5 tabs
   const isEventsActive = active === 'events' || active === 'incidents' || active === 'alerts'
@@ -5796,7 +5435,7 @@ function TabNav({
       { id: 'overview', label: i18n.overview },
       { id: 'probes', label: i18n.probes },
       { id: 'events', label: i18n.eventsShort },
-      { id: 'settings', label: i18n.settings },
+      ...(isAdmin ? [{ id: 'settings', label: i18n.settings }] : []),
     ]
     return (
       <nav
@@ -5871,7 +5510,7 @@ function TabNav({
     { id: 'overview', label: i18n.overview },
     { id: 'probes', label: i18n.probes },
     { id: 'events', label: i18n.events },
-    { id: 'settings', label: i18n.settings },
+    ...(isAdmin ? [{ id: 'settings', label: i18n.settings }] : []),
   ]
   return (
     <nav
@@ -6027,6 +5666,8 @@ export default function App() {
       return false
     }
   })
+  const [webhookModalOpen, setWebhookModalOpen] = useState(false)
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false)
   const [theme, setTheme] = useState(() => {
     try {
       return (localStorage.getItem('pulse-theme') as 'dark' | 'light') || 'dark'
@@ -6047,16 +5688,26 @@ export default function App() {
     const m = window.location.hash.match(/tab=(\d+)/)
     if (m) {
       const idx = Number(m[1]) - 1
-      return validTabs[idx] || 'overview'
+      const parsed = validTabs[idx] || 'overview'
+      if (parsed === 'settings' && !isAdmin) return 'overview'
+      return parsed
     }
     return 'overview'
-  }, [])
+  }, [isAdmin])
   const [tab, setTabState] = useState(parseTabFromHash)
-  const setTab = useCallback((id: string) => {
-    setTabState(id)
-    const idx = validTabs.indexOf(id) + 1
-    window.location.hash = idx <= 1 ? '' : `tab=${idx}`
-  }, [])
+  const setTab = useCallback(
+    (id: string) => {
+      if (id === 'settings' && !isAdmin) {
+        setTabState('overview')
+        window.location.hash = ''
+        return
+      }
+      setTabState(id)
+      const idx = validTabs.indexOf(id) + 1
+      window.location.hash = idx <= 1 ? '' : `tab=${idx}`
+    },
+    [isAdmin],
+  )
   useEffect(() => {
     const onHash = () => setTabState(parseTabFromHash())
     window.addEventListener('hashchange', onHash)
@@ -6265,10 +5916,10 @@ export default function App() {
               projectName={projectName}
               timeRange={timeRange}
               onTimeRangeChange={setTimeRange}
-              onOpenWebhook={() => {}}
-              onOpenApiKey={() => {}}
+              onOpenWebhook={() => setWebhookModalOpen(true)}
+              onOpenApiKey={() => setApiKeyModalOpen(true)}
             />
-            {!isPWA && <TabNav active={tab} onChange={setTab} />}
+            {!isPWA && <TabNav active={tab} onChange={setTab} isAdmin={isAdmin} />}
 
             {/* ──── OVERVIEW ──── */}
             {tab === 'overview' && (
@@ -6591,7 +6242,9 @@ export default function App() {
               />
             )}
           </div>
-          {isPWA && <TabNav active={tab} onChange={setTab} pwa />}
+          <WebhookModal open={webhookModalOpen} onClose={() => setWebhookModalOpen(false)} />
+          <ApiKeyModal open={apiKeyModalOpen} onClose={() => setApiKeyModalOpen(false)} />
+          {isPWA && <TabNav active={tab} onChange={setTab} pwa isAdmin={isAdmin} />}
         </div>
       )}
     </AppCtx.Provider>

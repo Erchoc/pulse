@@ -4546,17 +4546,19 @@ export default function App() {
     setSvcPageSize(rows)
   }, [])
   useEffect(() => {
-    const el = listContainerRef.current
-    if (!el) return
+    const list = listContainerRef.current
+    const detail = detailRef.current
+    if (!list) return
     recalcPageSize()
     const ro = new ResizeObserver(recalcPageSize)
-    ro.observe(el)
+    ro.observe(list)
+    if (detail) ro.observe(detail)
     return () => ro.disconnect()
   }, [recalcPageSize])
   useEffect(() => {
-    // selectedId triggers recalc after detail panel content changes
+    // detail content changes after selectedId switch → double-rAF waits for grid layout
     void selectedId
-    requestAnimationFrame(recalcPageSize)
+    requestAnimationFrame(() => requestAnimationFrame(recalcPageSize))
   }, [selectedId, recalcPageSize])
   const pagedSvcs = useMemo(() => {
     const start = (svcPage - 1) * svcPageSize

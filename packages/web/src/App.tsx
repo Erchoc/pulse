@@ -131,6 +131,8 @@ const msg = {
     regionEu: 'Europe',
     regionUsEast: 'US East',
     regionUsWest: 'US West',
+    regionOverseasWarn:
+      'Single-region probes are free. Multi-region overseas probes incur cross-border bandwidth costs. Enable as needed for your business.',
     probeDesc: 'Description',
     probeMode: 'Probe Mode',
     nameTooLong: 'Name must be 32 characters or less',
@@ -317,6 +319,8 @@ const msg = {
     regionEu: '欧洲',
     regionUsEast: '美东',
     regionUsWest: '美西',
+    regionOverseasWarn:
+      '单区部署探针不收费，多区部署探针需要收取企业跨境带宽成本，请根据实际海外业务需要按需开启。',
     probeDesc: '描述',
     probeMode: '探测模式',
     nameTooLong: '名称不超过 32 个字符',
@@ -1028,6 +1032,48 @@ function StatusDot({ status, size = 8, pulse = true }) {
           boxShadow: `0 0 ${size}px ${c}`,
         }}
       />
+    </span>
+  )
+}
+
+function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  const { t } = useApp()
+  const [show, setShow] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+  if (!text) return <>{children}</>
+  return (
+    <span
+      ref={ref}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onTouchStart={() => setShow((p) => !p)}
+      style={{ position: 'relative', cursor: 'help' }}
+    >
+      {children}
+      {show && (
+        <span
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            marginBottom: 6,
+            padding: '6px 10px',
+            borderRadius: 6,
+            backgroundColor: t.bg.card,
+            border: `1px solid ${t.border}`,
+            boxShadow: '0 4px 12px rgba(0,0,0,.25)',
+            fontSize: 11,
+            lineHeight: 1.4,
+            color: t.text.secondary,
+            whiteSpace: 'nowrap',
+            zIndex: 9999,
+            pointerEvents: 'none',
+          }}
+        >
+          {text}
+        </span>
+      )}
     </span>
   )
 }
@@ -3582,6 +3628,22 @@ function ProbeForm({ probe, onSave, onCancel }) {
             )
           })}
         </div>
+        {(form.regions || []).some((r) => ['sea', 'eu', 'us-east', 'us-west'].includes(r)) && (
+          <div
+            style={{
+              marginTop: 4,
+              padding: '6px 10px',
+              borderRadius: 6,
+              fontSize: 11,
+              lineHeight: 1.5,
+              color: t.status.down,
+              backgroundColor: `${t.status.down}12`,
+              border: `1px solid ${t.status.down}25`,
+            }}
+          >
+            {i18n.regionOverseasWarn}
+          </div>
+        )}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
@@ -5225,7 +5287,7 @@ export default function App() {
           style={{
             maxWidth: 1400,
             margin: '0 auto',
-            padding: isPWA ? '0 24px 88px' : '0 24px 16px',
+            padding: isPWA ? '0 24px 80px' : '0 24px 24px',
           }}
         >
           <Header
@@ -5279,52 +5341,52 @@ export default function App() {
                         ]
                       : []),
                   ].map((f) => (
-                    <button
-                      type="button"
-                      key={f.id}
-                      title={f.tip || undefined}
-                      onClick={() => {
-                        setFilter(f.id)
-                        setSvcPage(1)
-                      }}
-                      style={{
-                        background: filter === f.id ? t.accentMuted : 'transparent',
-                        border: `1px solid ${filter === f.id ? `${t.accent}44` : t.border}`,
-                        borderRadius: 8,
-                        padding: '6px 14px',
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        fontWeight: 500,
-                        color: filter === f.id ? t.text.primary : t.text.secondary,
-                        transition: 'all .15s',
-                        fontFamily: F.sans,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                      }}
-                    >
-                      {f.id !== 'all' && (
-                        <span
-                          style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: '50%',
-                            backgroundColor: t.status[f.id],
-                          }}
-                        />
-                      )}
-                      {f.label}
-                      <span
+                    <Tooltip key={f.id} text={f.tip}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilter(f.id)
+                          setSvcPage(1)
+                        }}
                         style={{
-                          fontFamily: F.mono,
-                          fontSize: 11,
-                          color: t.text.muted,
-                          marginLeft: 2,
+                          background: filter === f.id ? t.accentMuted : 'transparent',
+                          border: `1px solid ${filter === f.id ? `${t.accent}44` : t.border}`,
+                          borderRadius: 8,
+                          padding: '6px 14px',
+                          cursor: 'pointer',
+                          fontSize: 12,
+                          fontWeight: 500,
+                          color: filter === f.id ? t.text.primary : t.text.secondary,
+                          transition: 'all .15s',
+                          fontFamily: F.sans,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
                         }}
                       >
-                        {f.count}
-                      </span>
-                    </button>
+                        {f.id !== 'all' && (
+                          <span
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: '50%',
+                              backgroundColor: t.status[f.id],
+                            }}
+                          />
+                        )}
+                        {f.label}
+                        <span
+                          style={{
+                            fontFamily: F.mono,
+                            fontSize: 11,
+                            color: t.text.muted,
+                            marginLeft: 2,
+                          }}
+                        >
+                          {f.count}
+                        </span>
+                      </button>
+                    </Tooltip>
                   ))}
                 </div>
                 {allSvcs.length > PAGE_SIZE && (
@@ -5501,26 +5563,19 @@ export default function App() {
                     { s: 'down', l: i18n.down, tip: i18n.tipDown },
                     { s: 'maintenance', l: i18n.maintenance, tip: i18n.tipMaintenance },
                   ].map((x) => (
-                    <span
-                      key={x.s}
-                      title={x.tip || undefined}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        cursor: x.tip ? 'help' : undefined,
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 2,
-                          backgroundColor: t.status[x.s],
-                        }}
-                      />
-                      {x.l}
-                    </span>
+                    <Tooltip key={x.s} text={x.tip}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 2,
+                            backgroundColor: t.status[x.s],
+                          }}
+                        />
+                        {x.l}
+                      </span>
+                    </Tooltip>
                   ))}
                 </div>
                 <span style={{ fontFamily: F.mono, fontFeatureSettings: "'tnum'" }}>

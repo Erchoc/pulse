@@ -193,6 +193,41 @@ const msg = {
     apiIntegrationShort: 'API Integration',
     darkMode: 'Dark Mode',
     logout: 'Sign Out',
+    // events & push diagnostics
+    eventsTitle: 'Events & Alerts',
+    pushDiagnostics: 'Push Notification Diagnostics',
+    pushDiagHint: 'Test browser and system push capabilities across different devices and modes.',
+    pushCapability: 'Capability Detection',
+    pushPermission: 'Permission Status',
+    pushTest: 'Send Test',
+    notificationApi: 'Notification API',
+    pushManagerApi: 'Push Manager API',
+    serviceWorkerApi: 'Service Worker',
+    supported: 'Supported',
+    notSupported: 'Not Supported',
+    permDefault: 'Not Asked',
+    permGranted: 'Granted',
+    permDenied: 'Denied',
+    permUnavailable: 'Unavailable',
+    requestPermission: 'Request Permission',
+    sendTestPush: 'Send Test Notification',
+    testPushTitle: 'Pulse Test',
+    testPushBody: 'This is a test notification from Pulse push diagnostics.',
+    pushSent: 'Notification sent!',
+    pushBlocked: 'Permission denied. Go to browser settings to reset.',
+    pushNotSupported: 'Push notifications are not supported in this browser/mode.',
+    envInfo: 'Environment',
+    envStandalone: 'Standalone (PWA)',
+    envBrowser: 'Browser',
+    envSecure: 'Secure Context (HTTPS)',
+    envInsecure: 'Insecure Context (HTTP)',
+    iosNote: 'iOS requires PWA mode (Add to Home Screen) for push. Safari 16.4+.',
+    deniedNote:
+      'Permission was denied. Reset in browser/system notification settings, then reload.',
+    incidentLog: 'Incident Log',
+    incidentLogHint:
+      'Historical incident and alert records will appear here once monitoring is active.',
+    noEvents: 'No events yet',
     setMaintenance: 'Set Maintenance',
     endMaintenance: 'End Maintenance',
     maintenanceReason: 'Reason',
@@ -397,6 +432,39 @@ const msg = {
     apiIntegrationShort: 'API 接入',
     darkMode: '深色模式',
     logout: '退出登录',
+    // events & push diagnostics
+    eventsTitle: '事件告警',
+    pushDiagnostics: '推送通知诊断',
+    pushDiagHint: '测试各设备与模式下浏览器和系统推送能力。',
+    pushCapability: '能力检测',
+    pushPermission: '权限状态',
+    pushTest: '发送测试',
+    notificationApi: 'Notification API',
+    pushManagerApi: 'Push Manager API',
+    serviceWorkerApi: 'Service Worker',
+    supported: '支持',
+    notSupported: '不支持',
+    permDefault: '未询问',
+    permGranted: '已授权',
+    permDenied: '已拒绝',
+    permUnavailable: '不可用',
+    requestPermission: '请求权限',
+    sendTestPush: '发送测试通知',
+    testPushTitle: 'Pulse 测试',
+    testPushBody: '这是一条来自 Pulse 推送诊断的测试通知。',
+    pushSent: '通知已发送！',
+    pushBlocked: '权限被拒绝，请前往浏览器设置重置后刷新页面。',
+    pushNotSupported: '当前浏览器/模式不支持推送通知。',
+    envInfo: '运行环境',
+    envStandalone: '独立模式 (PWA)',
+    envBrowser: '浏览器模式',
+    envSecure: '安全上下文 (HTTPS)',
+    envInsecure: '非安全上下文 (HTTP)',
+    iosNote: 'iOS 需要 PWA 模式（添加到主屏幕）才能使用推送，要求 Safari 16.4+。',
+    deniedNote: '权限已被拒绝。请在浏览器/系统通知设置中重置，然后刷新页面。',
+    incidentLog: '事件记录',
+    incidentLogHint: '监控启动后，历史事件和告警记录将显示在此处。',
+    noEvents: '暂无事件',
     setMaintenance: '设置维护',
     endMaintenance: '结束维护',
     maintenanceReason: '维护原因',
@@ -4072,6 +4140,399 @@ function ProbesPage() {
 }
 
 /* ================================================================
+   EVENTS PAGE — incidents, alerts, push diagnostics
+   ================================================================ */
+function PushCapRow({
+  label,
+  value,
+  ok,
+  t,
+}: { label: string; value: string; ok: boolean; t: (typeof themes)['dark'] }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '10px 0',
+        borderBottom: `1px solid ${t.borderSubtle}`,
+      }}
+    >
+      <span style={{ fontSize: 12, fontFamily: F.mono, color: t.text.secondary }}>{label}</span>
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          fontFamily: F.mono,
+          padding: '3px 10px',
+          borderRadius: 6,
+          color: ok ? t.status.up : t.text.muted,
+          backgroundColor: ok ? `${t.status.up}12` : `${t.text.muted}10`,
+          border: `1px solid ${ok ? `${t.status.up}25` : `${t.text.muted}15`}`,
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function EventsPage({ isPWA }: { isPWA: boolean }) {
+  const { t, i18n } = useApp()
+
+  // ── Capability detection ──
+  const hasNotifAPI = typeof Notification !== 'undefined'
+  const hasPushManager = 'PushManager' in window
+  const hasSW = 'serviceWorker' in navigator
+  const isSecure = window.isSecureContext
+  const isStandalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as unknown as { standalone?: boolean }).standalone === true
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+
+  // ── Permission state ──
+  const [permission, setPermission] = useState<string>(() =>
+    hasNotifAPI ? Notification.permission : 'unavailable',
+  )
+  const [toast, setToast] = useState<string | null>(null)
+
+  const flash = useCallback((m: string) => {
+    setToast(m)
+    setTimeout(() => setToast(null), 3000)
+  }, [])
+
+  const handleRequestPermission = useCallback(async () => {
+    if (!hasNotifAPI) {
+      flash(i18n.pushNotSupported)
+      return
+    }
+    const result = await Notification.requestPermission()
+    setPermission(result)
+    if (result === 'denied') {
+      flash(i18n.pushBlocked)
+    }
+  }, [hasNotifAPI, flash, i18n.pushNotSupported, i18n.pushBlocked])
+
+  const handleTestPush = useCallback(() => {
+    if (!hasNotifAPI || Notification.permission !== 'granted') {
+      flash(permission === 'denied' ? i18n.pushBlocked : i18n.pushNotSupported)
+      return
+    }
+    new Notification(i18n.testPushTitle, {
+      body: i18n.testPushBody,
+      icon: '/icon-192.png',
+      badge: '/favicon.png',
+    })
+    flash(i18n.pushSent)
+  }, [hasNotifAPI, permission, flash, i18n])
+
+  // Permission color mapping
+  const permColor =
+    permission === 'granted'
+      ? t.status.up
+      : permission === 'denied'
+        ? t.status.down
+        : t.status.degraded
+  const permLabel =
+    permission === 'granted'
+      ? i18n.permGranted
+      : permission === 'denied'
+        ? i18n.permDenied
+        : permission === 'default'
+          ? i18n.permDefault
+          : i18n.permUnavailable
+
+  const cardStyle: React.CSSProperties = {
+    backgroundColor: t.bg.card,
+    borderRadius: R.lg,
+    border: `1px solid ${t.border}`,
+    boxShadow: t.shadow,
+    padding: '24px',
+    marginBottom: 16,
+  }
+
+  const sectionTitle: React.CSSProperties = {
+    fontSize: 14,
+    fontWeight: 700,
+    fontFamily: F.display,
+    color: t.text.primary,
+    letterSpacing: '-.01em',
+    marginBottom: 4,
+  }
+
+  return (
+    <div style={{ paddingBottom: isPWA ? 32 : 0 }}>
+      {/* ── Push Diagnostics ── */}
+      <div style={cardStyle}>
+        <div style={{ marginBottom: 20 }}>
+          <h2 style={sectionTitle}>{i18n.pushDiagnostics}</h2>
+          <p style={{ fontSize: 12, color: t.text.muted, margin: 0, lineHeight: 1.5 }}>
+            {i18n.pushDiagHint}
+          </p>
+        </div>
+
+        <div
+          className="resp-cols"
+          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}
+        >
+          {/* Column 1: Capability */}
+          <div
+            style={{
+              backgroundColor: t.bg.base,
+              borderRadius: R.md,
+              padding: '16px 18px',
+              border: `1px solid ${t.borderSubtle}`,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '.08em',
+                color: t.text.muted,
+                marginBottom: 12,
+                fontFamily: F.mono,
+              }}
+            >
+              {i18n.pushCapability}
+            </div>
+            <PushCapRow
+              label={i18n.notificationApi}
+              value={hasNotifAPI ? i18n.supported : i18n.notSupported}
+              ok={hasNotifAPI}
+              t={t}
+            />
+            <PushCapRow
+              label={i18n.pushManagerApi}
+              value={hasPushManager ? i18n.supported : i18n.notSupported}
+              ok={hasPushManager}
+              t={t}
+            />
+            <PushCapRow
+              label={i18n.serviceWorkerApi}
+              value={hasSW ? i18n.supported : i18n.notSupported}
+              ok={hasSW}
+              t={t}
+            />
+          </div>
+
+          {/* Column 2: Permission & Actions */}
+          <div
+            style={{
+              backgroundColor: t.bg.base,
+              borderRadius: R.md,
+              padding: '16px 18px',
+              border: `1px solid ${t.borderSubtle}`,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '.08em',
+                color: t.text.muted,
+                marginBottom: 12,
+                fontFamily: F.mono,
+              }}
+            >
+              {i18n.pushPermission}
+            </div>
+
+            {/* Current status */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '12px 14px',
+                borderRadius: 8,
+                backgroundColor: `${permColor}08`,
+                border: `1px solid ${permColor}20`,
+                marginBottom: 14,
+              }}
+            >
+              <span
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  backgroundColor: permColor,
+                  boxShadow: `0 0 8px ${permColor}60`,
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ fontSize: 13, fontWeight: 600, color: permColor }}>{permLabel}</span>
+            </div>
+
+            {/* Denied warning */}
+            {permission === 'denied' && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: t.status.down,
+                  lineHeight: 1.5,
+                  marginBottom: 14,
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  backgroundColor: `${t.status.down}08`,
+                  border: `1px solid ${t.status.down}15`,
+                }}
+              >
+                {i18n.deniedNote}
+              </div>
+            )}
+
+            {/* iOS note */}
+            {isIOS && !isStandalone && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: t.status.degraded,
+                  lineHeight: 1.5,
+                  marginBottom: 14,
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  backgroundColor: `${t.status.degraded}08`,
+                  border: `1px solid ${t.status.degraded}15`,
+                }}
+              >
+                {i18n.iosNote}
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {permission === 'default' && (
+                <Btn onClick={handleRequestPermission}>{i18n.requestPermission}</Btn>
+              )}
+              <Btn
+                variant={permission === 'granted' ? 'default' : 'ghost'}
+                onClick={handleTestPush}
+                disabled={permission !== 'granted'}
+              >
+                {i18n.sendTestPush}
+              </Btn>
+            </div>
+          </div>
+
+          {/* Column 3: Environment */}
+          <div
+            style={{
+              backgroundColor: t.bg.base,
+              borderRadius: R.md,
+              padding: '16px 18px',
+              border: `1px solid ${t.borderSubtle}`,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '.08em',
+                color: t.text.muted,
+                marginBottom: 12,
+                fontFamily: F.mono,
+              }}
+            >
+              {i18n.envInfo}
+            </div>
+            <PushCapRow
+              label="Mode"
+              value={isStandalone ? i18n.envStandalone : i18n.envBrowser}
+              ok={isStandalone}
+              t={t}
+            />
+            <PushCapRow
+              label="Context"
+              value={isSecure ? i18n.envSecure : i18n.envInsecure}
+              ok={isSecure}
+              t={t}
+            />
+            <PushCapRow label="Platform" value={isIOS ? 'iOS' : navigator.platform} ok t={t} />
+
+            <div
+              style={{
+                marginTop: 12,
+                padding: '8px 10px',
+                borderRadius: 6,
+                backgroundColor: t.bg.input,
+                border: `1px solid ${t.borderSubtle}`,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 500,
+                  color: t.text.muted,
+                  marginBottom: 4,
+                  fontFamily: F.mono,
+                }}
+              >
+                User-Agent
+              </div>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: t.text.secondary,
+                  fontFamily: F.mono,
+                  lineHeight: 1.5,
+                  wordBreak: 'break-all',
+                }}
+              >
+                {navigator.userAgent}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Incident Log (placeholder) ── */}
+      <div style={cardStyle}>
+        <h2 style={sectionTitle}>{i18n.incidentLog}</h2>
+        <p style={{ fontSize: 12, color: t.text.muted, margin: '4px 0 0', lineHeight: 1.5 }}>
+          {i18n.incidentLogHint}
+        </p>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '48px 0',
+            color: t.text.muted,
+            fontSize: 13,
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <svg
+              width="40"
+              height="40"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={t.text.muted}
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ opacity: 0.4, marginBottom: 12 }}
+            >
+              <title>No events</title>
+              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 01-3.46 0" />
+              <line x1="1" y1="1" x2="23" y2="23" />
+            </svg>
+            <div>{i18n.noEvents}</div>
+          </div>
+        </div>
+      </div>
+
+      <Toast message={toast} visible={!!toast} />
+    </div>
+  )
+}
+
+/* ================================================================
    SETTINGS PAGE — fully interactive
    ================================================================ */
 const WEBHOOK_PAYLOAD_SAMPLE = JSON.stringify(
@@ -6213,24 +6674,7 @@ export default function App() {
             )}
 
             {/* ──── EVENTS (incidents + alerts) ──── */}
-            {tab === 'events' && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: 300,
-                  color: t.text.muted,
-                  fontSize: 14,
-                  backgroundColor: t.bg.card,
-                  borderRadius: R.lg,
-                  border: `1px solid ${t.border}`,
-                  boxShadow: t.shadow,
-                }}
-              >
-                {i18n.events} — {i18n.comingSoon}
-              </div>
-            )}
+            {tab === 'events' && <EventsPage isPWA={isPWA} />}
 
             {/* ──── SETTINGS ──── */}
             {tab === 'settings' && (

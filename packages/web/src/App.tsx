@@ -1945,6 +1945,26 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
               {sl}
             </Badge>
           </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+            {!svc.maintenance && (
+              <Btn small variant="ghost" onClick={() => setMaintModalOpen(true)}>
+                {i18n.setMaintenance}
+              </Btn>
+            )}
+            {svc.maintenance && (
+              <Btn
+                small
+                variant="danger"
+                onClick={() => {
+                  if (confirm(i18n.confirmEndMaintenance)) {
+                    onToggleMaintenance(svc.id, null)
+                  }
+                }}
+              >
+                {i18n.endMaintenance}
+              </Btn>
+            )}
+          </div>
         </div>
         <SLAGauge value={svc.sla} target={svc.target} size={92} />
       </div>
@@ -1959,26 +1979,13 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
             fontSize: 12,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ color: t.status.maintenance, fontWeight: 600 }}>
-              {i18n.maintenanceActive}
-            </span>
-            <Btn
-              small
-              variant="danger"
-              onClick={() => {
-                if (confirm(i18n.confirmEndMaintenance)) {
-                  onToggleMaintenance(svc.id, null)
-                }
-              }}
-            >
-              {i18n.endMaintenance}
-            </Btn>
+          <div style={{ color: t.status.maintenance, fontWeight: 600, marginBottom: 4 }}>
+            {i18n.maintenanceActive}
           </div>
           {svc.maintenanceReason && (
-            <div style={{ color: t.text.secondary, marginTop: 4 }}>{svc.maintenanceReason}</div>
+            <div style={{ color: t.text.secondary, marginBottom: 2 }}>{svc.maintenanceReason}</div>
           )}
-          <div style={{ color: t.text.muted, fontFamily: F.mono, fontSize: 11, marginTop: 4 }}>
+          <div style={{ color: t.text.muted, fontFamily: F.mono, fontSize: 11 }}>
             {i18n.maintenanceSince} {new Date(svc.maintenanceStartAt).toLocaleString()}
             {svc.maintenanceEndAt && (
               <>
@@ -1988,13 +1995,6 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
             )}
             {!svc.maintenanceEndAt && <> · {i18n.maintenanceManualEnd}</>}
           </div>
-        </div>
-      )}
-      {!svc.maintenance && (
-        <div style={{ marginBottom: 16 }}>
-          <Btn small variant="ghost" onClick={() => setMaintModalOpen(true)}>
-            {i18n.setMaintenance}
-          </Btn>
         </div>
       )}
       <div
@@ -2031,6 +2031,9 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
                 textTransform: 'uppercase',
                 letterSpacing: '.04em',
                 marginBottom: 4,
+                minHeight: 28,
+                display: 'flex',
+                alignItems: 'center',
               }}
             >
               {s.l}
@@ -4532,11 +4535,15 @@ export default function App() {
                       label: i18n.down,
                       count: allSvcs.filter((s) => s.status === 'down').length,
                     },
-                    {
-                      id: 'maintenance',
-                      label: i18n.maintenance,
-                      count: allSvcs.filter((s) => s.status === 'maintenance').length,
-                    },
+                    ...(allSvcs.some((s) => s.status === 'maintenance')
+                      ? [
+                          {
+                            id: 'maintenance',
+                            label: i18n.maintenance,
+                            count: allSvcs.filter((s) => s.status === 'maintenance').length,
+                          },
+                        ]
+                      : []),
                   ].map((f) => (
                     <button
                       type="button"

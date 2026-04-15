@@ -1,6 +1,25 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 /* ================================================================
+   PWA standalone detection
+   ================================================================ */
+function useIsPWA() {
+  const [isPWA, setIsPWA] = useState(
+    () =>
+      new URLSearchParams(window.location.search).has('pwa') ||
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as unknown as { standalone?: boolean }).standalone === true,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(display-mode: standalone)')
+    const handler = (e: MediaQueryListEvent) => setIsPWA(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return isPWA
+}
+
+/* ================================================================
    i18n
    ================================================================ */
 const msg = {
@@ -4411,7 +4430,96 @@ function Header({ theme, toggleTheme, lang, toggleLang, projectName }) {
   )
 }
 
-function TabNav({ active, onChange }) {
+const TAB_ICONS: Record<string, (active: boolean, color: string) => React.ReactNode> = {
+  overview: (a, c) => (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={c}
+      strokeWidth={a ? 2.2 : 1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Overview</title>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  ),
+  probes: (a, c) => (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={c}
+      strokeWidth={a ? 2.2 : 1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Probes</title>
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+    </svg>
+  ),
+  incidents: (a, c) => (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={c}
+      strokeWidth={a ? 2.2 : 1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Incidents</title>
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  ),
+  alerts: (a, c) => (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={c}
+      strokeWidth={a ? 2.2 : 1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Alerts</title>
+      <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 01-3.46 0" />
+    </svg>
+  ),
+  settings: (a, c) => (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={c}
+      strokeWidth={a ? 2.2 : 1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Settings</title>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+    </svg>
+  ),
+}
+
+function TabNav({
+  active,
+  onChange,
+  pwa,
+}: { active: string; onChange: (id: string) => void; pwa?: boolean }) {
   const { t, i18n } = useApp()
   const tabs = [
     { id: 'overview', label: i18n.overview },
@@ -4420,6 +4528,77 @@ function TabNav({ active, onChange }) {
     { id: 'alerts', label: i18n.alerts },
     { id: 'settings', label: i18n.settings },
   ]
+
+  if (pwa) {
+    return (
+      <nav
+        className="pwa-tab-bar"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 9999,
+          display: 'flex',
+          justifyContent: 'space-around',
+          alignItems: 'stretch',
+          backgroundColor: t.bg.card,
+          borderTop: `1px solid ${t.border}`,
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+        }}
+      >
+        {tabs.map((tb) => {
+          const isActive = active === tb.id
+          const color = isActive ? t.accent : t.text.muted
+          return (
+            <button
+              type="button"
+              key={tb.id}
+              onClick={() => onChange(tb.id)}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 2,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '8px 0 6px',
+                color,
+                fontSize: 10,
+                fontWeight: isActive ? 600 : 400,
+                fontFamily: F.sans,
+                transition: 'color .15s',
+                position: 'relative',
+              }}
+            >
+              {isActive && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 20,
+                    height: 2,
+                    borderRadius: 1,
+                    backgroundColor: t.accent,
+                  }}
+                />
+              )}
+              {TAB_ICONS[tb.id](isActive, color)}
+              <span>{tb.label}</span>
+            </button>
+          )
+        })}
+      </nav>
+    )
+  }
+
   return (
     <nav
       style={{
@@ -4550,6 +4729,7 @@ if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/d
 }
 
 export default function App() {
+  const isPWA = useIsPWA()
   const [theme, setTheme] = useState(() => {
     try {
       return (localStorage.getItem('pulse-theme') as 'dark' | 'light') || 'dark'
@@ -4699,7 +4879,13 @@ export default function App() {
         @media(max-width:600px){.resp-cols{grid-template-columns:1fr!important}.stat-grid{grid-template-columns:1fr 1fr!important}}
       `}</style>
 
-        <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 24px 40px' }}>
+        <div
+          style={{
+            maxWidth: 1400,
+            margin: '0 auto',
+            padding: isPWA ? '0 24px 72px' : '0 24px 40px',
+          }}
+        >
           <Header
             theme={theme}
             toggleTheme={toggleTheme}
@@ -4707,7 +4893,7 @@ export default function App() {
             toggleLang={toggleLang}
             projectName={projectName}
           />
-          <TabNav active={tab} onChange={setTab} />
+          {!isPWA && <TabNav active={tab} onChange={setTab} />}
 
           {/* ──── OVERVIEW ──── */}
           {tab === 'overview' && (
@@ -5034,6 +5220,7 @@ export default function App() {
             <SettingsPage projectName={projectName} setProjectName={setProjectName} />
           )}
         </div>
+        {isPWA && <TabNav active={tab} onChange={setTab} pwa />}
       </div>
     </AppCtx.Provider>
   )

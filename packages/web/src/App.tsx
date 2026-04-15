@@ -34,6 +34,21 @@ const msg = {
     events: 'Events & Alerts',
     eventsShort: 'Events',
     alertsComingSoon: 'Alert rules coming soon',
+    siteNotification: 'Site Notification',
+    siteNotifHint: 'Send a notification banner to all users visiting this page.',
+    notifMessage: 'Message',
+    notifMessagePlaceholder: 'e.g. Scheduled maintenance tonight 22:00–02:00',
+    notifType: 'Type',
+    notifTypeInfo: 'Info',
+    notifTypeWarning: 'Warning',
+    notifTypeCritical: 'Critical',
+    publishNotif: 'Publish',
+    clearNotif: 'Clear',
+    notifPublished: 'Notification published',
+    notifCleared: 'Notification cleared',
+    enablePush: 'Enable Push',
+    pushEnabled: 'Push enabled',
+    pushDenied: 'Push permission denied',
     apiDocLink: 'View API documentation',
     settings: 'Settings',
     overallSLA: 'Overall SLA',
@@ -186,6 +201,21 @@ const msg = {
     events: '事件告警',
     eventsShort: '事件',
     alertsComingSoon: '告警规则即将推出',
+    siteNotification: '本站通知',
+    siteNotifHint: '向所有访问本页的用户发送通知横幅。',
+    notifMessage: '消息内容',
+    notifMessagePlaceholder: '例如：今晚 22:00–02:00 计划维护',
+    notifType: '类型',
+    notifTypeInfo: '信息',
+    notifTypeWarning: '警告',
+    notifTypeCritical: '紧急',
+    publishNotif: '发布',
+    clearNotif: '清除',
+    notifPublished: '通知已发布',
+    notifCleared: '通知已清除',
+    enablePush: '开启推送',
+    pushEnabled: '推送已开启',
+    pushDenied: '推送权限被拒绝',
     apiDocLink: '查看接入文档',
     settings: '设置',
     overallSLA: '整体 SLA',
@@ -3781,7 +3811,128 @@ function SettingsRow({
   )
 }
 
-function SettingsPage({ projectName, setProjectName }) {
+function SiteNotifSection({ t, i18n, siteNotif, onNotifChange, isPWA }) {
+  const [msg, setMsg] = useState(siteNotif?.message || '')
+  const [type, setType] = useState<'info' | 'warning' | 'critical'>(siteNotif?.type || 'info')
+  const [pushStatus, setPushStatus] = useState<'idle' | 'granted' | 'denied'>(() =>
+    typeof Notification !== 'undefined' && Notification.permission === 'granted'
+      ? 'granted'
+      : 'idle',
+  )
+
+  const handlePublish = () => {
+    if (!msg.trim()) return
+    onNotifChange({ message: msg.trim(), type })
+    // PWA: send native notification
+    if (isPWA && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      new Notification('Pulse', { body: msg.trim(), icon: '/icon-192.png', badge: '/favicon.png' })
+    }
+  }
+  const handleClear = () => {
+    onNotifChange(null)
+    setMsg('')
+  }
+  const handleEnablePush = async () => {
+    if (typeof Notification === 'undefined') return
+    const perm = await Notification.requestPermission()
+    setPushStatus(perm === 'granted' ? 'granted' : 'denied')
+  }
+
+  const typeOpts = [
+    { value: 'info', label: i18n.notifTypeInfo, color: '#3b82f6' },
+    { value: 'warning', label: i18n.notifTypeWarning, color: '#f59e0b' },
+    { value: 'critical', label: i18n.notifTypeCritical, color: '#ef4444' },
+  ]
+
+  return (
+    <SettingsSection t={t}>
+      <SettingsRow label={i18n.siteNotification} hint={i18n.siteNotifHint}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, color: t.text.muted, fontWeight: 500, marginBottom: 6 }}>
+              {i18n.notifMessage}
+            </div>
+            <Input value={msg} onChange={setMsg} placeholder={i18n.notifMessagePlaceholder} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: t.text.muted, fontWeight: 500, marginBottom: 6 }}>
+              {i18n.notifType}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {typeOpts.map((o) => (
+                <button
+                  type="button"
+                  key={o.value}
+                  onClick={() => setType(o.value as 'info' | 'warning' | 'critical')}
+                  style={{
+                    padding: '5px 12px',
+                    fontSize: 11,
+                    fontWeight: 500,
+                    fontFamily: F.sans,
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    transition: 'all .15s',
+                    border: type === o.value ? `1.5px solid ${o.color}` : `1px solid ${t.border}`,
+                    backgroundColor: type === o.value ? `${o.color}18` : 'transparent',
+                    color: type === o.value ? o.color : t.text.muted,
+                  }}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Btn small onClick={handlePublish} disabled={!msg.trim()}>
+              {i18n.publishNotif}
+            </Btn>
+            {siteNotif && (
+              <Btn small variant="ghost" onClick={handleClear}>
+                {i18n.clearNotif}
+              </Btn>
+            )}
+            {isPWA && pushStatus !== 'granted' && (
+              <Btn small variant="ghost" onClick={handleEnablePush}>
+                {pushStatus === 'denied' ? i18n.pushDenied : i18n.enablePush}
+              </Btn>
+            )}
+            {isPWA && pushStatus === 'granted' && (
+              <span
+                style={{
+                  fontSize: 11,
+                  color: t.status.up,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                ✓ {i18n.pushEnabled}
+              </span>
+            )}
+          </div>
+          {siteNotif && (
+            <div
+              style={{
+                padding: '8px 12px',
+                borderRadius: 6,
+                fontSize: 11,
+                backgroundColor: { info: '#3b82f618', warning: '#f59e0b18', critical: '#ef444418' }[
+                  siteNotif.type
+                ],
+                border: `1px solid ${{ info: '#3b82f633', warning: '#f59e0b33', critical: '#ef444433' }[siteNotif.type]}`,
+                color: { info: '#3b82f6', warning: '#f59e0b', critical: '#ef4444' }[siteNotif.type],
+              }}
+            >
+              {i18n.notifTypeInfo === 'Info' ? 'Active' : '当前'}: {siteNotif.message}
+            </div>
+          )}
+        </div>
+      </SettingsRow>
+    </SettingsSection>
+  )
+}
+
+function SettingsPage({ projectName, setProjectName, siteNotif, onNotifChange, isPWA }) {
   const { t, i18n } = useApp()
   const [retention, setRetention] = useState('90d')
   const [slaWindow, setSlaWindow] = useState('30d')
@@ -4097,6 +4248,15 @@ function SettingsPage({ projectName, setProjectName }) {
           </div>
         </SettingsRow>
       </SettingsSection>
+
+      {/* Site Notification */}
+      <SiteNotifSection
+        t={t}
+        i18n={i18n}
+        siteNotif={siteNotif}
+        onNotifChange={onNotifChange}
+        isPWA={isPWA}
+      />
 
       {/* API Integration */}
       <SettingsSection t={t}>
@@ -4766,6 +4926,11 @@ export default function App() {
   const [filter, setFilter] = useState('all')
   const [projectName, setProjectName] = useState('Pulse')
   const [allSvcs, setSvcs] = useState(_allSvcs)
+  const [siteNotif, setSiteNotif] = useState<{
+    message: string
+    type: 'info' | 'warning' | 'critical'
+  } | null>(null)
+  const [notifDismissed, setNotifDismissed] = useState(false)
 
   const toggleMaintenance = useCallback((svcId: string, data: Record<string, unknown> | null) => {
     setSvcs((prev) =>
@@ -4876,6 +5041,55 @@ export default function App() {
         @media(max-width:960px){.main-grid{grid-template-columns:1fr!important}.hide-mobile{display:none!important;width:0!important;min-width:0!important;overflow:hidden!important;padding:0!important;margin:0!important}.resp-cols{grid-template-columns:1fr!important}.settings-row{grid-template-columns:1fr!important;gap:8px!important}.svc-row{grid-template-columns:1fr 80px 76px!important;gap:8px!important}.filter-bar{flex-wrap:wrap!important}.filter-chips{display:flex!important;width:100%!important;gap:4px!important}.filter-chips button{flex:1!important;min-width:0!important;justify-content:center!important;white-space:nowrap!important;padding:6px 6px!important;font-size:12px!important}.search-box{max-width:none!important;width:100%!important;flex:auto!important}}
         @media(max-width:600px){.resp-cols{grid-template-columns:1fr!important}.stat-grid{grid-template-columns:1fr 1fr!important}}
       `}</style>
+
+        {siteNotif &&
+          !notifDismissed &&
+          (() => {
+            const colors = {
+              info: { bg: '#3b82f6', text: '#fff' },
+              warning: { bg: '#f59e0b', text: '#000' },
+              critical: { bg: '#ef4444', text: '#fff' },
+            }
+            const c = colors[siteNotif.type]
+            return (
+              <div
+                style={{
+                  backgroundColor: c.bg,
+                  color: c.text,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  fontFamily: F.sans,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '6px 16px',
+                  position: 'relative',
+                }}
+              >
+                <span style={{ flex: 1, textAlign: 'center' }}>{siteNotif.message}</span>
+                <button
+                  type="button"
+                  onClick={() => setNotifDismissed(true)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: c.text,
+                    opacity: 0.7,
+                    padding: 4,
+                    lineHeight: 1,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    position: 'absolute',
+                    right: 8,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            )
+          })()}
 
         <div
           style={{
@@ -5195,7 +5409,16 @@ export default function App() {
 
           {/* ──── SETTINGS ──── */}
           {tab === 'settings' && (
-            <SettingsPage projectName={projectName} setProjectName={setProjectName} />
+            <SettingsPage
+              projectName={projectName}
+              setProjectName={setProjectName}
+              siteNotif={siteNotif}
+              onNotifChange={(n) => {
+                setSiteNotif(n)
+                setNotifDismissed(false)
+              }}
+              isPWA={isPWA}
+            />
           )}
         </div>
         {isPWA && <TabNav active={tab} onChange={setTab} pwa />}

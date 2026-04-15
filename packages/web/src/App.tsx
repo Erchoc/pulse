@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import StatusPage from './StatusPage'
 
 /* ================================================================
    PWA standalone detection
@@ -5219,6 +5220,7 @@ export default function App() {
   } | null>(null)
   const [notifDismissed, setNotifDismissed] = useState(false)
   const [timeRange, setTimeRange] = useState<'today' | '7d' | '30d' | '3m' | '6m' | '1y'>('today')
+  const isStatusPage = window.location.pathname.startsWith('/status')
 
   const toggleMaintenance = useCallback((svcId: string, data: Record<string, unknown> | null) => {
     setSvcs((prev) =>
@@ -5313,18 +5315,21 @@ export default function App() {
 
   return (
     <AppCtx.Provider value={ctx}>
-      <div
-        className={isPWA ? 'pwa-safe-top' : undefined}
-        style={{
-          minHeight: '100vh',
-          backgroundColor: t.bg.base,
-          color: t.text.primary,
-          fontFamily: F.sans,
-          WebkitFontSmoothing: 'antialiased',
-          transition: 'background-color .3s,color .3s',
-        }}
-      >
-        <style>{`
+      {isStatusPage ? (
+        <StatusPage services={allSvcs} projectName={projectName} t={t} i18n={i18n} lang={lang} />
+      ) : (
+        <div
+          className={isPWA ? 'pwa-safe-top' : undefined}
+          style={{
+            minHeight: '100vh',
+            backgroundColor: t.bg.base,
+            color: t.text.primary,
+            fontFamily: F.sans,
+            WebkitFontSmoothing: 'antialiased',
+            transition: 'background-color .3s,color .3s',
+          }}
+        >
+          <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
         html,body{overscroll-behavior:none;-webkit-overflow-scrolling:touch}
@@ -5343,396 +5348,397 @@ export default function App() {
         @media(max-width:600px){.resp-cols{grid-template-columns:1fr!important}.stat-grid{grid-template-columns:1fr 1fr!important}}
       `}</style>
 
-        {siteNotif &&
-          !notifDismissed &&
-          (() => {
-            const colors = {
-              info: { bg: '#3b82f6', text: '#fff' },
-              warning: { bg: '#f59e0b', text: '#000' },
-              critical: { bg: '#ef4444', text: '#fff' },
-            }
-            const c = colors[siteNotif.type]
-            return (
+          {siteNotif &&
+            !notifDismissed &&
+            (() => {
+              const colors = {
+                info: { bg: '#3b82f6', text: '#fff' },
+                warning: { bg: '#f59e0b', text: '#000' },
+                critical: { bg: '#ef4444', text: '#fff' },
+              }
+              const c = colors[siteNotif.type]
+              return (
+                <div
+                  style={{
+                    backgroundColor: c.bg,
+                    color: c.text,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    fontFamily: F.sans,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    padding: '6px 16px',
+                    position: 'relative',
+                  }}
+                >
+                  <span style={{ flex: 1, textAlign: 'center' }}>{siteNotif.message}</span>
+                  <button
+                    type="button"
+                    onClick={() => setNotifDismissed(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: c.text,
+                      opacity: 0.7,
+                      padding: 4,
+                      lineHeight: 1,
+                      fontSize: 16,
+                      fontWeight: 700,
+                      position: 'absolute',
+                      right: 8,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            })()}
+
+          <div
+            style={{
+              maxWidth: 1400,
+              margin: '0 auto',
+              padding: isPWA ? '0 24px 80px' : '0 24px 24px',
+            }}
+          >
+            <Header
+              theme={theme}
+              toggleTheme={toggleTheme}
+              lang={lang}
+              toggleLang={toggleLang}
+              projectName={projectName}
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
+            />
+            {!isPWA && <TabNav active={tab} onChange={setTab} />}
+
+            {/* ──── OVERVIEW ──── */}
+            {tab === 'overview' && (
+              <>
+                <OverviewCards svcs={allSvcs} />
+                <div
+                  className="filter-bar"
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '20px 0 12px' }}
+                >
+                  <div className="filter-chips" style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    {[
+                      { id: 'all', label: i18n.all, count: allSvcs.length, tip: '' },
+                      {
+                        id: 'up',
+                        label: i18n.operational,
+                        count: allSvcs.filter((s) => s.status === 'up').length,
+                        tip: '',
+                      },
+                      {
+                        id: 'degraded',
+                        label: i18n.degraded,
+                        count: allSvcs.filter((s) => s.status === 'degraded').length,
+                        tip: i18n.tipDegraded,
+                      },
+                      {
+                        id: 'down',
+                        label: i18n.down,
+                        count: allSvcs.filter((s) => s.status === 'down').length,
+                        tip: i18n.tipDown,
+                      },
+                      ...(allSvcs.some((s) => s.status === 'maintenance')
+                        ? [
+                            {
+                              id: 'maintenance',
+                              label: i18n.maintenance,
+                              count: allSvcs.filter((s) => s.status === 'maintenance').length,
+                              tip: i18n.tipMaintenance,
+                            },
+                          ]
+                        : []),
+                    ].map((f) => (
+                      <Tooltip key={f.id} text={f.tip}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFilter(f.id)
+                            setSvcPage(1)
+                          }}
+                          style={{
+                            background: filter === f.id ? t.accentMuted : 'transparent',
+                            border: `1px solid ${filter === f.id ? `${t.accent}44` : t.border}`,
+                            borderRadius: 8,
+                            padding: '6px 14px',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            fontWeight: 500,
+                            color: filter === f.id ? t.text.primary : t.text.secondary,
+                            transition: 'all .15s',
+                            fontFamily: F.sans,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          {f.id !== 'all' && (
+                            <span
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                backgroundColor: t.status[f.id],
+                              }}
+                            />
+                          )}
+                          {f.label}
+                          <span
+                            style={{
+                              fontFamily: F.mono,
+                              fontSize: 11,
+                              color: t.text.muted,
+                              marginLeft: 2,
+                            }}
+                          >
+                            {f.count}
+                          </span>
+                        </button>
+                      </Tooltip>
+                    ))}
+                  </div>
+                  {allSvcs.length > PAGE_SIZE && (
+                    <div
+                      className="search-box"
+                      style={{
+                        position: 'relative',
+                        minWidth: 0,
+                        maxWidth: 280,
+                        marginLeft: 'auto',
+                        width: 280,
+                      }}
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={t.text.muted}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                          position: 'absolute',
+                          left: 10,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        <title>search</title>
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      </svg>
+                      <input
+                        ref={searchRef}
+                        value={search}
+                        onChange={(e) => {
+                          setSearch(e.target.value)
+                          setSvcPage(1)
+                        }}
+                        placeholder={i18n.search}
+                        style={{
+                          width: '100%',
+                          padding: '7px 48px 7px 32px',
+                          backgroundColor: t.bg.input,
+                          border: `1px solid ${t.border}`,
+                          borderRadius: 8,
+                          color: t.text.primary,
+                          fontSize: 12,
+                          fontFamily: F.sans,
+                          outline: 'none',
+                          transition: 'border-color .2s',
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = `${t.accent}66`
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = t.border
+                        }}
+                      />
+                      <kbd
+                        style={{
+                          position: 'absolute',
+                          right: 8,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          fontSize: 10,
+                          fontFamily: F.mono,
+                          color: t.text.muted,
+                          backgroundColor: t.bg.card,
+                          border: `1px solid ${t.border}`,
+                          pointerEvents: 'none',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        ⌘K
+                      </kbd>
+                    </div>
+                  )}
+                </div>
+                <div
+                  className="main-grid"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 380px',
+                    gap: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      backgroundColor: t.bg.card,
+                      borderRadius: R.lg,
+                      border: `1px solid ${t.border}`,
+                      overflow: 'hidden',
+                      boxShadow: t.shadow,
+                    }}
+                  >
+                    <ListHeader
+                      sort={sort}
+                      onSort={(s) => {
+                        setSort(s)
+                        setSvcPage(1)
+                      }}
+                    />
+                    <div style={{ borderTop: `1px solid ${t.borderSubtle}` }}>
+                      {pagedSvcs.map((s) => (
+                        <ServiceRow
+                          key={s.id}
+                          svc={s}
+                          selected={selectedId === s.id}
+                          onSelect={setSelectedId}
+                        />
+                      ))}
+                      {filtered.length === 0 && (
+                        <div
+                          style={{
+                            padding: 40,
+                            textAlign: 'center',
+                            color: t.text.muted,
+                            fontSize: 13,
+                          }}
+                        >
+                          —
+                        </div>
+                      )}
+                      <Pagination
+                        total={filtered.length}
+                        page={svcPage}
+                        pageSize={PAGE_SIZE}
+                        onPageChange={setSvcPage}
+                      />
+                    </div>
+                  </div>
+                  <div
+                    className="detail-scroll"
+                    style={{
+                      backgroundColor: t.bg.card,
+                      borderRadius: R.lg,
+                      border: `1px solid ${t.border}`,
+                      overflowY: 'auto',
+                      overflowX: 'hidden',
+                      minHeight: 420,
+                      boxShadow: t.shadow,
+                    }}
+                  >
+                    <DetailPanel
+                      svc={selectedSvc}
+                      totalSvcs={allSvcs.length}
+                      onToggleMaintenance={toggleMaintenance}
+                    />
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '16px 0',
+                    marginTop: 16,
+                    borderTop: `1px solid ${t.border}`,
+                    fontSize: 11,
+                    color: t.text.muted,
+                    flexWrap: 'wrap',
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    {[
+                      { s: 'up', l: i18n.operational, tip: '' },
+                      { s: 'degraded', l: i18n.degraded, tip: i18n.tipDegraded },
+                      { s: 'down', l: i18n.down, tip: i18n.tipDown },
+                      { s: 'maintenance', l: i18n.maintenance, tip: i18n.tipMaintenance },
+                    ].map((x) => (
+                      <Tooltip key={x.s} text={x.tip}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: 2,
+                              backgroundColor: t.status[x.s],
+                            }}
+                          />
+                          {x.l}
+                        </span>
+                      </Tooltip>
+                    ))}
+                  </div>
+                  <span style={{ fontFamily: F.mono, fontFeatureSettings: "'tnum'" }}>
+                    {timeRange === 'today' ? i18n.realtime : `${i18n.cached} (T+1)`}
+                  </span>
+                </div>
+              </>
+            )}
+
+            {/* ──── PROBES ──── */}
+            {tab === 'probes' && <ProbesPage />}
+
+            {/* ──── EVENTS (incidents + alerts) ──── */}
+            {tab === 'events' && (
               <div
                 style={{
-                  backgroundColor: c.bg,
-                  color: c.text,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  fontFamily: F.sans,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 8,
-                  padding: '6px 16px',
-                  position: 'relative',
-                }}
-              >
-                <span style={{ flex: 1, textAlign: 'center' }}>{siteNotif.message}</span>
-                <button
-                  type="button"
-                  onClick={() => setNotifDismissed(true)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: c.text,
-                    opacity: 0.7,
-                    padding: 4,
-                    lineHeight: 1,
-                    fontSize: 16,
-                    fontWeight: 700,
-                    position: 'absolute',
-                    right: 8,
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            )
-          })()}
-
-        <div
-          style={{
-            maxWidth: 1400,
-            margin: '0 auto',
-            padding: isPWA ? '0 24px 80px' : '0 24px 24px',
-          }}
-        >
-          <Header
-            theme={theme}
-            toggleTheme={toggleTheme}
-            lang={lang}
-            toggleLang={toggleLang}
-            projectName={projectName}
-            timeRange={timeRange}
-            onTimeRangeChange={setTimeRange}
-          />
-          {!isPWA && <TabNav active={tab} onChange={setTab} />}
-
-          {/* ──── OVERVIEW ──── */}
-          {tab === 'overview' && (
-            <>
-              <OverviewCards svcs={allSvcs} />
-              <div
-                className="filter-bar"
-                style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '20px 0 12px' }}
-              >
-                <div className="filter-chips" style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  {[
-                    { id: 'all', label: i18n.all, count: allSvcs.length, tip: '' },
-                    {
-                      id: 'up',
-                      label: i18n.operational,
-                      count: allSvcs.filter((s) => s.status === 'up').length,
-                      tip: '',
-                    },
-                    {
-                      id: 'degraded',
-                      label: i18n.degraded,
-                      count: allSvcs.filter((s) => s.status === 'degraded').length,
-                      tip: i18n.tipDegraded,
-                    },
-                    {
-                      id: 'down',
-                      label: i18n.down,
-                      count: allSvcs.filter((s) => s.status === 'down').length,
-                      tip: i18n.tipDown,
-                    },
-                    ...(allSvcs.some((s) => s.status === 'maintenance')
-                      ? [
-                          {
-                            id: 'maintenance',
-                            label: i18n.maintenance,
-                            count: allSvcs.filter((s) => s.status === 'maintenance').length,
-                            tip: i18n.tipMaintenance,
-                          },
-                        ]
-                      : []),
-                  ].map((f) => (
-                    <Tooltip key={f.id} text={f.tip}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFilter(f.id)
-                          setSvcPage(1)
-                        }}
-                        style={{
-                          background: filter === f.id ? t.accentMuted : 'transparent',
-                          border: `1px solid ${filter === f.id ? `${t.accent}44` : t.border}`,
-                          borderRadius: 8,
-                          padding: '6px 14px',
-                          cursor: 'pointer',
-                          fontSize: 12,
-                          fontWeight: 500,
-                          color: filter === f.id ? t.text.primary : t.text.secondary,
-                          transition: 'all .15s',
-                          fontFamily: F.sans,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                        }}
-                      >
-                        {f.id !== 'all' && (
-                          <span
-                            style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: '50%',
-                              backgroundColor: t.status[f.id],
-                            }}
-                          />
-                        )}
-                        {f.label}
-                        <span
-                          style={{
-                            fontFamily: F.mono,
-                            fontSize: 11,
-                            color: t.text.muted,
-                            marginLeft: 2,
-                          }}
-                        >
-                          {f.count}
-                        </span>
-                      </button>
-                    </Tooltip>
-                  ))}
-                </div>
-                {allSvcs.length > PAGE_SIZE && (
-                  <div
-                    className="search-box"
-                    style={{
-                      position: 'relative',
-                      minWidth: 0,
-                      maxWidth: 280,
-                      marginLeft: 'auto',
-                      width: 280,
-                    }}
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke={t.text.muted}
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{
-                        position: 'absolute',
-                        left: 10,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <title>search</title>
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                    <input
-                      ref={searchRef}
-                      value={search}
-                      onChange={(e) => {
-                        setSearch(e.target.value)
-                        setSvcPage(1)
-                      }}
-                      placeholder={i18n.search}
-                      style={{
-                        width: '100%',
-                        padding: '7px 48px 7px 32px',
-                        backgroundColor: t.bg.input,
-                        border: `1px solid ${t.border}`,
-                        borderRadius: 8,
-                        color: t.text.primary,
-                        fontSize: 12,
-                        fontFamily: F.sans,
-                        outline: 'none',
-                        transition: 'border-color .2s',
-                      }}
-                      onFocus={(e) => {
-                        e.target.style.borderColor = `${t.accent}66`
-                      }}
-                      onBlur={(e) => {
-                        e.target.style.borderColor = t.border
-                      }}
-                    />
-                    <kbd
-                      style={{
-                        position: 'absolute',
-                        right: 8,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                        fontSize: 10,
-                        fontFamily: F.mono,
-                        color: t.text.muted,
-                        backgroundColor: t.bg.card,
-                        border: `1px solid ${t.border}`,
-                        pointerEvents: 'none',
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      ⌘K
-                    </kbd>
-                  </div>
-                )}
-              </div>
-              <div
-                className="main-grid"
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 380px',
-                  gap: 16,
-                }}
-              >
-                <div
-                  style={{
-                    backgroundColor: t.bg.card,
-                    borderRadius: R.lg,
-                    border: `1px solid ${t.border}`,
-                    overflow: 'hidden',
-                    boxShadow: t.shadow,
-                  }}
-                >
-                  <ListHeader
-                    sort={sort}
-                    onSort={(s) => {
-                      setSort(s)
-                      setSvcPage(1)
-                    }}
-                  />
-                  <div style={{ borderTop: `1px solid ${t.borderSubtle}` }}>
-                    {pagedSvcs.map((s) => (
-                      <ServiceRow
-                        key={s.id}
-                        svc={s}
-                        selected={selectedId === s.id}
-                        onSelect={setSelectedId}
-                      />
-                    ))}
-                    {filtered.length === 0 && (
-                      <div
-                        style={{
-                          padding: 40,
-                          textAlign: 'center',
-                          color: t.text.muted,
-                          fontSize: 13,
-                        }}
-                      >
-                        —
-                      </div>
-                    )}
-                    <Pagination
-                      total={filtered.length}
-                      page={svcPage}
-                      pageSize={PAGE_SIZE}
-                      onPageChange={setSvcPage}
-                    />
-                  </div>
-                </div>
-                <div
-                  className="detail-scroll"
-                  style={{
-                    backgroundColor: t.bg.card,
-                    borderRadius: R.lg,
-                    border: `1px solid ${t.border}`,
-                    overflowY: 'auto',
-                    overflowX: 'hidden',
-                    minHeight: 420,
-                    boxShadow: t.shadow,
-                  }}
-                >
-                  <DetailPanel
-                    svc={selectedSvc}
-                    totalSvcs={allSvcs.length}
-                    onToggleMaintenance={toggleMaintenance}
-                  />
-                </div>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '16px 0',
-                  marginTop: 16,
-                  borderTop: `1px solid ${t.border}`,
-                  fontSize: 11,
+                  height: 300,
                   color: t.text.muted,
-                  flexWrap: 'wrap',
-                  gap: 8,
+                  fontSize: 14,
+                  backgroundColor: t.bg.card,
+                  borderRadius: R.lg,
+                  border: `1px solid ${t.border}`,
+                  boxShadow: t.shadow,
                 }}
               >
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                  {[
-                    { s: 'up', l: i18n.operational, tip: '' },
-                    { s: 'degraded', l: i18n.degraded, tip: i18n.tipDegraded },
-                    { s: 'down', l: i18n.down, tip: i18n.tipDown },
-                    { s: 'maintenance', l: i18n.maintenance, tip: i18n.tipMaintenance },
-                  ].map((x) => (
-                    <Tooltip key={x.s} text={x.tip}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: 2,
-                            backgroundColor: t.status[x.s],
-                          }}
-                        />
-                        {x.l}
-                      </span>
-                    </Tooltip>
-                  ))}
-                </div>
-                <span style={{ fontFamily: F.mono, fontFeatureSettings: "'tnum'" }}>
-                  {timeRange === 'today' ? i18n.realtime : `${i18n.cached} (T+1)`}
-                </span>
+                {i18n.events} — {i18n.comingSoon}
               </div>
-            </>
-          )}
+            )}
 
-          {/* ──── PROBES ──── */}
-          {tab === 'probes' && <ProbesPage />}
-
-          {/* ──── EVENTS (incidents + alerts) ──── */}
-          {tab === 'events' && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: 300,
-                color: t.text.muted,
-                fontSize: 14,
-                backgroundColor: t.bg.card,
-                borderRadius: R.lg,
-                border: `1px solid ${t.border}`,
-                boxShadow: t.shadow,
-              }}
-            >
-              {i18n.events} — {i18n.comingSoon}
-            </div>
-          )}
-
-          {/* ──── SETTINGS ──── */}
-          {tab === 'settings' && (
-            <SettingsPage
-              projectName={projectName}
-              setProjectName={setProjectName}
-              siteNotif={siteNotif}
-              onNotifChange={(n) => {
-                setSiteNotif(n)
-                setNotifDismissed(false)
-              }}
-              isPWA={isPWA}
-            />
-          )}
+            {/* ──── SETTINGS ──── */}
+            {tab === 'settings' && (
+              <SettingsPage
+                projectName={projectName}
+                setProjectName={setProjectName}
+                siteNotif={siteNotif}
+                onNotifChange={(n) => {
+                  setSiteNotif(n)
+                  setNotifDismissed(false)
+                }}
+                isPWA={isPWA}
+              />
+            )}
+          </div>
+          {isPWA && <TabNav active={tab} onChange={setTab} pwa />}
         </div>
-        {isPWA && <TabNav active={tab} onChange={setTab} pwa />}
-      </div>
+      )}
     </AppCtx.Provider>
   )
 }

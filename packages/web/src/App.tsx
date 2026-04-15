@@ -73,7 +73,7 @@ const msg = {
     down: 'Down',
     maintenance: 'Maintenance',
     service: 'Service',
-    availability90: '90-Day Availability',
+    availability90: '{n} Availability',
     sla: 'SLA',
     latency: 'Latency',
     status: 'Status',
@@ -86,24 +86,24 @@ const msg = {
     next: 'Next',
     pageInfo: '{from}-{to} of {total}',
     selectHint: 'Select a service to view details',
-    uptime90: 'Uptime (90d)',
+    uptime90: 'Uptime ({n})',
     estDowntime: 'Est. Downtime/yr',
     avgLat: 'Avg Latency',
     responseTime: 'Response Time — 72h',
     details: 'Details',
-    availability: 'Availability — 90 Days',
-    incidentHistory: 'Incident History — 90 Days',
+    availability: 'Availability — {n}',
+    incidentHistory: 'Incident History — {n}',
     totalIncidents: 'Total Incidents',
     avgDuration: 'Avg Duration',
     longestDown: 'Longest Down',
     daysClean: 'Days Clean',
-    noIncidents: 'No incidents in the last 90 days',
+    noIncidents: 'No incidents in this period',
     nMore: '+{n} more',
     dUnit: 'd',
     loadMore: 'Load more events',
     ago72: '72h ago',
     now: 'now',
-    ago90: '90d ago',
+    ago90: '{n} ago',
     today: 'today',
     min: 'min',
     comingSoon: '— coming soon',
@@ -205,7 +205,7 @@ const msg = {
     rangeToday: '今日',
     rangeLast7d: '近7天',
     rangeLast30d: '近30天',
-    rangeLast3m: '近3月',
+    rangeLast3m: '近3个月',
     rangeLast6m: '近半年',
     rangeLast1y: '近一年',
     realtime: '实时',
@@ -248,7 +248,7 @@ const msg = {
     down: '宕机',
     maintenance: '维护中',
     service: '服务',
-    availability90: '90 天可用性',
+    availability90: '{n}可用性',
     sla: 'SLA',
     latency: '延迟',
     status: '状态',
@@ -261,24 +261,24 @@ const msg = {
     next: '下一页',
     pageInfo: '{from}-{to} / 共 {total}',
     selectHint: '选择一个服务查看详情',
-    uptime90: '可用率 (90天)',
+    uptime90: '可用率 ({n})',
     estDowntime: '预计年停机',
     avgLat: '平均延迟',
     responseTime: '响应时间 — 近 72 小时',
     details: '详情',
-    availability: '可用性 — 近 90 天',
-    incidentHistory: '事件历史 — 近 90 天',
+    availability: '可用性 — {n}',
+    incidentHistory: '事件历史 — {n}',
     totalIncidents: '总事件数',
     avgDuration: '平均时长',
     longestDown: '最长宕机',
     daysClean: '无故障天数',
-    noIncidents: '近 90 天无事件',
+    noIncidents: '该时段无事件',
     nMore: '+{n} 更多',
     dUnit: '天',
     loadMore: '加载更多事件',
     ago72: '72小时前',
     now: '现在',
-    ago90: '90天前',
+    ago90: '{n}前',
     today: '今天',
     min: '分钟',
     comingSoon: '— 即将推出',
@@ -424,6 +424,7 @@ interface AppContextValue {
   i18n: (typeof msg)['en']
   lang: string
   theme: string
+  rangeLabel: string
 }
 const AppCtx = createContext<AppContextValue | null>(null)
 const useApp = () => useContext(AppCtx) as AppContextValue
@@ -1969,7 +1970,7 @@ function ServiceRow({ svc, selected, onSelect }: { svc; selected: boolean; onSel
 }
 
 function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
-  const { t, i18n, lang } = useApp()
+  const { t, i18n, lang, rangeLabel } = useApp()
   const [latencyOpen, setLatencyOpen] = useState(false)
   const [availOpen, setAvailOpen] = useState(false)
   const [incidentOpen, setIncidentOpen] = useState(false)
@@ -2243,7 +2244,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
         }}
       >
         {[
-          { l: i18n.uptime90, v: fmtSLA(svc.sla), cl: c },
+          { l: i18n.uptime90.replace('{n}', rangeLabel), v: fmtSLA(svc.sla), cl: c },
           {
             l: i18n.estDowntime,
             v: downStr,
@@ -2406,7 +2407,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
             justifyContent: 'space-between',
           }}
         >
-          {i18n.availability}
+          {i18n.availability.replace('{n}', rangeLabel)}
           <button
             type="button"
             onClick={() => setAvailOpen(true)}
@@ -2445,7 +2446,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
               fontFamily: F.mono,
             }}
           >
-            <span>{i18n.ago90}</span>
+            <span>{i18n.ago90.replace('{n}', rangeLabel)}</span>
             <span>{i18n.today}</span>
           </div>
         </div>
@@ -2465,7 +2466,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
               justifyContent: 'space-between',
             }}
           >
-            {i18n.incidentHistory}
+            {i18n.incidentHistory.replace('{n}', rangeLabel)}
             <button
               type="button"
               onClick={() => setIncidentOpen(true)}
@@ -2499,7 +2500,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
       <Modal
         open={availOpen}
         onClose={() => setAvailOpen(false)}
-        title={`${dn} — ${i18n.availability}`}
+        title={`${dn} — ${i18n.availability.replace('{n}', rangeLabel)}`}
         width={640}
       >
         <AvailabilityDetailModal data={svc.bar} sla={svc.sla} target={svc.target} />
@@ -2507,7 +2508,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
       <Modal
         open={incidentOpen}
         onClose={() => setIncidentOpen(false)}
-        title={`${dn} — ${i18n.incidentHistory}`}
+        title={`${dn} — ${i18n.incidentHistory.replace('{n}', rangeLabel)}`}
         width={640}
       >
         <IncidentDetailModal data={svc.bar} />
@@ -2878,7 +2879,7 @@ function IncidentTimeline({ data, maxItems = 4 }) {
 }
 
 function AvailabilityDetailModal({ data, sla, target }) {
-  const { t, i18n } = useApp()
+  const { t, i18n, rangeLabel } = useApp()
   const upDays = data.filter((d) => (typeof d === 'string' ? d : d.status) === 'up').length
   const degradedDays = data.filter(
     (d) => (typeof d === 'string' ? d : d.status) === 'degraded',
@@ -2954,7 +2955,7 @@ function AvailabilityDetailModal({ data, sla, target }) {
             fontFamily: F.mono,
           }}
         >
-          <span>{i18n.ago90}</span>
+          <span>{i18n.ago90.replace('{n}', rangeLabel)}</span>
           <span>{i18n.today}</span>
         </div>
       </div>
@@ -3030,7 +3031,7 @@ function AvailabilityDetailModal({ data, sla, target }) {
 }
 
 function IncidentDetailModal({ data }) {
-  const { t, i18n } = useApp()
+  const { t, i18n, rangeLabel } = useApp()
   const [showCount, setShowCount] = useState(5)
   const incidents: {
     start: number
@@ -4499,62 +4500,32 @@ function SettingsPage({ projectName, setProjectName, siteNotif, onNotifChange, i
 /* ================================================================
    Layout: Header, Tabs
    ================================================================ */
+const RANGE_DAYS: Record<string, number> = {
+  today: 1,
+  '7d': 7,
+  '30d': 30,
+  '3m': 90,
+  '6m': 180,
+  '1y': 365,
+}
+
+function rangeDaysLabel(range: string, lang: string): string {
+  if (range === 'today') return lang === 'zh' ? '今日' : 'Today'
+  const d = RANGE_DAYS[range] || 90
+  return lang === 'zh' ? `${d}天` : `${d}d`
+}
+
 function TimeRangeSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const { t, i18n } = useApp()
-  const ranges = [
-    { id: 'today', label: i18n.rangeToday, live: true },
-    { id: '7d', label: i18n.rangeLast7d },
-    { id: '30d', label: i18n.rangeLast30d },
-    { id: '3m', label: i18n.rangeLast3m },
-    { id: '6m', label: i18n.rangeLast6m },
-    { id: '1y', label: i18n.rangeLast1y },
+  const { i18n } = useApp()
+  const options = [
+    { value: 'today', label: i18n.rangeToday },
+    { value: '7d', label: i18n.rangeLast7d },
+    { value: '30d', label: i18n.rangeLast30d },
+    { value: '3m', label: i18n.rangeLast3m },
+    { value: '6m', label: i18n.rangeLast6m },
+    { value: '1y', label: i18n.rangeLast1y },
   ]
-  return (
-    <div
-      style={{ display: 'flex', gap: 2, backgroundColor: t.bg.input, borderRadius: 8, padding: 2 }}
-    >
-      {ranges.map((r) => {
-        const active = value === r.id
-        return (
-          <button
-            type="button"
-            key={r.id}
-            onClick={() => onChange(r.id)}
-            style={{
-              padding: '4px 8px',
-              fontSize: 11,
-              fontWeight: active ? 600 : 400,
-              fontFamily: F.sans,
-              borderRadius: 6,
-              cursor: 'pointer',
-              border: 'none',
-              transition: 'all .15s',
-              whiteSpace: 'nowrap',
-              backgroundColor: active ? t.bg.card : 'transparent',
-              color: active ? t.text.primary : t.text.muted,
-              boxShadow: active ? '0 1px 3px rgba(0,0,0,.15)' : 'none',
-            }}
-          >
-            {r.label}
-            {r.live && active && (
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: 5,
-                  height: 5,
-                  borderRadius: '50%',
-                  backgroundColor: t.status.up,
-                  marginLeft: 4,
-                  verticalAlign: 'middle',
-                  boxShadow: `0 0 6px ${t.status.up}`,
-                }}
-              />
-            )}
-          </button>
-        )
-      })}
-    </div>
-  )
+  return <Select value={value} onChange={onChange} options={options} />
 }
 
 function Header({
@@ -4921,7 +4892,7 @@ function SortableHeader({
 }
 
 function ListHeader({ sort, onSort }: { sort: string; onSort: (s: string) => void }) {
-  const { t, i18n } = useApp()
+  const { t, i18n, rangeLabel } = useApp()
   return (
     <div
       className="svc-row"
@@ -4938,7 +4909,7 @@ function ListHeader({ sort, onSort }: { sort: string; onSort: (s: string) => voi
       }}
     >
       <SortableHeader label={i18n.service} field="name" sort={sort} onSort={onSort} />
-      <span className="hide-mobile">{i18n.availability90}</span>
+      <span className="hide-mobile">{i18n.availability90.replace('{n}', rangeLabel)}</span>
       <span style={{ textAlign: 'center' }}>{i18n.status}</span>
       <SortableHeader
         label={i18n.latency}
@@ -5054,7 +5025,11 @@ export default function App() {
 
   const t = themes[theme]
   const i18n = msg[lang]
-  const ctx = useMemo(() => ({ t, i18n, lang, theme }), [t, i18n, lang, theme])
+  const rangeLabel = rangeDaysLabel(timeRange, lang)
+  const ctx = useMemo(
+    () => ({ t, i18n, lang, theme, rangeLabel }),
+    [t, i18n, lang, theme, rangeLabel],
+  )
 
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('default')

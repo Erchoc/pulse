@@ -37,6 +37,7 @@ const msg = {
     realtime: 'Real-time',
     cached: 'Cached',
     overview: 'Overview',
+    services: 'Services',
     probes: 'Probes',
     incidents: 'Incidents',
     alerts: 'Alerts',
@@ -150,7 +151,38 @@ const msg = {
     httpDesc: 'HTTP(S) Health Check',
     wsDesc: 'WebSocket Heartbeat',
     tcpDesc: 'TCP Port Probe',
+    dnsDesc: 'DNS Lookup',
+    icmpDesc: 'ICMP Ping',
     pushDesc: 'Client Push Heartbeat',
+    advancedOptions: 'Advanced',
+    expectStatusCodes: 'Expected status codes',
+    expectStatusCodesHint: 'Comma-separated, e.g. 200,204',
+    expectKeyword: 'Keyword in response body',
+    expectKeywordPh: 'e.g. ok',
+    expectMaxLatency: 'Max latency (ms)',
+    expectMaxLatencyHint: 'Above this → degraded',
+    authType: 'Authentication',
+    authNone: 'None',
+    authApikey: 'API Key',
+    authBearer: 'Bearer Token',
+    authBasic: 'Basic Auth',
+    authHeader: 'Header name',
+    authValue: 'Header value',
+    authToken: 'Token',
+    authUsername: 'Username',
+    authPassword: 'Password',
+    addService: 'Add Service',
+    editService: 'Edit Service',
+    deleteService: 'Delete Service',
+    confirmDeleteService: 'Delete this service? Related probes will be unassigned.',
+    svcCreated: 'Service created',
+    svcUpdated: 'Service updated',
+    svcDeleted: 'Service deleted',
+    svcFormName: 'Name (English)',
+    svcFormNameZh: 'Name (中文)',
+    svcFormDescription: 'Description',
+    svcFormDescriptionPh: 'Optional short description',
+    svcFormGroup: 'Group',
     confirmDelete: 'Are you sure you want to delete this probe?',
     confirm: 'Confirm',
     // settings
@@ -293,6 +325,7 @@ const msg = {
     realtime: '实时',
     cached: '缓存',
     overview: '总览',
+    services: '服务',
     probes: '探针',
     incidents: '事件',
     alerts: '告警',
@@ -405,7 +438,38 @@ const msg = {
     httpDesc: 'HTTP(S) 健康检查',
     wsDesc: 'WebSocket 心跳',
     tcpDesc: 'TCP 端口探测',
+    dnsDesc: 'DNS 解析',
+    icmpDesc: 'ICMP Ping',
     pushDesc: '客户端推送心跳',
+    advancedOptions: '高级配置',
+    expectStatusCodes: '预期状态码',
+    expectStatusCodesHint: '逗号分隔，如 200,204',
+    expectKeyword: '响应体关键词',
+    expectKeywordPh: '如 ok',
+    expectMaxLatency: '延迟阈值（毫秒）',
+    expectMaxLatencyHint: '超过此值判为降级',
+    authType: '认证方式',
+    authNone: '不认证',
+    authApikey: 'API Key',
+    authBearer: 'Bearer Token',
+    authBasic: 'Basic Auth',
+    authHeader: 'Header 名',
+    authValue: 'Header 值',
+    authToken: 'Token',
+    authUsername: '用户名',
+    authPassword: '密码',
+    addService: '添加服务',
+    editService: '编辑服务',
+    deleteService: '删除服务',
+    confirmDeleteService: '删除此服务？其下探针将解除关联。',
+    svcCreated: '服务已创建',
+    svcUpdated: '服务已更新',
+    svcDeleted: '服务已删除',
+    svcFormName: '名称（英文）',
+    svcFormNameZh: '名称（中文）',
+    svcFormDescription: '描述',
+    svcFormDescriptionPh: '可选短描述',
+    svcFormGroup: '分组',
     confirmDelete: '确认删除该探针？',
     confirm: '确认',
     projectName: '项目名称',
@@ -572,7 +636,22 @@ const F = {
   display: "'Space Grotesk','DM Sans',sans-serif",
 }
 const R = { sm: '8px', md: '12px', lg: '16px' }
-const typeColors = { http: '#60a5fa', websocket: '#a78bfa', tcp: '#34d399', push: '#fbbf24' }
+const typeColors: Record<Protocol, string> = {
+  http: '#60a5fa',
+  ws: '#a78bfa',
+  tcp: '#34d399',
+  dns: '#f472b6',
+  icmp: '#94a3b8',
+  push: '#fbbf24',
+}
+
+/* 间隔/超时显示格式化（内部保存 int，展示加单位） */
+const fmtInterval = (sec: number) => {
+  if (sec < 60) return `${sec}s`
+  if (sec < 3600) return `${sec / 60}m`
+  return `${sec / 3600}h`
+}
+const fmtTimeout = (ms: number) => (ms % 1000 === 0 ? `${ms / 1000}s` : `${ms}ms`)
 
 /* ================================================================
    Context
@@ -642,14 +721,24 @@ const genLd = (n = 72) => {
   })
 }
 
+/* ================================================================
+   Probe / Service 类型定义
+   字段规范以 docs/FRONTEND_GAPS.md §1 为准
+   （interval_sec/timeout_ms/protocol/int64 ID）
+   ID 当前仍为字符串（mock 前缀风格），对接后端 API 后会切换到 number
+   ================================================================ */
+type Protocol = 'http' | 'ws' | 'tcp' | 'dns' | 'icmp' | 'push'
+type ProbeMode = 'server' | 'client'
+type RunStatus = 'up' | 'down' | 'degraded' | 'maintenance'
+
 const _initProbes = [
   {
     id: 'p1',
     name: 'prod-api-health',
-    type: 'http',
-    url: 'https://api.example.com/health',
-    interval: '10s',
-    timeout: '5s',
+    protocol: 'http',
+    target: 'https://api.example.com/health',
+    interval_sec: 10,
+    timeout_ms: 5000,
     desc: 'http',
     mode: 'server',
     status: 'up',
@@ -657,21 +746,21 @@ const _initProbes = [
   {
     id: 'p2',
     name: 'ws-ping-pong',
-    type: 'websocket',
-    url: 'wss://ws.example.com/ping',
-    interval: '10s',
-    timeout: '3s',
-    desc: 'websocket',
+    protocol: 'ws',
+    target: 'wss://ws.example.com/ping',
+    interval_sec: 10,
+    timeout_ms: 3000,
+    desc: 'ws',
     mode: 'server',
     status: 'up',
   },
   {
     id: 'p3',
     name: 'db-tcp-check',
-    type: 'tcp',
-    url: 'db-primary.internal:5432',
-    interval: '10s',
-    timeout: '3s',
+    protocol: 'tcp',
+    target: 'db-primary.internal:5432',
+    interval_sec: 10,
+    timeout_ms: 3000,
     desc: 'tcp',
     mode: 'server',
     status: 'up',
@@ -679,10 +768,10 @@ const _initProbes = [
   {
     id: 'p4',
     name: 'cdn-edge-check',
-    type: 'http',
-    url: 'https://cdn.example.com/probe',
-    interval: '60s',
-    timeout: '8s',
+    protocol: 'http',
+    target: 'https://cdn.example.com/probe',
+    interval_sec: 60,
+    timeout_ms: 8000,
     desc: 'http',
     mode: 'server',
     status: 'up',
@@ -690,10 +779,10 @@ const _initProbes = [
   {
     id: 'p5',
     name: 'search-health',
-    type: 'http',
-    url: 'search.internal:9200/_cluster/health',
-    interval: '30s',
-    timeout: '5s',
+    protocol: 'http',
+    target: 'search.internal:9200/_cluster/health',
+    interval_sec: 30,
+    timeout_ms: 5000,
     desc: 'http',
     mode: 'server',
     status: 'down',
@@ -701,10 +790,10 @@ const _initProbes = [
   {
     id: 'p6',
     name: 'mobile-heartbeat',
-    type: 'push',
-    url: '—',
-    interval: '30s',
-    timeout: '60s',
+    protocol: 'push',
+    target: '—',
+    interval_sec: 30,
+    timeout_ms: 60000,
     desc: 'push',
     mode: 'client',
     status: 'up',
@@ -712,10 +801,10 @@ const _initProbes = [
   {
     id: 'p7',
     name: 'h5-heartbeat',
-    type: 'push',
-    url: '—',
-    interval: '60s',
-    timeout: '120s',
+    protocol: 'push',
+    target: '—',
+    interval_sec: 60,
+    timeout_ms: 120000,
     desc: 'push',
     mode: 'client',
     status: 'up',
@@ -728,10 +817,10 @@ const _initSvcs = [
     name: 'API Gateway',
     nameZh: 'API 网关',
     group: 'Core',
-    type: 'http',
-    interval: '10s',
-    sla: 99.97,
-    target: 99.95,
+    protocol: 'http',
+    interval_sec: 10,
+    current_sla: 99.97,
+    sla_target: 99.95,
     latency: 34,
     status: 'up',
     bar: genBar(),
@@ -748,10 +837,10 @@ const _initSvcs = [
     name: 'WebSocket Broker',
     nameZh: 'WebSocket 代理',
     group: 'Core',
-    type: 'websocket',
-    interval: '10s',
-    sla: 99.94,
-    target: 99.9,
+    protocol: 'ws',
+    interval_sec: 10,
+    current_sla: 99.94,
+    sla_target: 99.9,
     latency: 12,
     status: 'up',
     bar: genBar(),
@@ -768,10 +857,10 @@ const _initSvcs = [
     name: 'Auth Service',
     nameZh: '认证服务',
     group: 'Core',
-    type: 'http',
-    interval: '30s',
-    sla: 99.99,
-    target: 99.95,
+    protocol: 'http',
+    interval_sec: 30,
+    current_sla: 99.99,
+    sla_target: 99.95,
     latency: 28,
     status: 'up',
     bar: genBar(),
@@ -788,10 +877,10 @@ const _initSvcs = [
     name: 'Order Engine',
     nameZh: '订单引擎',
     group: 'Business',
-    type: 'tcp',
-    interval: '10s',
-    sla: 99.82,
-    target: 99.9,
+    protocol: 'tcp',
+    interval_sec: 10,
+    current_sla: 99.82,
+    sla_target: 99.9,
     latency: 67,
     status: 'degraded',
     bar: genBar(),
@@ -808,10 +897,10 @@ const _initSvcs = [
     name: 'Payment Gateway',
     nameZh: '支付网关',
     group: 'Business',
-    type: 'http',
-    interval: '15s',
-    sla: 99.91,
-    target: 99.95,
+    protocol: 'http',
+    interval_sec: 15,
+    current_sla: 99.91,
+    sla_target: 99.95,
     latency: 89,
     status: 'up',
     bar: genBar(),
@@ -828,10 +917,10 @@ const _initSvcs = [
     name: 'Search Cluster',
     nameZh: '搜索集群',
     group: 'Infra',
-    type: 'tcp',
-    interval: '30s',
-    sla: 99.88,
-    target: 99.5,
+    protocol: 'tcp',
+    interval_sec: 30,
+    current_sla: 99.88,
+    sla_target: 99.5,
     latency: 42,
     status: 'up',
     bar: genBar(),
@@ -848,10 +937,10 @@ const _initSvcs = [
     name: 'CDN Edge Nodes',
     nameZh: 'CDN 边缘节点',
     group: 'Infra',
-    type: 'http',
-    interval: '60s',
-    sla: 99.98,
-    target: 99.9,
+    protocol: 'http',
+    interval_sec: 60,
+    current_sla: 99.98,
+    sla_target: 99.9,
     latency: 8,
     status: 'up',
     bar: genBar(),
@@ -868,10 +957,10 @@ const _initSvcs = [
     name: 'DB Primary',
     nameZh: '主库 RDS',
     group: 'Infra',
-    type: 'tcp',
-    interval: '10s',
-    sla: 99.96,
-    target: 99.95,
+    protocol: 'tcp',
+    interval_sec: 10,
+    current_sla: 99.96,
+    sla_target: 99.95,
     latency: 5,
     status: 'up',
     bar: genBar(),
@@ -888,10 +977,10 @@ const _initSvcs = [
     name: 'Notification Hub',
     nameZh: '通知中心',
     group: 'Business',
-    type: 'http',
-    interval: '15s',
-    sla: 97.65,
-    target: 99.9,
+    protocol: 'http',
+    interval_sec: 15,
+    current_sla: 97.65,
+    sla_target: 99.9,
     latency: 230,
     status: 'down',
     bar: genBar(),
@@ -908,10 +997,10 @@ const _initSvcs = [
     name: 'Cache Layer',
     nameZh: '缓存层',
     group: 'Infra',
-    type: 'tcp',
-    interval: '10s',
-    sla: 99.95,
-    target: 99.9,
+    protocol: 'tcp',
+    interval_sec: 10,
+    current_sla: 99.95,
+    sla_target: 99.9,
     latency: 3,
     status: 'maintenance',
     bar: genBar(),
@@ -928,10 +1017,10 @@ const _initSvcs = [
     name: 'Log Pipeline',
     nameZh: '日志管道',
     group: 'Infra',
-    type: 'http',
-    interval: '30s',
-    sla: 99.93,
-    target: 99.9,
+    protocol: 'http',
+    interval_sec: 30,
+    current_sla: 99.93,
+    sla_target: 99.9,
     latency: 18,
     status: 'up',
     bar: genBar(),
@@ -948,10 +1037,10 @@ const _initSvcs = [
     name: 'Message Queue',
     nameZh: '消息队列',
     group: 'Infra',
-    type: 'tcp',
-    interval: '10s',
-    sla: 99.97,
-    target: 99.9,
+    protocol: 'tcp',
+    interval_sec: 10,
+    current_sla: 99.97,
+    sla_target: 99.9,
     latency: 4,
     status: 'up',
     bar: genBar(),
@@ -968,10 +1057,10 @@ const _initSvcs = [
     name: 'Config Center',
     nameZh: '配置中心',
     group: 'Core',
-    type: 'http',
-    interval: '30s',
-    sla: 99.98,
-    target: 99.9,
+    protocol: 'http',
+    interval_sec: 30,
+    current_sla: 99.98,
+    sla_target: 99.9,
     latency: 15,
     status: 'up',
     bar: genBar(),
@@ -988,10 +1077,10 @@ const _initSvcs = [
     name: 'Scheduler',
     nameZh: '调度器',
     group: 'Business',
-    type: 'http',
-    interval: '30s',
-    sla: 99.87,
-    target: 99.9,
+    protocol: 'http',
+    interval_sec: 30,
+    current_sla: 99.87,
+    sla_target: 99.9,
     latency: 45,
     status: 'degraded',
     bar: genBar(),
@@ -1008,10 +1097,10 @@ const _initSvcs = [
     name: 'Analytics Engine',
     nameZh: '分析引擎',
     group: 'Business',
-    type: 'tcp',
-    interval: '60s',
-    sla: 99.92,
-    target: 99.9,
+    protocol: 'tcp',
+    interval_sec: 60,
+    current_sla: 99.92,
+    sla_target: 99.9,
     latency: 120,
     status: 'up',
     bar: genBar(),
@@ -1098,8 +1187,9 @@ const probeNames = [
   'influx-health',
   'nats-varz',
 ]
-const types = ['http', 'websocket', 'tcp']
-const intervals = ['10s', '30s', '60s', '300s']
+const types: Protocol[] = ['http', 'ws', 'tcp']
+const intervals = [10, 30, 60, 300]
+const timeouts_ms = [3000, 5000, 8000]
 const statuses = ['up', 'up', 'up', 'up', 'up', 'degraded', 'down', 'maintenance']
 
 function genMockSvcs(n = 120) {
@@ -1118,10 +1208,10 @@ function genMockSvcs(n = 120) {
       name: `${name}${suffix}`,
       nameZh: `${nameZh}${suffix}`,
       group: ['Core', 'Business', 'Infra', 'Edge'][i % 4],
-      type: types[i % types.length],
-      interval: intervals[i % intervals.length],
-      sla: Math.round(sla * 100) / 100,
-      target: 99.9,
+      protocol: types[i % types.length],
+      interval_sec: intervals[i % intervals.length],
+      current_sla: Math.round(sla * 100) / 100,
+      sla_target: 99.9,
       latency: Math.round(5 + Math.random() * 200),
       status: st,
       bar: genBar(),
@@ -1148,10 +1238,10 @@ function genMockProbes(n = 110) {
     return {
       id: `mp-${i}`,
       name: `${probeNames[i % probeNames.length]}${i >= probeNames.length ? `-${Math.floor(i / probeNames.length)}` : ''}`,
-      type: isClient ? 'push' : types[i % types.length],
-      url: isClient ? '—' : `https://svc-${i}.example.com/health`,
-      interval: intervals[i % intervals.length],
-      timeout: ['3s', '5s', '8s'][i % 3],
+      protocol: isClient ? ('push' as Protocol) : types[i % types.length],
+      target: isClient ? '—' : `https://svc-${i}.example.com/health`,
+      interval_sec: intervals[i % intervals.length],
+      timeout_ms: timeouts_ms[i % timeouts_ms.length],
       desc: isClient ? 'push' : types[i % types.length],
       mode: isClient ? 'client' : 'server',
       status: statuses[Math.floor(Math.random() * statuses.length)],
@@ -2085,9 +2175,9 @@ function OverviewCards({ svcs }) {
   const up = S.filter((s) => s.status === 'up').length
   const deg = S.filter((s) => s.status === 'degraded').length
   const dn = S.filter((s) => s.status === 'down').length
-  const avg = S.reduce((a, s) => a + s.sla, 0) / total
+  const avg = S.reduce((a, s) => a + s.current_sla, 0) / total
   const avgLat = Math.round(S.reduce((a, s) => a + s.latency, 0) / total)
-  const breach = S.filter((s) => s.sla < s.target).length
+  const breach = S.filter((s) => s.current_sla < s.sla_target).length
   const cards = [
     {
       label: i18n.overallSLA,
@@ -2114,7 +2204,7 @@ function OverviewCards({ svcs }) {
       label: i18n.probesSec.replace('{r}', rangeLabel),
       value: String(
         S.reduce((sum, s) => {
-          const sec = Number.parseInt(s.interval) || 30
+          const sec = s.interval_sec || 30
           return sum + Math.floor(86400 / sec)
         }, 0),
       ),
@@ -2202,7 +2292,7 @@ function OverviewCards({ svcs }) {
    ================================================================ */
 function ServiceRow({ svc, selected, onSelect }: { svc; selected: boolean; onSelect }) {
   const { t, i18n, lang } = useApp()
-  const c = slaColor(svc.sla, svc.target, t)
+  const c = slaColor(svc.current_sla, svc.sla_target, t)
   const label = {
     up: i18n.operational,
     degraded: i18n.degraded,
@@ -2251,10 +2341,10 @@ function ServiceRow({ svc, selected, onSelect }: { svc; selected: boolean; onSel
             {dn}
           </div>
           <div style={{ display: 'flex', gap: 5, marginTop: 3 }}>
-            <Badge color={typeColors[svc.type]} bg={`${typeColors[svc.type]}18`}>
-              {svc.type}
+            <Badge color={typeColors[svc.protocol]} bg={`${typeColors[svc.protocol]}18`}>
+              {svc.protocol}
             </Badge>
-            <Badge>{svc.interval}</Badge>
+            <Badge>{fmtInterval(svc.interval_sec)}</Badge>
           </div>
         </div>
       </div>
@@ -2298,8 +2388,8 @@ function ServiceRow({ svc, selected, onSelect }: { svc; selected: boolean; onSel
           textAlign: 'center',
         }}
       >
-        {fmtSLA(svc.sla)}
-        {svc.sla < svc.target && (
+        {fmtSLA(svc.current_sla)}
+        {svc.current_sla < svc.sla_target && (
           <span style={{ display: 'block', fontSize: 10, color: t.status.down, fontWeight: 400 }}>
             {i18n.belowTarget}
           </span>
@@ -2309,7 +2399,7 @@ function ServiceRow({ svc, selected, onSelect }: { svc; selected: boolean; onSel
   )
 }
 
-function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
+function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance, onEditSvc, onDeleteSvc }) {
   const { t, i18n, lang, rangeLabel } = useApp()
   const [latencyOpen, setLatencyOpen] = useState(false)
   const [availOpen, setAvailOpen] = useState(false)
@@ -2335,8 +2425,8 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
         {i18n.selectHint}
       </div>
     )
-  const c = slaColor(svc.sla, svc.target, t)
-  const downTotalMin = ((100 - svc.sla) / 100) * 365 * 24 * 60
+  const c = slaColor(svc.current_sla, svc.sla_target, t)
+  const downTotalMin = ((100 - svc.current_sla) / 100) * 365 * 24 * 60
   const fmtDown = (m: number, isZh: boolean) => {
     if (m < 60) return `${Math.round(m)}${isZh ? '分' : 'min'}`
     const h = m / 60
@@ -2372,10 +2462,14 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
             </h2>
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <Badge color={typeColors[svc.type]} bg={`${typeColors[svc.type]}18`}>
-              {svc.type.toUpperCase()}
+            <Badge color={typeColors[svc.protocol]} bg={`${typeColors[svc.protocol]}18`}>
+              {svc.protocol.toUpperCase()}
             </Badge>
-            <Badge>{lang === 'zh' ? `每 ${svc.interval}` : `every ${svc.interval}`}</Badge>
+            <Badge>
+              {lang === 'zh'
+                ? `每 ${fmtInterval(svc.interval_sec)}`
+                : `every ${fmtInterval(svc.interval_sec)}`}
+            </Badge>
             <Badge color={t.status[svc.status]} bg={`${t.status[svc.status]}14`}>
               {sl}
             </Badge>
@@ -2391,9 +2485,19 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
                 {i18n.endMaintenance}
               </Btn>
             )}
+            {onEditSvc && (
+              <Btn small variant="ghost" onClick={() => onEditSvc(svc)}>
+                {i18n.editService}
+              </Btn>
+            )}
+            {onDeleteSvc && (
+              <Btn small variant="danger" onClick={() => onDeleteSvc(svc.id)}>
+                {i18n.deleteService}
+              </Btn>
+            )}
           </div>
         </div>
-        <SLAGauge value={svc.sla} target={svc.target} size={92} />
+        <SLAGauge value={svc.current_sla} target={svc.sla_target} size={92} />
       </div>
       {svc.maintenance && (
         <div
@@ -2584,7 +2688,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
         }}
       >
         {[
-          { l: i18n.uptime90.replace('{n}', rangeLabel), v: fmtSLA(svc.sla), cl: c },
+          { l: i18n.uptime90.replace('{n}', rangeLabel), v: fmtSLA(svc.current_sla), cl: c },
           {
             l: i18n.estDowntime,
             v: downStr,
@@ -2843,7 +2947,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance }) {
         title={`${dn} — ${i18n.availability.replace('{n}', rangeLabel)}`}
         width={640}
       >
-        <AvailabilityDetailModal data={svc.bar} sla={svc.sla} target={svc.target} />
+        <AvailabilityDetailModal data={svc.bar} sla={svc.current_sla} target={svc.sla_target} />
       </Modal>
       <Modal
         open={incidentOpen}
@@ -3547,11 +3651,13 @@ function IncidentDetailModal({ data }) {
    ================================================================ */
 function ProbeCard({ probe, onEdit, onDuplicate, onDelete }) {
   const { t, i18n } = useApp()
-  const tc = typeColors[probe.type] || t.text.secondary
-  const descMap = {
+  const tc = typeColors[probe.protocol] || t.text.secondary
+  const descMap: Record<string, string> = {
     http: i18n.httpDesc,
-    websocket: i18n.wsDesc,
+    ws: i18n.wsDesc,
     tcp: i18n.tcpDesc,
+    dns: i18n.dnsDesc,
+    icmp: i18n.icmpDesc,
     push: i18n.pushDesc,
   }
   return (
@@ -3620,21 +3726,21 @@ function ProbeCard({ probe, onEdit, onDuplicate, onDelete }) {
           textOverflow: 'ellipsis',
         }}
       >
-        {probe.url}
+        {probe.target}
       </div>
-      {/* Row 3: type badge + interval + timeout + desc */}
+      {/* Row 3: protocol badge + interval + timeout + desc */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <Badge color={tc} bg={`${tc}18`}>
-          {probe.type}
+          {probe.protocol}
         </Badge>
         <span style={{ fontSize: 11, color: t.text.secondary, fontFamily: F.mono }}>
-          {probe.interval}
+          {fmtInterval(probe.interval_sec)}
         </span>
         <span style={{ fontSize: 11, color: t.text.muted, fontFamily: F.mono }}>
-          {probe.timeout}
+          {fmtTimeout(probe.timeout_ms)}
         </span>
         <span style={{ fontSize: 11, color: t.text.muted, marginLeft: 'auto' }}>
-          {descMap[probe.type]}
+          {descMap[probe.protocol]}
         </span>
       </div>
     </div>
@@ -3646,48 +3752,64 @@ function ProbeForm({ probe, onSave, onCancel }) {
   const [form, setForm] = useState(
     probe || {
       name: '',
-      type: 'http',
-      url: '',
-      interval: '60s',
-      timeout: '5s',
+      protocol: 'http' as Protocol,
+      target: '',
+      interval_sec: 60,
+      timeout_ms: 5000,
       regions: ['zhangjiakou', 'shenzhen', 'shanghai'],
       desc: '',
-      mode: 'server',
-      target: 99,
+      mode: 'server' as ProbeMode,
+      sla_target: 99,
+      expect: {
+        status_codes: [200] as number[],
+        keyword: '',
+        max_latency_ms: 0,
+      },
+      auth: { type: 'none' as 'none' | 'apikey' | 'bearer' | 'basic' },
     },
   )
   const upd = (k, v) => setForm((p) => ({ ...p, [k]: v }))
   const nameError = form.name.length > 32
   const isClient = form.mode === 'client'
+  const [advOpen, setAdvOpen] = useState(false)
+  const supportsExpect = form.protocol === 'http' || form.protocol === 'ws'
+  const supportsAuth = form.protocol === 'http'
+  const expect = form.expect || {}
+  const auth = form.auth || { type: 'none' }
+  const updExpect = (k: string, v: unknown) =>
+    setForm((p) => ({ ...p, expect: { ...(p.expect || {}), [k]: v } }))
+  const updAuth = (k: string, v: unknown) =>
+    setForm((p) => ({ ...p, auth: { ...(p.auth || { type: 'none' }), [k]: v } }))
 
-  const serverTypeOpts = [
+  const serverTypeOpts: { value: Protocol; label: string }[] = [
     { value: 'http', label: 'HTTP(S)' },
-    { value: 'websocket', label: 'WebSocket' },
+    { value: 'ws', label: 'WebSocket' },
     { value: 'tcp', label: 'TCP' },
+    { value: 'dns', label: 'DNS' },
   ]
   const intervalOpts = [
-    { value: '10s', label: '10s' },
-    { value: '30s', label: '30s' },
-    { value: '60s', label: '60s' },
-    { value: '300s', label: '5m' },
-    { value: '600s', label: '10m' },
-    { value: '3600s', label: '1h' },
+    { value: 10, label: '10s' },
+    { value: 30, label: '30s' },
+    { value: 60, label: '60s' },
+    { value: 300, label: '5m' },
+    { value: 600, label: '10m' },
+    { value: 3600, label: '1h' },
   ]
   const timeoutOpts = [
-    { value: '3s', label: '3s' },
-    { value: '5s', label: '5s' },
-    { value: '8s', label: '8s' },
+    { value: 3000, label: '3s' },
+    { value: 5000, label: '5s' },
+    { value: 8000, label: '8s' },
   ]
   const modeOpts = [
     { value: 'server', label: i18n.serverProbes },
     { value: 'client', label: i18n.clientProbes },
   ]
 
-  // When switching to client mode, force type to push
+  // When switching to client mode, force protocol to push
   const handleModeChange = (v: string) => {
     upd('mode', v)
-    if (v === 'client') upd('type', 'push')
-    else if (form.type === 'push') upd('type', 'http')
+    if (v === 'client') upd('protocol', 'push')
+    else if (form.protocol === 'push') upd('protocol', 'http')
   }
 
   return (
@@ -3741,7 +3863,11 @@ function ProbeForm({ probe, onSave, onCancel }) {
               Push
             </div>
           ) : (
-            <Select value={form.type} onChange={(v) => upd('type', v)} options={serverTypeOpts} />
+            <Select
+              value={form.protocol}
+              onChange={(v) => upd('protocol', v)}
+              options={serverTypeOpts}
+            />
           )}
         </div>
       </div>
@@ -3757,21 +3883,42 @@ function ProbeForm({ probe, onSave, onCancel }) {
               gap: 8,
             }}
           >
-            <div
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                backgroundColor: t.bg.input,
-                border: `1px solid ${t.border}`,
-                borderRadius: 8,
-                fontSize: 13,
-                color: t.text.muted,
-                fontFamily: F.mono,
-                userSelect: 'all',
-              }}
-            >
-              https://pulse.longye.site/metrics/push
-            </div>
+            {form.push_token ? (
+              <div
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  backgroundColor: t.bg.input,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: t.text.secondary,
+                  fontFamily: F.mono,
+                  userSelect: 'all',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {`${window.location.origin}/api/v1/push/${form.push_token}`}
+              </div>
+            ) : (
+              <Btn
+                variant="ghost"
+                onClick={() => {
+                  // TODO(API 对接): 调用 POST /api/v1/probes 由后端生成 push_token；
+                  // 当前前端 mock 生成一个 32 字符 token 作为占位
+                  const tok = Array.from(
+                    { length: 32 },
+                    () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)],
+                  ).join('')
+                  upd('push_token', tok)
+                  upd('target', `push://${tok}`)
+                }}
+              >
+                {lang === 'zh' ? '生成 Push Token' : 'Generate Push Token'}
+              </Btn>
+            )}
             <a
               href="https://www.baidu.com"
               target="_blank"
@@ -3817,14 +3964,16 @@ function ProbeForm({ probe, onSave, onCancel }) {
           </div>
         ) : (
           <Input
-            value={form.url}
-            onChange={(v) => upd('url', v)}
+            value={form.target}
+            onChange={(v) => upd('target', v)}
             placeholder={
-              form.type === 'websocket'
+              form.protocol === 'ws'
                 ? 'wss://api.example.com/ws'
-                : form.type === 'tcp'
+                : form.protocol === 'tcp'
                   ? 'api.example.com:3306'
-                  : 'https://api.example.com/health'
+                  : form.protocol === 'dns'
+                    ? 'example.com@8.8.8.8?type=A'
+                    : 'https://api.example.com/health'
             }
           />
         )}
@@ -3838,16 +3987,16 @@ function ProbeForm({ probe, onSave, onCancel }) {
             <button
               type="button"
               key={o.value}
-              onClick={() => upd('interval', o.value)}
+              onClick={() => upd('interval_sec', o.value)}
               style={{
                 padding: '6px 0',
                 borderRadius: 6,
                 fontSize: 12,
                 fontFamily: F.mono,
                 cursor: 'pointer',
-                border: `1px solid ${o.value === form.interval ? `${t.accent}55` : t.border}`,
-                backgroundColor: o.value === form.interval ? t.accentMuted : 'transparent',
-                color: o.value === form.interval ? t.text.primary : t.text.secondary,
+                border: `1px solid ${o.value === form.interval_sec ? `${t.accent}55` : t.border}`,
+                backgroundColor: o.value === form.interval_sec ? t.accentMuted : 'transparent',
+                color: o.value === form.interval_sec ? t.text.primary : t.text.secondary,
                 transition: 'all .15s',
               }}
             >
@@ -3935,23 +4084,212 @@ function ProbeForm({ probe, onSave, onCancel }) {
           <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
             {i18n.probeTimeout}
           </span>
-          <Select value={form.timeout} onChange={(v) => upd('timeout', v)} options={timeoutOpts} />
+          <Select
+            value={form.timeout_ms}
+            onChange={(v) => upd('timeout_ms', v)}
+            options={timeoutOpts}
+          />
         </div>
         <div>
           <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
             {i18n.slaTarget}
           </span>
           <Input
-            value={String(form.target ?? 99)}
+            value={String(form.sla_target ?? 99)}
             onChange={(v) => {
               const filtered = v.replace(/[^0-9.]/g, '')
-              if (filtered.length <= 5) upd('target', filtered)
+              if (filtered.length <= 5) upd('sla_target', filtered)
             }}
             placeholder="99.9"
             maxLength={5}
           />
         </div>
       </div>
+
+      {(supportsExpect || supportsAuth) && !isClient && (
+        <div
+          style={{
+            border: `1px solid ${t.border}`,
+            borderRadius: 8,
+            backgroundColor: t.bg.input,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setAdvOpen((v) => !v)}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              color: t.text.secondary,
+              fontFamily: F.sans,
+            }}
+          >
+            <span>{i18n.advancedOptions}</span>
+            <span style={{ fontSize: 10 }}>{advOpen ? '▲' : '▼'}</span>
+          </button>
+          {advOpen && (
+            <div
+              style={{
+                padding: '12px',
+                borderTop: `1px solid ${t.border}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+              }}
+            >
+              {supportsExpect && (
+                <>
+                  <div>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: t.text.muted,
+                        display: 'block',
+                        marginBottom: 4,
+                      }}
+                    >
+                      {i18n.expectStatusCodes}
+                    </span>
+                    <Input
+                      value={(expect.status_codes || []).join(',')}
+                      onChange={(v) => {
+                        const arr = v
+                          .split(',')
+                          .map((s) => Number.parseInt(s.trim(), 10))
+                          .filter((n) => Number.isFinite(n) && n > 0)
+                        updExpect('status_codes', arr)
+                      }}
+                      placeholder={i18n.expectStatusCodesHint}
+                    />
+                  </div>
+                  <div>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: t.text.muted,
+                        display: 'block',
+                        marginBottom: 4,
+                      }}
+                    >
+                      {i18n.expectKeyword}
+                    </span>
+                    <Input
+                      value={expect.keyword || ''}
+                      onChange={(v) => updExpect('keyword', v)}
+                      placeholder={i18n.expectKeywordPh}
+                    />
+                  </div>
+                  <div>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: t.text.muted,
+                        display: 'block',
+                        marginBottom: 4,
+                      }}
+                    >
+                      {i18n.expectMaxLatency}
+                    </span>
+                    <Input
+                      value={String(expect.max_latency_ms || '')}
+                      onChange={(v) => {
+                        const n = Number.parseInt(v.replace(/[^0-9]/g, ''), 10)
+                        updExpect('max_latency_ms', Number.isFinite(n) ? n : 0)
+                      }}
+                      placeholder={i18n.expectMaxLatencyHint}
+                    />
+                  </div>
+                </>
+              )}
+
+              {supportsAuth && (
+                <div>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: t.text.muted,
+                      display: 'block',
+                      marginBottom: 4,
+                    }}
+                  >
+                    {i18n.authType}
+                  </span>
+                  <Select
+                    value={auth.type || 'none'}
+                    onChange={(v) => updAuth('type', v)}
+                    options={[
+                      { value: 'none', label: i18n.authNone },
+                      { value: 'apikey', label: i18n.authApikey },
+                      { value: 'bearer', label: i18n.authBearer },
+                      { value: 'basic', label: i18n.authBasic },
+                    ]}
+                  />
+                  {auth.type === 'apikey' && (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 8,
+                        marginTop: 8,
+                      }}
+                    >
+                      <Input
+                        value={auth.header || ''}
+                        onChange={(v) => updAuth('header', v)}
+                        placeholder={i18n.authHeader}
+                      />
+                      <Input
+                        value={auth.value || ''}
+                        onChange={(v) => updAuth('value', v)}
+                        placeholder={i18n.authValue}
+                      />
+                    </div>
+                  )}
+                  {auth.type === 'bearer' && (
+                    <div style={{ marginTop: 8 }}>
+                      <Input
+                        value={auth.token || ''}
+                        onChange={(v) => updAuth('token', v)}
+                        placeholder={i18n.authToken}
+                      />
+                    </div>
+                  )}
+                  {auth.type === 'basic' && (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 8,
+                        marginTop: 8,
+                      }}
+                    >
+                      <Input
+                        value={auth.username || ''}
+                        onChange={(v) => updAuth('username', v)}
+                        placeholder={i18n.authUsername}
+                      />
+                      <Input
+                        value={auth.password || ''}
+                        onChange={(v) => updAuth('password', v)}
+                        placeholder={i18n.authPassword}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
         <Btn variant="ghost" onClick={onCancel}>
           {i18n.cancel}
@@ -3964,10 +4302,110 @@ function ProbeForm({ probe, onSave, onCancel }) {
               ...form,
               id: form.id || uid(),
               status: form.status || 'up',
-              desc: form.type,
-              target: Number(form.target) || 99,
+              desc: form.protocol,
+              sla_target: Number(form.sla_target) || 99,
             })
           }
+        >
+          {i18n.save}
+        </Btn>
+      </div>
+    </div>
+  )
+}
+
+/* ================================================================
+   Service form (create / edit)
+   ================================================================ */
+function ServiceForm({
+  svc,
+  onSave,
+  onCancel,
+}: {
+  svc?: {
+    id?: string
+    name?: string
+    nameZh?: string
+    description?: string
+    group?: string
+    sla_target?: number
+  }
+  onSave: (s: Record<string, unknown>) => void
+  onCancel: () => void
+}) {
+  const { t, i18n } = useApp()
+  const [form, setForm] = useState(() => ({
+    id: svc?.id || '',
+    name: svc?.name || '',
+    nameZh: svc?.nameZh || '',
+    description: svc?.description || '',
+    group: svc?.group || 'Core',
+    sla_target: svc?.sla_target ?? 99.9,
+  }))
+  const upd = (k: string, v: unknown) => setForm((p) => ({ ...p, [k]: v }))
+  const nameError = !form.name.trim() || form.name.length > 64
+  const groupOpts = [
+    { value: 'Core', label: 'Core' },
+    { value: 'Business', label: 'Business' },
+    { value: 'Infra', label: 'Infra' },
+    { value: 'Edge', label: 'Edge' },
+  ]
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div>
+          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+            {i18n.svcFormName}
+          </span>
+          <Input value={form.name} onChange={(v) => upd('name', v)} placeholder="Production API" />
+        </div>
+        <div>
+          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+            {i18n.svcFormNameZh}
+          </span>
+          <Input value={form.nameZh} onChange={(v) => upd('nameZh', v)} placeholder="生产 API" />
+        </div>
+      </div>
+      <div>
+        <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+          {i18n.svcFormDescription}
+        </span>
+        <Input
+          value={form.description}
+          onChange={(v) => upd('description', v)}
+          placeholder={i18n.svcFormDescriptionPh}
+        />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div>
+          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+            {i18n.svcFormGroup}
+          </span>
+          <Select value={form.group} onChange={(v) => upd('group', v)} options={groupOpts} />
+        </div>
+        <div>
+          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+            {i18n.slaTarget}
+          </span>
+          <Input
+            value={String(form.sla_target)}
+            onChange={(v) => {
+              const cleaned = v.replace(/[^0-9.]/g, '')
+              upd('sla_target', cleaned === '' ? 0 : Number(cleaned))
+            }}
+            placeholder="99.9"
+            maxLength={5}
+          />
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+        <Btn variant="ghost" onClick={onCancel}>
+          {i18n.cancel}
+        </Btn>
+        <Btn
+          variant="primary"
+          disabled={nameError}
+          onClick={() => onSave({ ...form, sla_target: Number(form.sla_target) || 99.9 })}
         >
           {i18n.save}
         </Btn>
@@ -4071,12 +4509,12 @@ function ProbesPage() {
                   ? {
                       id: '',
                       name: '',
-                      type: 'push',
-                      url: '',
-                      interval: '30s',
-                      timeout: '5s',
+                      protocol: 'push' as Protocol,
+                      target: '',
+                      interval_sec: 30,
+                      timeout_ms: 5000,
                       desc: '',
-                      mode: 'client',
+                      mode: 'client' as ProbeMode,
                       status: 'up',
                     }
                   : undefined,
@@ -6070,7 +6508,7 @@ const TAB_ICONS: Record<string, (active: boolean, color: string) => React.ReactN
       <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
     </svg>
   ),
-  events: (a, c) => (
+  services: (a, c) => (
     <svg
       width="20"
       height="20"
@@ -6081,10 +6519,43 @@ const TAB_ICONS: Record<string, (active: boolean, color: string) => React.ReactN
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <title>Events</title>
+      <title>Services</title>
+      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+      <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  ),
+  incidents: (a, c) => (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={c}
+      strokeWidth={a ? 2.2 : 1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Incidents</title>
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  ),
+  alerts: (a, c) => (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={c}
+      strokeWidth={a ? 2.2 : 1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Alerts</title>
       <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
       <path d="M13.73 21a2 2 0 01-3.46 0" />
-      <line x1="12" y1="2" x2="12" y2="4" />
     </svg>
   ),
   settings: (a, c) => (
@@ -6112,14 +6583,15 @@ function TabNav({
   isAdmin,
 }: { active: string; onChange: (id: string) => void; pwa?: boolean; isAdmin?: boolean }) {
   const { t, i18n } = useApp()
-  // PWA: 4 tabs (events = incidents + alerts merged), PC: 5 tabs
-  const isEventsActive = active === 'events' || active === 'incidents' || active === 'alerts'
 
   if (pwa) {
+    // PWA 底部栏空间有限：省略 alerts（入 Incidents 合并视图也够用），
+    // 有 alert 规则需求时从 PC 端 / URL hash 进入
     const pwaTabs = [
       { id: 'overview', label: i18n.overview },
+      { id: 'services', label: i18n.services },
       { id: 'probes', label: i18n.probes },
-      { id: 'events', label: i18n.eventsShort },
+      { id: 'incidents', label: i18n.incidents },
       ...(isAdmin ? [{ id: 'settings', label: i18n.settings }] : []),
     ]
     return (
@@ -6142,7 +6614,7 @@ function TabNav({
         }}
       >
         {pwaTabs.map((tb) => {
-          const isActive = tb.id === 'events' ? isEventsActive : active === tb.id
+          const isActive = active === tb.id
           const color = isActive ? t.accent : t.text.muted
           return (
             <button
@@ -6193,8 +6665,10 @@ function TabNav({
 
   const pcTabs = [
     { id: 'overview', label: i18n.overview },
+    { id: 'services', label: i18n.services },
     { id: 'probes', label: i18n.probes },
-    { id: 'events', label: i18n.events },
+    { id: 'incidents', label: i18n.incidents },
+    { id: 'alerts', label: i18n.alerts },
     ...(isAdmin ? [{ id: 'settings', label: i18n.settings }] : []),
   ]
   return (
@@ -6208,7 +6682,7 @@ function TabNav({
       }}
     >
       {pcTabs.map((tb) => {
-        const isActive = tb.id === 'events' ? isEventsActive : active === tb.id
+        const isActive = active === tb.id
         return (
           <button
             type="button"
@@ -6377,14 +6851,21 @@ export default function App() {
     }
   })
   const [selectedId, setSelectedId] = useState(null)
-  const validTabs = ['overview', 'probes', 'events', 'settings']
+  const validTabs = ['overview', 'services', 'probes', 'incidents', 'alerts', 'settings']
   const parseTabFromHash = useCallback(() => {
-    const m = window.location.hash.match(/tab=(\d+)/)
-    if (m) {
-      const idx = Number(m[1]) - 1
-      const parsed = validTabs[idx] || 'overview'
+    const raw = window.location.hash.replace(/^#/, '').trim()
+    // 兼容旧 URL（tab=N 数字索引）: tab=1→overview, 2→probes, 3→events(→incidents), 4→settings
+    const legacy = raw.match(/^tab=(\d+)$/)
+    if (legacy) {
+      const idx = Number(legacy[1]) - 1
+      const legacyMap = ['overview', 'probes', 'incidents', 'settings']
+      const parsed = legacyMap[idx] || 'overview'
       if (parsed === 'settings' && !isAdmin) return 'overview'
       return parsed
+    }
+    if (validTabs.includes(raw)) {
+      if (raw === 'settings' && !isAdmin) return 'overview'
+      return raw
     }
     return 'overview'
   }, [isAdmin])
@@ -6397,8 +6878,7 @@ export default function App() {
         return
       }
       setTabState(id)
-      const idx = validTabs.indexOf(id) + 1
-      window.location.hash = idx <= 1 ? '' : `tab=${idx}`
+      window.location.hash = id === 'overview' ? '' : id
     },
     [isAdmin],
   )
@@ -6499,8 +6979,8 @@ export default function App() {
     }
     if (sort === 'latency-asc') list = [...list].sort((a, b) => a.latency - b.latency)
     else if (sort === 'latency-desc') list = [...list].sort((a, b) => b.latency - a.latency)
-    else if (sort === 'sla-asc') list = [...list].sort((a, b) => a.sla - b.sla)
-    else if (sort === 'sla-desc') list = [...list].sort((a, b) => b.sla - a.sla)
+    else if (sort === 'sla-asc') list = [...list].sort((a, b) => a.current_sla - b.current_sla)
+    else if (sort === 'sla-desc') list = [...list].sort((a, b) => b.current_sla - a.current_sla)
     else if (sort === 'name-asc') list = [...list].sort((a, b) => a.name.localeCompare(b.name))
     else if (sort === 'name-desc') list = [...list].sort((a, b) => b.name.localeCompare(a.name))
     return list
@@ -6508,6 +6988,52 @@ export default function App() {
   const [svcPage, setSvcPage] = useState(1)
   const pagedSvcs = filtered.slice((svcPage - 1) * PAGE_SIZE, svcPage * PAGE_SIZE)
   const selectedSvc = allSvcs.find((s) => s.id === selectedId) || null
+
+  /* ──── Services CRUD (F6) ──── */
+  const [svcModal, setSvcModal] = useState<{
+    mode: 'add' | 'edit'
+    svc?: (typeof allSvcs)[number]
+  } | null>(null)
+  const [svcDelConfirm, setSvcDelConfirm] = useState<string | null>(null)
+  const [svcToast, setSvcToast] = useState<string | null>(null)
+  const svcFlash = (m: string) => {
+    setSvcToast(m)
+    setTimeout(() => setSvcToast(null), 1800)
+  }
+  const handleSvcSave = (form: Record<string, unknown>) => {
+    if (svcModal?.mode === 'edit' && form.id) {
+      setSvcs((prev) => prev.map((s) => (s.id === form.id ? ({ ...s, ...form } as typeof s) : s)))
+      svcFlash(i18n.svcUpdated)
+    } else {
+      // 新建：补齐 mock 数据结构所需字段
+      const newSvc = {
+        ...(form as object),
+        id: `svc-${Date.now().toString(36)}`,
+        protocol: 'http',
+        interval_sec: 30,
+        current_sla: 100,
+        latency: 0,
+        status: 'up',
+        bar: genBar(),
+        ld: genLd(),
+        maintenance: false,
+        maintenanceReason: '',
+        maintenanceStartAt: null,
+        maintenanceEndAt: null,
+        maintenanceOperator: '',
+        maintenanceNotifyUsers: [],
+      } as unknown as (typeof allSvcs)[number]
+      setSvcs((prev) => [newSvc, ...prev])
+      svcFlash(i18n.svcCreated)
+    }
+    setSvcModal(null)
+  }
+  const handleSvcDelete = (id: string) => {
+    setSvcs((prev) => prev.filter((s) => s.id !== id))
+    if (selectedId === id) setSelectedId(null)
+    setSvcDelConfirm(null)
+    svcFlash(i18n.svcDeleted)
+  }
 
   return (
     <AppCtx.Provider value={ctx}>
@@ -6615,10 +7141,26 @@ export default function App() {
             />
             {!isPWA && <TabNav active={tab} onChange={setTab} isAdmin={isAdmin} />}
 
-            {/* ──── OVERVIEW ──── */}
-            {tab === 'overview' && (
+            {/* ──── OVERVIEW & SERVICES ────
+                 两个 tab 暂时共享同一视图（服务列表 + 详情 + 统计卡）。
+                 后续计划：Overview 保留 4 张统计卡 + Top N 异常服务快照；
+                 Services 承载完整的服务列表/CRUD/详情。F6 会拆分。 */}
+            {(tab === 'overview' || tab === 'services') && (
               <>
                 <OverviewCards svcs={allSvcs} />
+                {isAdmin && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      margin: '20px 0 -8px',
+                    }}
+                  >
+                    <Btn variant="primary" onClick={() => setSvcModal({ mode: 'add' })}>
+                      + {i18n.addService}
+                    </Btn>
+                  </div>
+                )}
                 <div
                   className="filter-bar"
                   style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '20px 0 12px' }}
@@ -6853,6 +7395,8 @@ export default function App() {
                       svc={selectedSvc}
                       totalSvcs={allSvcs.length}
                       onToggleMaintenance={toggleMaintenance}
+                      onEditSvc={(s) => setSvcModal({ mode: 'edit', svc: s })}
+                      onDeleteSvc={(id) => setSvcDelConfirm(id)}
                     />
                   </div>
                 </div>
@@ -6906,8 +7450,22 @@ export default function App() {
               </div>
             )}
 
-            {/* ──── EVENTS (incidents + alerts) ──── */}
-            {tab === 'events' && <EventsPage isPWA={isPWA} />}
+            {/* ──── INCIDENTS ──── (F3 未启动；目前复用 EventsPage 的推送诊断占位) */}
+            {tab === 'incidents' && <EventsPage isPWA={isPWA} />}
+
+            {/* ──── ALERTS ──── (F4 未启动；仅显示占位文案) */}
+            {tab === 'alerts' && (
+              <div
+                style={{
+                  padding: '48px 24px',
+                  textAlign: 'center',
+                  color: t.text.muted,
+                  fontSize: 14,
+                }}
+              >
+                {i18n.alertsComingSoon}
+              </div>
+            )}
 
             {/* ──── SETTINGS ──── */}
             {tab === 'settings' && (
@@ -6925,6 +7483,65 @@ export default function App() {
           </div>
           <WebhookModal open={webhookModalOpen} onClose={() => setWebhookModalOpen(false)} />
           <ApiKeyModal open={apiKeyModalOpen} onClose={() => setApiKeyModalOpen(false)} />
+
+          {/* Service CRUD modals (F6) */}
+          <Modal
+            open={!!svcModal}
+            onClose={() => setSvcModal(null)}
+            title={svcModal?.mode === 'edit' ? i18n.editService : i18n.addService}
+            width={560}
+          >
+            {svcModal && (
+              <ServiceForm
+                svc={svcModal.svc}
+                onSave={handleSvcSave}
+                onCancel={() => setSvcModal(null)}
+              />
+            )}
+          </Modal>
+          <Modal
+            open={!!svcDelConfirm}
+            onClose={() => setSvcDelConfirm(null)}
+            title={i18n.deleteService}
+            width={420}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ fontSize: 13, color: t.text.secondary, lineHeight: 1.6 }}>
+                {i18n.confirmDeleteService}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <Btn variant="ghost" onClick={() => setSvcDelConfirm(null)}>
+                  {i18n.cancel}
+                </Btn>
+                <Btn
+                  variant="danger"
+                  onClick={() => svcDelConfirm && handleSvcDelete(svcDelConfirm)}
+                >
+                  {i18n.delete}
+                </Btn>
+              </div>
+            </div>
+          </Modal>
+          {svcToast && (
+            <div
+              style={{
+                position: 'fixed',
+                bottom: 24,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                padding: '10px 20px',
+                backgroundColor: t.bg.card,
+                border: `1px solid ${t.border}`,
+                borderRadius: 8,
+                color: t.text.primary,
+                fontSize: 13,
+                zIndex: 10000,
+                boxShadow: t.shadow,
+              }}
+            >
+              {svcToast}
+            </div>
+          )}
           {showPushPrompt && (
             <PushPermissionPrompt
               onDismiss={() => {

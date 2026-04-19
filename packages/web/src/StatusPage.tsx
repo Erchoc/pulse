@@ -56,15 +56,15 @@ interface StatusService {
   id: string
   name: string
   nameZh: string
-  type: string
+  protocol: string
   status: string
-  sla: number
-  target: number
+  current_sla: number
+  sla_target: number
   latency: number
   bar: BarDay[]
   ld: LdEntry[]
   maintenance: boolean
-  interval: string
+  interval_sec: number
 }
 
 interface Theme {
@@ -269,9 +269,9 @@ function ServiceRow({
   }, [popover])
 
   const slaColor =
-    svc.sla >= svc.target
+    svc.current_sla >= svc.sla_target
       ? t.status.up
-      : svc.sla >= svc.target - 0.5
+      : svc.current_sla >= svc.sla_target - 0.5
         ? t.status.degraded
         : t.status.down
 
@@ -297,15 +297,15 @@ function ServiceRow({
             fontSize: 10,
             fontFamily: F.mono,
             fontWeight: 600,
-            color: typeColors[svc.type] ?? t.text.muted,
-            background: `${typeColors[svc.type] ?? t.text.muted}15`,
+            color: typeColors[svc.protocol] ?? t.text.muted,
+            background: `${typeColors[svc.protocol] ?? t.text.muted}15`,
             borderRadius: 4,
             padding: '1px 5px',
             textTransform: 'uppercase',
             letterSpacing: '.03em',
           }}
         >
-          {svc.type}
+          {svc.protocol}
         </span>
         <span
           className="sp-address"
@@ -368,7 +368,7 @@ function ServiceRow({
             textAlign: 'right',
           }}
         >
-          {svc.sla.toFixed(2)}%
+          {svc.current_sla.toFixed(2)}%
         </span>
       </div>
       {popover && <DayPopover data={popover} t={t} i18n={i18n} lang={lang} />}
@@ -384,7 +384,10 @@ export default function StatusPage({ services, projectName, t, i18n, lang }: Sta
     setCachedServices(services)
   }, [services])
 
-  const sortedServices = useMemo(() => [...services].sort((a, b) => a.sla - b.sla), [services])
+  const sortedServices = useMemo(
+    () => [...services].sort((a, b) => a.current_sla - b.current_sla),
+    [services],
+  )
 
   return (
     <>

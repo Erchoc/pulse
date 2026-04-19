@@ -44,10 +44,29 @@
   - 采用 `golang-migrate`，迁移文件入仓 `packages/server/migrations/`
   - 首批迁移：`001_init.up.sql`（见 `DATABASE.md §2`）
   - Makefile 加 `make migrate-up / migrate-down / migrate-new`
-- [ ] **API Key 中间件**（`internal/auth`）
-  - SHA256 查 `api_keys.key_hash`，命中则注入 `tenant_id` 到 echo context
-  - 初期支持单租户（seed 时写一个 `tenant_id=1` + 一个默认 key）
-  - 异常路径：未携带 → 401、过期 → 401、未命中 → 401
+- [ ] **认证模块**（`internal/auth`，完整版 — 补丁 2026-04-19）
+  - [ ] **JWT 签发/验证**（`jwt.go`）HS256；claims `{sub, tenant_id, role, exp, iat, jti}`；secret 来自 `PULSE_JWT_SECRET`
+  - [ ] **密码哈希**（`password.go`）bcrypt cost=12
+  - [ ] **双模式中间件**（`middleware.go`）
+    - 优先 `Authorization: Bearer <JWT>` → 验证后注入 user_id/tenant_id/role
+    - 回落 `X-API-Key: <raw>` → SHA256 查 `api_keys.key_hash` 注入 tenant_id
+    - 白名单：`/healthz`、`/metrics`、`/api/v1/auth/*`、`/api/v1/push/*`、`/api/v1/edge/*`
+    - 白名单未命中且两种凭证都缺/都失败 → 401
+  - [ ] **本地账号流程**（`handler/auth.go`）
+    - `POST /auth/register`（首用户自动 owner；其余按默认 `member`）
+    - `POST /auth/login` / `POST /auth/refresh` / `POST /auth/logout`
+    - `GET /auth/me`
+    - `refresh_token` 存 `refresh_tokens` 表（SHA256 hash + 显式 revoked_at）
+    - （可选）refresh 轮换：每次 refresh 吊销旧 token 发新 token
+  - [ ] **OIDC 流程**（`oidc.go` + `handler/auth.go`）
+    - `GET /auth/oidc/{provider_id}/authorize` 生成 state+nonce 入 HttpOnly cookie，302 到 IdP
+    - `GET /auth/oidc/callback` 校验 state → go-oidc 换 token → 验证 id_token → 按 `(oidc_provider, sub)` 查/建 user → 签 JWT → 302 到前端
+    - `auto_create=false` 且用户未预创建 → 返回 403
+  - [ ] **IdP 管理**（`handler/identity_provider.go`）
+    - `/identity-providers` CRUD；仅 `role=owner|admin` 可访问
+    - `client_secret` 入库前 AES-256-GCM 加密（key=`PULSE_SECRETS_KEY`）；返回时永不出 secret
+  - [ ] **refresh_token 清理**（集成进 `aggregator`）每日删 `expires_at < NOW()-'30d'`
+  - [ ] **seed**：测试环境可用 `make seed` 建一个默认 owner + 一把默认 API Key
 - [ ] **Probes CRUD**（`internal/handler/probe.go`）
   - `GET/POST /api/v1/probes`、`GET/PATCH/DELETE /api/v1/probes/{id}`
   - 软删除（`deleted_at`），列表默认过滤
@@ -66,7 +85,9 @@
 - `pnpm --filter server build` 无错
 - `go test ./...` 全绿、覆盖率 ≥ 60%
 - `curl -H 'X-API-Key: xxx' POST /api/v1/probes` 能成功写库并回查
-- 迁移能在 SQLite 和 PG 上双向跑
+- `POST /auth/register` → `POST /auth/login` → 用返回的 `Bearer` 调 `GET /auth/me` 全链路通
+- 至少一个真实 OIDC IdP（建议用 dex 本地起一个）跑通 authorize → callback → 用户自动创建 → token 签发
+- 迁移能在 SQLite 和 PG 上双向跑（SQLite 不支持部分唯一索引，用 trigger 模拟）
 - OpenAPI 字段命名与前端对齐（见 `FRONTEND_GAPS.md §1` 决议后再定死）
 
 ---
@@ -227,6 +248,9 @@
 | pulse-probe 版本漂移 | 新版 server 不兼容旧 probe 上报 | Edge 上报 header 带 `X-Probe-Version`，server 记录，老版拒绝需 2 版本缓冲期 |
 | Redis 挂导致查询雪崩 | SLA 接口变慢 | 所有 cache miss 走 PG；SLA 接口限流（`golang.org/x/time/rate`） |
 | 前端字段命名未统一 | 前端对接时返工 | Phase 0 之前必须完成 `FRONTEND_GAPS.md §1` 决议 |
+| `PULSE_JWT_SECRET` 泄露 | 所有 JWT 被伪造 | 秘钥 32+ 字节随机；支持轮换（Phase 2+ 双密钥双验）；日志不打印 |
+| `PULSE_SECRETS_KEY` 丢失 | IdP.client_secret 无法解密 | master key 与备份分离存放；丢失后需重录所有 IdP 配置 |
+| OIDC callback 回调 URL 不稳定 | 多实例/子域场景登录失败 | `oidc_redirect_base` 配置公网固定域名；不同实例共享；放 LB/Ingress 后 |
 
 ---
 
@@ -236,3 +260,4 @@
 |------|------|--------|
 | 2026-04-19 | 初版：4 阶段路线，明确门槛与依赖 | — |
 | 2026-04-19 | 并入决策 C：Phase 1 加入 `dns.go` 探测器（原建议 P2 做） | — |
+| 2026-04-19 | 认证补丁：Phase 0 的 "API Key 中间件" 升级为完整认证模块（本地账号 + OIDC + JWT 双模式 + IdP 管理） | — |

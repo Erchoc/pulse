@@ -35,7 +35,9 @@ Pulse 的存储被抽象为 `internal/store` 接口层，允许两种后端：
 | 表 | 用途 | 关键索引 | 生命周期 |
 |----|------|---------|----------|
 | `tenants` | 租户 | `slug UNIQUE` | 永久 |
-| `users` | 用户账号（Phase 4+） | `email UNIQUE`、`tenant_id` | 永久 |
+| `users` | 用户账号（本地密码 / OIDC） | `email UNIQUE`、`idx_users_oidc (oidc_provider, oidc_sub) WHERE oidc_sub IS NOT NULL` | 永久 |
+| `identity_providers` | 租户级 OIDC IdP 配置 | `idx_idp_tenant (tenant_id, issuer_url) UNIQUE` | 永久；`client_secret` AES-256-GCM 应用层加密 |
+| `refresh_tokens` | JWT refresh token（可吊销） | `idx_refresh_tokens_user WHERE revoked_at IS NULL`、`idx_refresh_tokens_expiry` | 过期 30 天后物理清理 |
 | `api_keys` | API Key（SHA256 hash） | `key_hash UNIQUE`、`tenant_id` | 支持软过期 |
 | `services` | 服务（探针逻辑分组） | `idx_services_tenant` | 永久 |
 | `probes` | 探针配置 | `idx_probes_tenant`（WHERE deleted_at IS NULL）、`idx_probes_assigned`、`idx_probes_service` | 软删除 |
@@ -173,6 +175,7 @@ func ensureFuturePartitions(ctx context.Context, db *pgxpool.Pool) error {
 - `probe_rollup_daily`：永久
 - `alert_events`：保留 1 年（DELETE by fired_at）
 - `analysis_results`：按 `expires_at` 自动清（后台 goroutine）
+- `refresh_tokens`：`expires_at` 过期 30 天后清；每日 aggregator 扫表 `DELETE WHERE expires_at < NOW() - '30 days'`
 
 清理脚本（可放进 pg_cron）：
 
@@ -301,3 +304,4 @@ Redis 挂了全链路降级为"查 PG + 计算"，只影响延迟不影响正确
 | 日期 | 变更 | 迁移编号 | Commit |
 |------|------|---------|--------|
 | 2026-04-19 | 初版：整理自 IMPL_SPEC，补充迁移约定、分区、运维速查 | — | — |
+| 2026-04-19 | 认证补丁：`users` 改列（password_hash 可空 + 5 列新字段）；新增 `identity_providers`、`refresh_tokens` | 待定（Phase 0 迁移 002） | — |

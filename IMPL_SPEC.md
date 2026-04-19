@@ -61,7 +61,8 @@
 | 数据库驱动 | pgx/v5 (PG), go-redis/v9 (Redis) |
 | 配置 | Viper + YAML |
 | 日志 | slog (structured JSON) |
-| 前端 | Vite + React + TypeScript + Tailwind |
+| 认证 | golang-jwt/v5 (JWT), coreos/go-oidc/v3 (OIDC), x/crypto/bcrypt (密码) |
+| 前端 | Vite + React + TypeScript + inline styles |
 | 部署 | Fly.io / Railway / Docker |
 
 ---
@@ -85,10 +86,50 @@ CREATE TABLE users (
     id              BIGSERIAL PRIMARY KEY,
     tenant_id       BIGINT NOT NULL REFERENCES tenants(id),
     email           TEXT NOT NULL UNIQUE,
-    password_hash   TEXT NOT NULL,              -- bcrypt
-    role            TEXT NOT NULL DEFAULT 'member', -- owner | admin | member
+    password_hash   TEXT,                          -- 可空: OIDC 用户无本地密码; bcrypt
+    role            TEXT NOT NULL DEFAULT 'member',-- owner | admin | member
+    auth_source     TEXT NOT NULL DEFAULT 'local', -- local | oidc
+    oidc_provider   TEXT,                           -- 对应 identity_providers.id 或 issuer 标识 (当 auth_source=oidc)
+    oidc_sub        TEXT,                           -- IdP 返回的 sub claim, 和 oidc_provider 联合唯一
+    name            TEXT,                           -- 显示名 (OIDC 或本地注册带上)
+    avatar_url      TEXT,
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
+-- 同一 IdP 下同一 sub 只能有一个账号 (部分唯一索引, 仅对 OIDC 用户生效)
+CREATE UNIQUE INDEX idx_users_oidc
+    ON users (oidc_provider, oidc_sub)
+    WHERE oidc_sub IS NOT NULL;
+
+-- OIDC 身份提供方配置 (租户级)
+CREATE TABLE identity_providers (
+    id              BIGSERIAL PRIMARY KEY,
+    tenant_id       BIGINT NOT NULL REFERENCES tenants(id),
+    name            TEXT NOT NULL,                  -- 展示用, 如 "Company SSO"
+    provider_type   TEXT NOT NULL DEFAULT 'oidc',   -- oidc (未来可扩 saml)
+    issuer_url      TEXT NOT NULL,                  -- IdP 的 issuer, 走 .well-known/openid-configuration 拉取其它端点
+    client_id       TEXT NOT NULL,
+    client_secret   TEXT NOT NULL,                  -- 应用层 AES 加密存储 (master key 走环境变量)
+    scopes          TEXT[] DEFAULT '{openid,email,profile}',
+    auto_create     BOOLEAN DEFAULT TRUE,           -- 未匹配用户时是否自动创建
+    default_role    TEXT DEFAULT 'member',          -- 自动创建时赋予的角色
+    enabled         BOOLEAN DEFAULT TRUE,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE UNIQUE INDEX idx_idp_tenant ON identity_providers(tenant_id, issuer_url);
+
+-- Refresh Token (access_token 15min; refresh_token 可吊销)
+CREATE TABLE refresh_tokens (
+    id              BIGSERIAL PRIMARY KEY,
+    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash      TEXT NOT NULL UNIQUE,           -- SHA256(raw_token), raw 仅返回一次
+    expires_at      TIMESTAMPTZ NOT NULL,
+    revoked_at      TIMESTAMPTZ,                    -- 显式吊销 (登出/轮换)
+    user_agent      TEXT,                           -- 可选: 记录签发时的 UA
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id)
+    WHERE revoked_at IS NULL;
+CREATE INDEX idx_refresh_tokens_expiry ON refresh_tokens(expires_at);
 
 CREATE TABLE api_keys (
     id              BIGSERIAL PRIMARY KEY,
@@ -385,6 +426,8 @@ servers:
   - url: /api/v1
 
 security:
+  # 任一满足即可: Bearer JWT (人类用户) 或 X-API-Key (CI/CD、第三方集成)
+  - BearerAuth: []
   - ApiKeyAuth: []
 
 components:
@@ -393,6 +436,10 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
 
   schemas:
     # ── Probe ──
@@ -810,10 +857,334 @@ components:
         message:
           type: string
 
+    # ── Auth ──
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        tenant_id:
+          type: integer
+          format: int64
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [owner, admin, member]
+        auth_source:
+          type: string
+          enum: [local, oidc]
+        avatar_url:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        name:
+          type: string
+
+    TokenPair:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT; 默认 TTL 15 分钟
+        refresh_token:
+          type: string
+          description: 仅返回一次; 服务端存 SHA256 哈希; 默认 TTL 7 天
+        expires_in:
+          type: integer
+          description: access_token 剩余秒数
+        user:
+          $ref: '#/components/schemas/UserInfo'
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    IdentityProvider:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        provider_type:
+          type: string
+          enum: [oidc]
+        issuer_url:
+          type: string
+        client_id:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        auto_create:
+          type: boolean
+        default_role:
+          type: string
+        enabled:
+          type: boolean
+        # client_secret 永不返回
+
+    IdentityProviderCreate:
+      type: object
+      required: [name, issuer_url, client_id, client_secret]
+      properties:
+        name:
+          type: string
+        provider_type:
+          type: string
+          default: oidc
+        issuer_url:
+          type: string
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        auto_create:
+          type: boolean
+        default_role:
+          type: string
+        enabled:
+          type: boolean
+
 # ================================================================
 # Paths
 # ================================================================
 paths:
+
+  # ── Auth ── (均无需 API Key / Bearer 认证, 除 /auth/me 和 /auth/logout)
+  /auth/register:
+    post:
+      summary: 邮箱密码注册 (单租户首用户自动 owner)
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/TokenPair'
+        '409':
+          description: email 已存在
+
+  /auth/login:
+    post:
+      summary: 邮箱密码登录
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/TokenPair'
+        '401':
+          description: 邮箱或密码错
+
+  /auth/refresh:
+    post:
+      summary: 使用 refresh_token 换新 access_token (可选轮换 refresh)
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/TokenPair'
+        '401':
+          description: refresh_token 失效或已吊销
+
+  /auth/logout:
+    post:
+      summary: 吊销当前用户的 refresh_token
+      tags: [Auth]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '204':
+          description: No Content
+
+  /auth/me:
+    get:
+      summary: 当前登录用户信息
+      tags: [Auth]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserInfo'
+
+  /auth/oidc/{provider_id}/authorize:
+    get:
+      summary: 跳转到 OIDC 授权页 (302)
+      tags: [Auth]
+      security: []
+      parameters:
+        - name: provider_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: redirect
+          in: query
+          description: 登录完成后前端目的地 (相对路径, 默认 /)
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to IdP
+
+  /auth/oidc/callback:
+    get:
+      summary: IdP 回调 → 匹配/自动创建用户 → 302 到前端
+      tags: [Auth]
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: 302 到前端, token 通过 HttpOnly cookie 或 URL hash 返回 (见 §Auth 中间件说明)
+
+  # ── Identity Providers (管理) ── (需 admin)
+  /identity-providers:
+    get:
+      summary: IdP 列表
+      tags: [Auth]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/IdentityProvider'
+    post:
+      summary: 创建 IdP
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IdentityProviderCreate'
+      responses:
+        '201':
+          description: Created
+
+  /identity-providers/{id}:
+    patch:
+      summary: 更新 IdP
+      tags: [Auth]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: 删除 IdP
+      tags: [Auth]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: No Content
 
   # ── Probes ──
   /probes:
@@ -1595,6 +1966,8 @@ pulse/
 │   │   ├── push.go
 │   │   ├── edge.go
 │   │   ├── dashboard.go
+│   │   ├── auth.go              # /auth/* (register/login/refresh/logout/me/oidc)
+│   │   ├── identity_provider.go # /identity-providers CRUD
 │   │   └── health.go
 │   ├── model/          # 数据结构 (DB model + API DTO)
 │   ├── store/          # 数据库操作 (repository pattern)
@@ -1603,6 +1976,9 @@ pulse/
 │   │   ├── result.go
 │   │   ├── service.go
 │   │   ├── alert.go
+│   │   ├── user.go              # 用户查询 (含 OIDC sub 匹配)
+│   │   ├── refresh_token.go     # refresh_token CRUD + 吊销
+│   │   ├── identity_provider.go # IdP 配置 (含 client_secret 加解密)
 │   │   └── cache.go    # Redis 缓存操作
 │   ├── scheduler/      # 时间轮调度器
 │   │   ├── wheel.go
@@ -1618,7 +1994,11 @@ pulse/
 │   ├── alert/          # 告警引擎 + 通知分发
 │   ├── aggregator/     # 离线聚合任务 (hourly/daily rollup)
 │   ├── arbitrator/     # 多区域仲裁
-│   ├── auth/           # API Key 认证中间件
+│   ├── auth/           # 认证层: Bearer JWT + X-API-Key 双模式
+│   │   ├── jwt.go      # JWT 签发/验证 (HS256; secret 来自 config)
+│   │   ├── middleware.go # 白名单 + 双模式认证 echo.MiddlewareFunc
+│   │   ├── oidc.go     # OIDC 授权流程 (state cookie + go-oidc)
+│   │   └── password.go # bcrypt 哈希/校验
 │   └── metrics/        # Prometheus 指标
 ├── probe/              # pulse-probe 共享逻辑
 │   ├── push.go         # --mode=push
@@ -1663,6 +2043,26 @@ instance:
   id: pulse-01                    # 多实例时每个不同
   heartbeat_interval: 10s
   rebalance_interval: 30s
+
+auth:
+  # JWT 签名密钥，建议 32+ 字节随机串；走环境变量 PULSE_JWT_SECRET 覆盖
+  jwt_secret: "${PULSE_JWT_SECRET}"
+  access_token_ttl:  15m
+  refresh_token_ttl: 168h          # 7d，可吊销
+  # OIDC 回调 base URL（公网可达）；callback 路径固定 /api/v1/auth/oidc/callback
+  oidc_redirect_base: "https://pulse.example.com"
+  # IdP client_secret 加密的 master key（AES-256-GCM）；走环境变量 PULSE_SECRETS_KEY
+  secrets_key: "${PULSE_SECRETS_KEY}"
+  # 认证豁免路径（白名单），以下路由无需 JWT/API Key
+  exempt_paths:
+    - /healthz
+    - /metrics
+    - /api/v1/auth/register
+    - /api/v1/auth/login
+    - /api/v1/auth/refresh
+    - /api/v1/auth/oidc/*
+    - /api/v1/push/*
+    - /api/v1/edge/*               # edge 走 mTLS
 
 log:
   level: info
@@ -1785,6 +2185,77 @@ func RunAssertions(resp *http.Response, body []byte, probe *Probe) (bool, map[st
     return allPass, detail
 }
 ```
+
+### 4.6 认证与会话
+
+**双模式认证**（同一中间件，按优先级 fallback）：
+
+```
+                           ┌─ Authorization: Bearer <jwt>? ─┐
+Request ──▶ exempt_paths? ─┤                                 ├─▶ handler
+                ▲          └─ X-API-Key: <raw>? ────────────┘         │
+                │                                                      │
+                └── exempt 命中直通（/auth/*、/push/*、/edge/*、/healthz、/metrics）
+```
+
+1. **JWT (Bearer)**：HS256 签名，claims `{ sub, tenant_id, role, exp, iat, jti }`，access_token TTL = 15min
+2. **API Key**：SHA256 哈希后查 `api_keys.key_hash`，命中则注入 `tenant_id`（无 user_id / role；默认 `role=admin` 或单独字段 `scopes`）
+3. **两者都缺/都失败** → `401 UNAUTHORIZED`
+4. **exempt_paths**：通过 glob 匹配（见 `config.yaml` `auth.exempt_paths`）
+
+**Token 流程**：
+
+```
+/auth/login / /auth/register / OIDC callback
+  │
+  ├─ 签发 access_token (JWT, 15min)
+  ├─ 签发 refresh_token (32 字节随机, base64url)
+  │   └─ SHA256 hash 存 refresh_tokens 表 (原值仅返回一次)
+  └─ 返回 { access_token, refresh_token, expires_in, user }
+
+/auth/refresh
+  │
+  ├─ 校验 refresh_token（hash 查表 + 未 revoked + 未过期）
+  ├─ （可选）轮换: revoke 旧 refresh_token, 发新的
+  └─ 返回新 access_token (+ 可选新 refresh_token)
+
+/auth/logout
+  └─ UPDATE refresh_tokens SET revoked_at=NOW() WHERE token_hash=...
+```
+
+**OIDC 授权流程**：
+
+```
+前端 GET /auth/oidc/{provider_id}/authorize?redirect=/dashboard
+  │
+  ├─ 生成 state (随机 32 字节), nonce
+  ├─ 存 state → HttpOnly cookie: pulse_oidc_state (5min TTL)
+  ├─ state 关联的原始 redirect 存 cookie: pulse_oidc_redirect
+  └─ 302 → IdP authorize URL (带 client_id, scope, redirect_uri, state, nonce)
+
+IdP callback
+  │
+  ├─ GET /auth/oidc/callback?code=xxx&state=yyy
+  ├─ 校验 cookie state == query state（CSRF 防护）
+  ├─ 用 code 去 IdP 换 id_token + userinfo (go-oidc)
+  ├─ 校验 id_token 签名 + issuer + aud + nonce + exp
+  ├─ 根据 (oidc_provider, sub) 查 users
+  │   ├─ 命中 → 该用户登录
+  │   └─ 未命中且 IdP.auto_create=true → INSERT users (auth_source='oidc', role=IdP.default_role)
+  ├─ 签发 access + refresh token
+  └─ 302 → {oidc_redirect_base}{原始 redirect}#access_token=...&refresh_token=...
+     （或改走 HttpOnly cookie，前端读 /auth/me 获取身份）
+```
+
+**密码哈希**：bcrypt cost=12（默认），注册/登录 p95 < 200ms on 2 vCPU。
+
+**IdP client_secret 加密**：`store/identity_provider.go` 内部用 AES-256-GCM，master key 来自 `PULSE_SECRETS_KEY` 环境变量（不入库、不入代码）。
+
+**Refresh token 清理**：`aggregator` 每天跑一次 `DELETE FROM refresh_tokens WHERE expires_at < NOW() - INTERVAL '30 days'`。
+
+**多实例一致性**：JWT 签名密钥所有实例相同（同一 `PULSE_JWT_SECRET`）；refresh_token 在 PG 里天然一致。密钥轮换策略：新旧密钥双签双验（Phase 2+ 实现，Phase 0 只支持单密钥）。
+
+**审计建议（可选）**：将 `login`/`logout`/`refresh` 事件写 `audit_logs`（目前未建表，放 Phase 2+）。
 
 ---
 

@@ -234,14 +234,17 @@ if len(downReports) >= ceil(len(activeEdges)/2) {
 
 | 层 | 机制 |
 |----|------|
-| 前端 → API | `X-API-Key` header；SHA256 hash 存库（`api_keys.key_hash`） |
+| 人类用户 → API | `Authorization: Bearer <JWT>`（HS256；TTL 15min；refresh_token 7d 可吊销） |
+| CI/CD / 第三方 → API | `X-API-Key` header；SHA256 hash 存库（`api_keys.key_hash`） |
+| 登录方式 | 本地邮箱密码（bcrypt）**或** OIDC（go-oidc + `identity_providers` 表） |
 | Push endpoint | `push_token` in URL + HMAC-SHA256 签名验证（防 token 泄露重放） |
 | Edge → API | mTLS（客户端证书）；`/api/v1/edge/*` 路由强制 TLS client cert 校验 |
 | Webhook 出站 | 可选 HMAC secret；request body 为 JSON payload，header `X-Pulse-Signature: sha256=...` |
-| 敏感字段 | `auth` JSONB（OAuth2 secret、basic 密码等）**不返回前端**，仅在探测时内存使用 |
-| API Key 轮换 | 24h 宽限期（旧 key 标 deprecated，仍可用）；参见 `IMPL_SPEC.md §2.1` |
+| 敏感字段 | `probes.auth` JSONB、`identity_providers.client_secret` **不返回前端**；IdP secret 入库前 AES-256-GCM 加密 |
+| API Key 轮换 | 24h 宽限期（旧 key 标 deprecated，仍可用） |
+| JWT 密钥管理 | `PULSE_JWT_SECRET` 环境变量；多实例共享；密钥轮换策略（双签双验）放 Phase 2+ |
 
-**待定**：用户登录模型（本地账号 vs OIDC），详见 `SERVER_ROADMAP.md` Phase 2。
+认证中间件实现细节与 OIDC 授权流程见 `IMPL_SPEC.md §4.6`。
 
 ---
 
@@ -285,6 +288,9 @@ if len(downReports) >= ceil(len(activeEdges)/2) {
 | 7 | API 字段命名采用 `_sec/_ms` 显式单位 | `_s` 或无后缀 | 消除 `timeout=5` 到底是 s 还是 ms 的歧义；见 `FRONTEND_GAPS.md §1` |
 | 8 | 主键 ID 用 `int64` 数字（非字符串） | UUID / 字符串 ID | PG BIGSERIAL 天然是数字；JSON 里 JS 数字安全范围 2^53-1 对探针量级完全够；少一次 ↔ 转换；2026-04-19 决策 A |
 | 9 | 前端保留 `mode=server/client` 视觉糖，后端只存 `protocol` | 完全只用 `protocol` | 用户视角 server vs client 比"选 protocol=push"直观；表单内部映射；2026-04-19 决策 D |
+| 10 | 认证采用 JWT + refresh_token（可吊销）双 token 方案 | 单 session cookie / 单 JWT | 无状态 access + DB 存 refresh 的"准无状态"最合适多实例场景；可吊销；2026-04-19 补丁 |
+| 11 | API 同时支持 Bearer JWT 与 X-API-Key | 仅 JWT 或仅 API Key | 人类用户用 JWT（短 TTL + refresh），CI/CD/第三方用 API Key（长期凭证）；同一中间件按优先级 fallback；2026-04-19 补丁 |
+| 12 | OIDC IdP 配置租户级（`identity_providers` 表），支持多 IdP | 全局单 IdP / 硬编码 | 不同租户需要不同 SSO 提供方；auto_create 标志控制是否允许自注册；2026-04-19 补丁 |
 
 ---
 
@@ -308,3 +314,4 @@ if len(downReports) >= ceil(len(activeEdges)/2) {
 |------|------|--------|
 | 2026-04-19 | 初版：从 `IMPL_SPEC.md` 提炼架构总览，明确模块边界、数据流、降级策略、演进阶段 | — |
 | 2026-04-19 | 并入决策 A–K：补 `dns` 协议、补 ADR #8（int64 ID）、#9（`mode` 仅 UI 保留） | — |
+| 2026-04-19 | 认证补丁：新增 JWT+refresh_token、Bearer+ApiKey 双模式、OIDC IdP 租户级配置；ADR #10–#12；安全章节改写 | — |

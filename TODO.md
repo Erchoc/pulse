@@ -1,5 +1,22 @@
 # Pulse — TODO
 
+## 长期维护文档（Source of Truth）
+
+| 文档 | 用途 |
+|------|------|
+| `docs/ARCHITECTURE.md` | 架构设计总览、模块边界、数据流、演进阶段 |
+| `docs/SERVER_ROADMAP.md` | 服务端分阶段实施路线（Phase 0 → 4+） |
+| `docs/DATABASE.md` | Schema 速查、迁移、分区、运维、备份恢复 |
+| `docs/FRONTEND_GAPS.md` | 前端未完成项 + 字段/枚举冲突 + 待决产品决策 |
+| `IMPL_SPEC.md` | 完整技术规格（DDL + OpenAPI 源） |
+| `SWAGGER_OPENAPI.md` | 用户向 API 手册 |
+
+> 新增服务端功能前先读 `ARCHITECTURE.md`；
+> 改 schema 必须更新 `DATABASE.md` + 新增 migration；
+> 动 API 字段先看 `FRONTEND_GAPS.md` 是否有未决冲突。
+
+---
+
 ## P0: 前端产品化（这两天搞定）
 
 ### PWA 适配

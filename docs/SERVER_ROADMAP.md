@@ -89,6 +89,7 @@
   - [ ] `http.go`：`net/http.Client`，支持自签证书开关
   - [ ] `tcp.go`：`net.DialTimeout`
   - [ ] `ws.go`：`gorilla/websocket`，upgrade 成功即算 up（可选发送 ping 包）
+  - [ ] `dns.go`：`net.Resolver` + 自定义 nameserver；支持 A/AAAA/CNAME/TXT record 校验；`target` 格式 `host@nameserver?type=A`
   - [ ] `icmp.go`：需 raw socket，失败降级为 `net.Dial("ip4:icmp", ...)`；Docker 部署需 `CAP_NET_RAW`
 - [ ] **expect 规则引擎**（`worker/assertion.go`）
   - `status_codes`、`keyword`（substring）、`max_latency_ms`
@@ -234,3 +235,4 @@
 | 日期 | 变更 | Commit |
 |------|------|--------|
 | 2026-04-19 | 初版：4 阶段路线，明确门槛与依赖 | — |
+| 2026-04-19 | 并入决策 C：Phase 1 加入 `dns.go` 探测器（原建议 P2 做） | — |

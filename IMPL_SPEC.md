@@ -124,7 +124,7 @@ CREATE TABLE probes (
     tenant_id       BIGINT NOT NULL REFERENCES tenants(id),
     service_id      BIGINT REFERENCES services(id) ON DELETE SET NULL,
     name            TEXT NOT NULL,
-    protocol        TEXT NOT NULL,              -- http | tcp | ws | icmp | push
+    protocol        TEXT NOT NULL,              -- http | tcp | ws | dns | icmp | push
     target          TEXT NOT NULL,              -- URL 或 host:port
     interval_sec    INT NOT NULL DEFAULT 30,
     timeout_ms      INT NOT NULL DEFAULT 8000,
@@ -406,7 +406,7 @@ components:
           type: string
         protocol:
           type: string
-          enum: [http, tcp, ws, icmp, push]
+          enum: [http, tcp, ws, dns, icmp, push]
         target:
           type: string
         interval_sec:
@@ -513,7 +513,7 @@ components:
           type: string
         protocol:
           type: string
-          enum: [http, tcp, ws, icmp, push]
+          enum: [http, tcp, ws, dns, icmp, push]
         target:
           type: string
         interval_sec:
@@ -825,7 +825,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [http, tcp, ws, icmp, push]
+            enum: [http, tcp, ws, dns, icmp, push]
         - name: service_id
           in: query
           schema:

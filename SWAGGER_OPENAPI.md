@@ -31,7 +31,11 @@
 ```json
 {
   "data": [],
-  "total": 0
+  "pagination": {
+    "total": 0,
+    "page": 1,
+    "per_page": 20
+  }
 }
 ```
 
@@ -88,51 +92,53 @@ curl http://localhost:8080/healthz
 
 | 参数 | 类型 | 必填 | 说明 | 示例 |
 |------|------|------|------|------|
-| `mode` | string | 否 | 过滤探针模式 | `server` / `client` |
-| `type` | string | 否 | 过滤探针类型 | `http` / `tcp` / `dns` / `icmp` / `websocket` / `push` |
+| `mode` | string | 否 | 过滤采集方式（仅前端 UI 使用，后端按 `protocol` 判断） | `server` / `client` |
+| `protocol` | string | 否 | 过滤探针协议 | `http` / `tcp` / `ws` / `dns` / `icmp` / `push` |
 | `enabled` | boolean | 否 | 过滤启用状态 | `true` / `false` |
-| `service_id` | string | 否 | 按服务 ID 过滤 | `svc-1` |
+| `service_id` | int64 | 否 | 按服务 ID 过滤 | `1` |
 | `page` | int | 否 | 页码，默认 1 | `1` |
-| `page_size` | int | 否 | 每页数量，默认 8 | `20` |
+| `per_page` | int | 否 | 每页数量，默认 20 | `20` |
 
 **Response** `200 OK`:
 ```json
 {
   "data": [
     {
-      "id": "probe-1",
+      "id": 1,
       "name": "Prod API Health",
-      "type": "http",
+      "protocol": "http",
       "mode": "server",
       "target": "https://api.example.com/healthz",
-      "interval_s": 30,
-      "timeout_s": 5,
+      "interval_sec": 30,
+      "timeout_ms": 5000,
       "retries": 1,
       "expect": {
         "status_codes": [200],
-        "keyword": "ok"
+        "keyword": "ok",
+        "max_latency_ms": 3000
       },
+      "auth": { "type": "none" },
       "metadata": {
         "region": "us-east-1",
         "team": "platform"
       },
       "enabled": true,
-      "service_id": "svc-1",
+      "service_id": 1,
       "created_at": "2026-01-15T08:00:00Z",
       "updated_at": "2026-04-10T12:30:00Z"
     }
   ],
-  "total": 1
+  "pagination": { "total": 1, "page": 1, "per_page": 20 }
 }
 ```
 
 **Mock 示例**:
 ```bash
 curl http://localhost:8080/api/v1/probes
-# => {"data":[],"total":0}
+# => {"data":[],"pagination":{"total":0,"page":1,"per_page":20}}
 
-curl "http://localhost:8080/api/v1/probes?type=http&enabled=true"
-# => {"data":[],"total":0}
+curl "http://localhost:8080/api/v1/probes?protocol=http&enabled=true"
+# => {"data":[],"pagination":{"total":0,"page":1,"per_page":20}}
 ```
 
 ---
@@ -143,61 +149,70 @@ curl "http://localhost:8080/api/v1/probes?type=http&enabled=true"
 ```json
 {
   "name": "Prod API Health",
-  "type": "http",
+  "protocol": "http",
   "mode": "server",
   "target": "https://api.example.com/healthz",
-  "interval_s": 30,
-  "timeout_s": 5,
+  "interval_sec": 30,
+  "timeout_ms": 5000,
   "retries": 1,
   "expect": {
     "status_codes": [200],
-    "keyword": "ok"
+    "keyword": "ok",
+    "max_latency_ms": 3000
+  },
+  "auth": {
+    "type": "bearer",
+    "token": "eyJ..."
   },
   "metadata": {
     "region": "us-east-1"
   },
   "enabled": true,
-  "service_id": "svc-1"
+  "service_id": 1
 }
 ```
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
 | `name` | string | **是** | — | 探针显示名称 |
-| `type` | string | **是** | — | `http` \| `tcp` \| `websocket` \| `dns` \| `icmp` \| `push` |
-| `mode` | string | **是** | — | `server`（主动探测）\| `client`（被动接收） |
+| `protocol` | string | **是** | — | `http` \| `tcp` \| `ws` \| `dns` \| `icmp` \| `push` |
+| `mode` | string | 否 | 由前端根据 `protocol` 推断 | `server`（主动探测）\| `client`（push 被动接收）。后端可忽略此字段 |
 | `target` | string | **是** | — | 检测目标 URL / host:port / push token |
-| `interval_s` | int | 否 | `30` | 检测间隔（秒） |
-| `timeout_s` | int | 否 | `5` | 超时时间（秒） |
+| `interval_sec` | int | 否 | `30` | 检测间隔（秒，范围 10 ~ 86400） |
+| `timeout_ms` | int | 否 | `5000` | 超时时间（毫秒） |
 | `retries` | int | 否 | `1` | 失败重试次数 |
-| `expect` | object | 否 | `null` | 预期条件 |
-| `expect.status_codes` | int[] | 否 | — | 预期 HTTP 状态码列表 |
+| `expect` | object | 否 | `{}` | 可用性判定规则 |
+| `expect.status_codes` | int[] | 否 | `[200]` | 预期 HTTP 状态码列表 |
 | `expect.keyword` | string | 否 | — | 响应体中必须包含的关键词 |
+| `expect.max_latency_ms` | int | 否 | — | 延迟阈值；超过判 `degraded` 不判 `down` |
+| `auth` | object | 否 | `{"type":"none"}` | 认证配置，`type` ∈ `none`\|`apikey`\|`bearer`\|`basic`\|`oauth2` |
 | `metadata` | object | 否 | `{}` | 自定义标签键值对 |
 | `enabled` | boolean | 否 | `true` | 是否启用 |
-| `service_id` | string | 否 | `null` | 关联服务 ID |
+| `service_id` | int64 | 否 | `null` | 关联服务 ID |
 
 **Response** `201 Created`:
 ```json
 {
   "data": {
-    "id": "probe-abc123",
+    "id": 42,
     "name": "Prod API Health",
-    "type": "http",
+    "protocol": "http",
     "mode": "server",
     "target": "https://api.example.com/healthz",
-    "interval_s": 30,
-    "timeout_s": 5,
+    "interval_sec": 30,
+    "timeout_ms": 5000,
     "retries": 1,
     "expect": {
       "status_codes": [200],
-      "keyword": "ok"
+      "keyword": "ok",
+      "max_latency_ms": 3000
     },
+    "auth": { "type": "bearer", "token": "***" },
     "metadata": {
       "region": "us-east-1"
     },
     "enabled": true,
-    "service_id": "svc-1",
+    "service_id": 1,
     "created_at": "2026-04-15T10:00:00Z",
     "updated_at": "2026-04-15T10:00:00Z"
   }
@@ -218,7 +233,7 @@ curl "http://localhost:8080/api/v1/probes?type=http&enabled=true"
 ```bash
 curl -X POST http://localhost:8080/api/v1/probes \
   -H 'Content-Type: application/json' \
-  -d '{"name":"test","type":"http","mode":"server","target":"https://example.com"}'
+  -d '{"name":"test","protocol":"http","mode":"server","target":"https://example.com"}'
 # => {"data":null}  (stub 当前返回 null)
 ```
 
@@ -287,10 +302,11 @@ curl -X POST http://localhost:8080/api/v1/push/my-device-token \
 {
   "data": [
     {
-      "id": "svc-1",
+      "id": 1,
       "name": "Production API",
       "description": "主要生产环境 API 集群",
       "sla_target": 99.9,
+      "current_sla": 99.97,
       "maintenance": false,
       "maintenance_reason": null,
       "maintenance_start_at": null,
@@ -300,14 +316,14 @@ curl -X POST http://localhost:8080/api/v1/push/my-device-token \
       "updated_at": "2026-04-10T12:00:00Z"
     }
   ],
-  "total": 1
+  "pagination": { "total": 1, "page": 1, "per_page": 20 }
 }
 ```
 
 **Mock 示例**:
 ```bash
 curl http://localhost:8080/api/v1/services
-# => {"data":[],"total":0}
+# => {"data":[],"pagination":{"total":0,"page":1,"per_page":20}}
 ```
 
 ---
@@ -341,7 +357,7 @@ curl http://localhost:8080/api/v1/services
 ```json
 {
   "data": {
-    "service_id": "svc-1",
+    "service_id": 1,
     "maintenance": true,
     "reason": "DB migration",
     "end_at": "2026-04-15T18:00:00Z",
@@ -363,7 +379,7 @@ curl http://localhost:8080/api/v1/services
 
 **Mock 示例**:
 ```bash
-curl -X POST http://localhost:8080/api/v1/services/svc-1/maintenance \
+curl -X POST http://localhost:8080/api/v1/services/1/maintenance \
   -H 'Content-Type: application/json' \
   -d '{"reason":"DB migration","end_at":"2026-04-15T18:00:00Z","notify_users":["user-1"]}'
 ```
@@ -382,7 +398,7 @@ curl -X POST http://localhost:8080/api/v1/services/svc-1/maintenance \
 ```json
 {
   "data": {
-    "service_id": "svc-1",
+    "service_id": 1,
     "maintenance": false,
     "ended_at": "2026-04-15T14:00:00Z"
   }
@@ -391,7 +407,7 @@ curl -X POST http://localhost:8080/api/v1/services/svc-1/maintenance \
 
 **Mock 示例**:
 ```bash
-curl -X DELETE http://localhost:8080/api/v1/services/svc-1/maintenance
+curl -X DELETE http://localhost:8080/api/v1/services/1/maintenance
 ```
 
 ---
@@ -416,8 +432,8 @@ curl -X DELETE http://localhost:8080/api/v1/services/svc-1/maintenance
 {
   "data": [
     {
-      "id": "maint-1",
-      "service_id": "svc-1",
+      "id": 1,
+      "service_id": 1,
       "reason": "DB migration",
       "start_at": "2026-04-15T10:00:00Z",
       "end_at": "2026-04-15T14:00:00Z",
@@ -425,14 +441,14 @@ curl -X DELETE http://localhost:8080/api/v1/services/svc-1/maintenance
       "created_at": "2026-04-15T10:00:00Z"
     }
   ],
-  "total": 1
+  "pagination": { "total": 1, "page": 1, "per_page": 20 }
 }
 ```
 
 **Mock 示例**:
 ```bash
-curl http://localhost:8080/api/v1/services/svc-1/maintenance/history
-# => {"data":[],"total":0}
+curl http://localhost:8080/api/v1/services/1/maintenance/history
+# => {"data":[],"pagination":{"total":0,"page":1,"per_page":20}}
 ```
 
 ---
@@ -532,21 +548,27 @@ curl -X POST http://localhost:8080/api/v1/settings/webhook/test \
 
 ```typescript
 interface Probe {
-  id: string              // 主键，自动生成
+  id: number              // int64 主键，自动生成
   name: string            // 探针名称
-  type: 'http' | 'tcp' | 'websocket' | 'dns' | 'icmp' | 'push'
-  mode: 'server' | 'client'
+  protocol: 'http' | 'tcp' | 'ws' | 'dns' | 'icmp' | 'push'
+  mode?: 'server' | 'client'   // 仅前端 UI 使用的视觉分组，后端可忽略
   target: string          // URL / host:port / push token
-  interval_s: number      // 检测间隔（秒），默认 30
-  timeout_s: number       // 超时时间（秒），默认 5
+  interval_sec: number    // 检测间隔（秒），默认 30，范围 10 ~ 86400
+  timeout_ms: number      // 超时时间（毫秒），默认 5000
   retries: number         // 重试次数，默认 1
   expect?: {
-    status_codes?: number[]
-    keyword?: string
+    status_codes?: number[]      // 预期状态码，默认 [200]
+    keyword?: string             // 响应体关键字
+    max_latency_ms?: number      // 超过判 degraded
+  }
+  auth?: {
+    type: 'none' | 'apikey' | 'bearer' | 'basic' | 'oauth2'
+    // 每种 type 的附加字段见 IMPL_SPEC.md §2.1
   }
   metadata: Record<string, any>  // 自定义标签
   enabled: boolean        // 是否启用，默认 true
-  service_id?: string     // 关联服务 ID
+  service_id?: number     // 关联服务 ID（int64）
+  push_token?: string     // 仅 protocol=push 时返回
   created_at: string      // RFC3339
   updated_at: string      // RFC3339
 }
@@ -556,10 +578,11 @@ interface Probe {
 
 ```typescript
 interface Service {
-  id: string
+  id: number              // int64
   name: string
   description?: string
-  sla_target: number      // SLA 目标百分比，默认 99.9
+  sla_target: number      // SLA 目标百分比（可编辑），默认 99.9
+  current_sla?: number    // 当前 30d 实际 SLA（后端计算）
   maintenance: boolean    // 是否维护中
   maintenance_reason?: string
   maintenance_start_at?: string
@@ -574,11 +597,13 @@ interface Service {
 
 ```typescript
 interface MaintenanceWindow {
-  id: string
-  service_id: string
-  reason?: string
+  id: number              // int64
+  service_id: number
+  title: string           // 短标题（列表展示用）
+  reason?: string         // 可选长描述
   start_at: string        // RFC3339
   end_at?: string         // null = 进行中
+  recurrence?: object     // 可选 RRULE，如 { rrule: "FREQ=WEEKLY;BYDAY=SU" }
   operator?: string       // 操作人 ID
   created_at: string
 }
@@ -622,9 +647,9 @@ interface Settings {
 ```json
 {
   "event": "probe_anomaly",
-  "probe_id": "probe-1",
+  "probe_id": 42,
   "probe_name": "Prod API Health",
-  "service_id": "svc-1",
+  "service_id": 1,
   "service_name": "Production API",
   "from": "up",
   "to": "down",

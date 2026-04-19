@@ -27,36 +27,23 @@
 
 ---
 
-## 1. 字段/枚举命名冲突 ★ 需立即拍板 ★
+## 1. 字段/枚举命名规范（已统一，权威）
 
-前后端目前有三份"真相源"：
-- **前端 App.tsx**（事实上使用的字段名）
-- **SWAGGER_OPENAPI.md**（中文 API 文档，字段跟前端对齐）
-- **IMPL_SPEC.md §3**（完整 OpenAPI spec，字段按"显式单位"规则）
+以下规范以 `IMPL_SPEC.md` / `SWAGGER_OPENAPI.md` 为权威，前端需一次性重构到位：
 
-三者打架的具体字段：
+| 语义 | 字段名 | 类型 | 示例 |
+|------|--------|------|------|
+| 检测间隔 | `interval_sec` | int（秒）| `30` |
+| 超时 | `timeout_ms` | int（毫秒）| `5000` |
+| 协议 | `protocol` | enum | `http` / `tcp` / `ws` / `dns` / `icmp` / `push` |
+| 采集方式（UI 糖） | `mode`（仅前端 UI 保留） | enum | `server` / `client`；UI 选 `client` 自动置 `protocol=push` |
+| 列表响应包装 | `{ data, pagination: { total, page, per_page } }` | — | — |
+| 错误包装 | `{ error: { code, message, details } }` | — | — |
+| 主键 ID | `int64`（JSON 数字）| — | `42` |
+| 服务 SLA | `sla_target`（可编辑目标）+ `current_sla`（计算值）| number | `99.9` / `99.97` |
+| 维护窗口名 | `title` 主 + `reason` 可选详情 | string | — |
 
-| 语义 | 前端 & Swagger | IMPL_SPEC | 建议 | 原因 |
-|------|----------------|-----------|------|------|
-| 检测间隔 | `interval_s` (int 秒) | `interval_sec` (int 秒) | **统一为 `interval_sec`** | 单位后缀显式，避免 `_s` 被误认为"复数/string" |
-| 超时 | `timeout_s` (int 秒) | `timeout_ms` (int 毫秒) | **统一为 `timeout_ms`** | 毫秒精度对 HTTP 探测有意义；后端大概率需要 ms |
-| 协议 | `type` ∈ {http, tcp, websocket, dns, icmp, push} | `protocol` ∈ {http, tcp, ws, icmp, push} | **统一为 `protocol`**；值用 `ws`（不是 websocket），**去掉 dns**（Phase 1 不支持） | `type` 是保留词易冲突；`ws` 和代码库 `gorilla/websocket` 对齐 |
-| 采集方式 | `mode` ∈ {server, client} | （用 `protocol=push` 表达） | **仅 `protocol`，去掉 `mode`** | 用 protocol 语义更一致；push 就是一种 protocol |
-| 列表响应包装 | `{ data: [], total: N }` | `{ data: [], pagination: {total,page,per_page} }` | **用 `pagination` 对象** | 便于未来加 `next_cursor` 等字段；`total` 裸字段太扁 |
-| 错误包装 | `{ error: { code, message, details } }` | `{ error, message }` | **用带 code 的嵌套对象** | 前端已在用这套；code 方便国际化 |
-| ID 类型 | 字符串 `"probe-1"` | `int64` | **用 int64（数字）** | PG BIGSERIAL 天然是数字；前端 JSON 里 JS 数字最大 2^53-1，探针量级远够；少一次字符串 ↔ 数字转换 |
-| 服务 SLA 字段 | `sla`（实时值） | `current_sla`（实时）+ `sla_target`（目标） | **拆两个字段** | 目标可编辑、实时是计算结果，合成一个字段会丢信息 |
-| 维护窗口名 | `reason` | `title` | **`title` 主字段 + `reason` 可选详情** | 列表展示需要短标题；reason 可写长描述 |
-
-**影响面**：前端几乎所有 probe/service 表单、列表需要改字段名；后端从 0 做不受历史包袱；`IMPL_SPEC.md` 保持为权威。
-
-### 待大哥拍板
-
-- [ ] **决策 A**：字段命名是否按上表"建议"列统一？（推荐**是**）
-- [ ] **决策 B**：如拍板统一，是否 **前端一次性重构**到新字段？还是**后端 API 先做老字段兼容**过渡？
-  - 推荐：前端一次性重构（成本集中但干净）；后端从第一天就用新字段
-- [ ] **决策 C**：dns 探测是否 Phase 1 就做？（推荐延后到 Phase 2）
-- [ ] **决策 D**：`mode=server/client` 前端 UI 要不要保留？（推荐**保留 UI 二选一**，但后端接口字段用 protocol；前端选 client 时自动把 protocol 置为 push）
+**影响面**：`packages/web/src/App.tsx`、`StatusPage.tsx` 所有 probe/service 表单与列表、mock 数据（`_initProbes`、`_initSvcs`、`genMock*`）、ID 字符串（`"probe-1"`）全部需改。后端从 Phase 0 第一天就按此规范写。
 
 ---
 
@@ -84,10 +71,7 @@
 - [ ] **批量操作**：多选 → 启停 / 删除（P2 优先级）
 - [ ] **标签 / 分组**：`metadata` 字段未暴露到 UI（P2 优先级）
 
-### 待大哥拍板
-
-- [ ] **决策 E**：高级配置（expect/assertions/auth/edge_policy）Phase 1 全部做 UI，还是仅做 expect？
-  - 推荐：**expect + auth（bearer/basic/apikey）先做**；assertions 和 oauth2 放 Phase 2
+**已决**：Phase 1 做 `expect` 全集 + `auth`（bearer/basic/apikey）。`assertions` 与 `oauth2` 推后到 Phase 2；`edge_policy` 跟 Edge 探测一起放 Phase 3。
 
 ---
 
@@ -102,12 +86,9 @@
 - [ ] 筛选：时间范围（24h/7d/30d/90d）、服务、状态（firing/resolved）
 - [ ] 点击展开详情（复用已有的 `IncidentDetailModal` 组件）
 
-### 待大哥拍板
-
-- [ ] **决策 F**：Events 页的数据源是"告警事件流"还是"故障区间流"？
-  - 建议：**融合视图**——一条记录包含 fault_interval + 触发的 alert_event。后端加一个合成接口 `GET /api/v1/incidents`
-- [ ] **决策 G**：维护窗口内的故障是否在 Events 页展示？
-  - 建议：**默认不展示**，加"包含维护期"筛选开关
+**已决**：
+- Events 数据源为**融合视图**，后端合成 `GET /api/v1/incidents`（一条记录 = fault_interval + 关联的 alert_event）
+- 维护期内故障**默认不展示**，列表顶部加"包含维护期"开关
 
 ---
 
@@ -137,12 +118,9 @@ Overview  |  Services  |  Probes  |  Incidents  |  Alerts  |  Settings
 - Events → Incidents（术语统一，行业通用）
 - Alerts 独立成一级 tab
 
-### 待大哥拍板
-
-- [ ] **决策 H**：是否重排 tab？还是只在 Settings 下加子菜单？
-  - 推荐：**重排成 6 个一级 tab**
-- [ ] **决策 I**：第一版通知渠道支持哪几种？
-  - 推荐：**webhook + email** 两个 P0；slack + pagerduty 做 P1；钉钉/飞书 视需求
+**已决**：
+- Tab 重排为 `Overview / Services / Probes / Incidents / Alerts / Settings` 六个一级 tab
+- 第一版通知渠道：**Webhook + Email**（P0）；Slack + PagerDuty 放 P1；钉钉/飞书视需求插队
 
 ---
 
@@ -175,10 +153,7 @@ Overview  |  Services  |  Probes  |  Incidents  |  Alerts  |  Settings
 - [ ] `GET /api/v1/status/{slug}`：按 slug 返回该 status page 的服务列表 + 90d bar
 - [ ] `POST /api/v1/status-pages` CRUD（stub 已在 `api/server.go` 有骨架，未实装）
 
-### 待大哥拍板
-
-- [ ] **决策 J**：第一版是单 status page（就一个公开地址）还是多 status page？
-  - 推荐：**先单页**，品牌自定义（logo + 颜色）Phase 2
+**已决**：第一版**单页**（全局公开地址）；多 slug + 品牌自定义（logo/配色）推后到 Phase 2。
 
 ---
 
@@ -199,10 +174,7 @@ Overview  |  Services  |  Probes  |  Incidents  |  Alerts  |  Settings
 - [ ] Service Worker push 事件处理 → 弹系统通知
 - [ ] 后端 `POST /api/v1/push-subscriptions` 存储订阅 endpoint（Phase 2+）
 
-### 待大哥拍板
-
-- [ ] **决策 K**：PWA 离线缓存做到什么程度？
-  - 推荐：**App shell 离线（Overview 框架 + 最近缓存数据）**，告警通知不依赖 Web Push（用 webhook/邮件即可；Web Push 需要后端维护 VAPID 和 endpoint，复杂度高收益低）
+**已决**：**仅 App shell 离线**（Overview 框架 + 最近缓存数据）；**不做 Web Push**（告警走 webhook/邮件即可，Web Push 的 VAPID/endpoint 运维成本不划算）。
 
 ---
 
@@ -253,11 +225,21 @@ Step 6: 启动后端 Phase 1（探测内核），前端同步做 P1 项
 
 ---
 
-## 10. 已结决策记录（当决议完成后从 §1-§8 移到这里）
+## 10. 已结决策记录
 
-| 决策编号 | 结论 | 日期 | 备注 |
-|---------|------|------|------|
-| （空） | | | |
+| # | 决策 | 结论 | 日期 |
+|---|------|------|------|
+| A | 字段命名统一（`interval_sec`/`timeout_ms`/`protocol`/`pagination`/`int64` ID） | ✅ 同意；权威规范见 §1 | 2026-04-19 |
+| B | 前端重构路径 | ✅ 前端一次性改到新字段；后端 Phase 0 直接按新字段实现，不做兼容层 | 2026-04-19 |
+| C | DNS 探测优先级 | ✅ **Phase 1 就做**；`protocol` 枚举补 `dns` | 2026-04-19 |
+| D | `mode=server/client` 前端 UI | ✅ **保留 UI**（视觉二选一），后端只存 `protocol`；选 `client` 时前端自动置 `protocol=push` | 2026-04-19 |
+| E | Probes 高级配置第一版范围 | ✅ `expect` 全集 + `auth`(bearer/basic/apikey) 做；`assertions` + `oauth2` → Phase 2；`edge_policy` → Phase 3 | 2026-04-19 |
+| F | Events 数据源 | ✅ 融合视图，后端合成 `GET /api/v1/incidents`（fault_interval + alert_event 合并为一条） | 2026-04-19 |
+| G | 维护期内故障展示 | ✅ 默认不展示，顶部加"包含维护期"开关 | 2026-04-19 |
+| H | Tab 重排 | ✅ 六个一级 tab：`Overview / Services / Probes / Incidents / Alerts / Settings` | 2026-04-19 |
+| I | 第一版通知渠道 | ✅ Webhook + Email（P0）；Slack + PagerDuty 放 P1；钉钉/飞书视需求 | 2026-04-19 |
+| J | Public Status Page 第一版 | ✅ 单页（全局地址）；多 slug + 品牌自定义放 Phase 2 | 2026-04-19 |
+| K | PWA 离线策略 | ✅ 仅 App shell 离线；不做 Web Push | 2026-04-19 |
 
 ---
 
@@ -266,3 +248,4 @@ Step 6: 启动后端 Phase 1（探测内核），前端同步做 P1 项
 | 日期 | 变更 | Commit |
 |------|------|--------|
 | 2026-04-19 | 初版：盘点前端现状，列出 11 个待决产品决策与 3 档优先级清单 | — |
+| 2026-04-19 | 决策 A–K 落定；§1 从"冲突表"改为"已统一规范"；新增 §10 决策记录 | — |

@@ -14,7 +14,7 @@
 | 维度 | 说明 |
 |------|------|
 | 产品定位 | 轻量 SLA 监控平台（私有化/单二进制友好，可扩展至多实例） |
-| 采集模式 | **服务端主动探测**（http/tcp/ws/icmp）+ **客户端心跳上报**（push）+ **多地域 Edge 探测**（可选） |
+| 采集模式 | **服务端主动探测**（http/tcp/ws/dns/icmp）+ **客户端心跳上报**（push）+ **多地域 Edge 探测**（可选） |
 | 计算维度 | 探针级 & 服务级 SLA；支持 7d/30d/90d/180d/365d 滚动窗口 |
 | 告警能力 | 连续失败 / SLA 低于阈值 / 延迟超限 / 断言变更 |
 | 部署形态 | 单实例本地（SQLite）→ 单实例生产（PG+Redis）→ 多实例协同（PG 仲裁） |
@@ -141,7 +141,7 @@ Worker (从 workerCh 消费)
   │
   ├─ 从 sync.Pool 取 Result 结构体
   ├─ context.WithTimeout(min(interval*0.8, timeout_ms))
-  ├─ 按 protocol 分发: http/tcp/ws/icmp
+  ├─ 按 protocol 分发: http/tcp/ws/dns/icmp
   ├─ 成功 → 判定 expect 规则
   │   ├─ 全部满足 → status = up
   │   ├─ 仅 latency 超限 → status = degraded
@@ -283,6 +283,8 @@ if len(downReports) >= ceil(len(activeEdges)/2) {
 | 5 | 多实例仲裁用 PG advisory lock | etcd、consul | 不引入新中间件；租约随 DB 一起存活 |
 | 6 | 前端 inline styles + Context | Tailwind / CSS-in-JS | 已落地约定（见 `CLAUDE.md`），不重构 |
 | 7 | API 字段命名采用 `_sec/_ms` 显式单位 | `_s` 或无后缀 | 消除 `timeout=5` 到底是 s 还是 ms 的歧义；见 `FRONTEND_GAPS.md §1` |
+| 8 | 主键 ID 用 `int64` 数字（非字符串） | UUID / 字符串 ID | PG BIGSERIAL 天然是数字；JSON 里 JS 数字安全范围 2^53-1 对探针量级完全够；少一次 ↔ 转换；2026-04-19 决策 A |
+| 9 | 前端保留 `mode=server/client` 视觉糖，后端只存 `protocol` | 完全只用 `protocol` | 用户视角 server vs client 比"选 protocol=push"直观；表单内部映射；2026-04-19 决策 D |
 
 ---
 
@@ -305,3 +307,4 @@ if len(downReports) >= ceil(len(activeEdges)/2) {
 | 日期 | 变更 | Commit |
 |------|------|--------|
 | 2026-04-19 | 初版：从 `IMPL_SPEC.md` 提炼架构总览，明确模块边界、数据流、降级策略、演进阶段 | — |
+| 2026-04-19 | 并入决策 A–K：补 `dns` 协议、补 ADR #8（int64 ID）、#9（`mode` 仅 UI 保留） | — |

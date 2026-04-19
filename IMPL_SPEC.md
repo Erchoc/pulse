@@ -82,14 +82,32 @@ CREATE TABLE tenants (
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- OIDC 身份提供方配置 (租户级) — 放在 users 之前以便 users.oidc_provider FK 引用
+CREATE TABLE identity_providers (
+    id              BIGSERIAL PRIMARY KEY,
+    tenant_id       BIGINT NOT NULL REFERENCES tenants(id),
+    name            TEXT NOT NULL,                  -- 展示用, 如 "Company SSO"
+    provider_type   TEXT NOT NULL DEFAULT 'oidc',   -- oidc (未来可扩 saml)
+    issuer_url      TEXT NOT NULL,                  -- IdP 的 issuer, 走 .well-known/openid-configuration 拉取其它端点
+    client_id       TEXT NOT NULL,
+    client_secret   TEXT NOT NULL,                  -- 应用层 AES-256-GCM 加密 (master key 走环境变量 PULSE_SECRETS_KEY; Phase 2+ 可接云 KMS)
+    scopes          TEXT[] DEFAULT '{openid,email,profile}',
+    auto_create     BOOLEAN DEFAULT TRUE,           -- 未匹配用户时是否自动创建
+    default_role    TEXT DEFAULT 'member',          -- 自动创建时赋予的角色
+    enabled         BOOLEAN DEFAULT TRUE,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE UNIQUE INDEX idx_idp_tenant ON identity_providers(tenant_id, issuer_url);
+
 CREATE TABLE users (
     id              BIGSERIAL PRIMARY KEY,
     tenant_id       BIGINT NOT NULL REFERENCES tenants(id),
     email           TEXT NOT NULL UNIQUE,
-    password_hash   TEXT,                          -- 可空: OIDC 用户无本地密码; bcrypt
+    password_hash   TEXT,                          -- 可空: OIDC 用户无本地密码; bcrypt cost=12
     role            TEXT NOT NULL DEFAULT 'member',-- owner | admin | member
     auth_source     TEXT NOT NULL DEFAULT 'local', -- local | oidc
-    oidc_provider   TEXT,                           -- 对应 identity_providers.id 或 issuer 标识 (当 auth_source=oidc)
+    oidc_provider   BIGINT REFERENCES identity_providers(id) ON DELETE SET NULL,
+                                                    -- 严格 FK; IdP 删除时用户降级为"孤立 OIDC 账号" (需管理员处理)
     oidc_sub        TEXT,                           -- IdP 返回的 sub claim, 和 oidc_provider 联合唯一
     name            TEXT,                           -- 显示名 (OIDC 或本地注册带上)
     avatar_url      TEXT,
@@ -100,24 +118,7 @@ CREATE UNIQUE INDEX idx_users_oidc
     ON users (oidc_provider, oidc_sub)
     WHERE oidc_sub IS NOT NULL;
 
--- OIDC 身份提供方配置 (租户级)
-CREATE TABLE identity_providers (
-    id              BIGSERIAL PRIMARY KEY,
-    tenant_id       BIGINT NOT NULL REFERENCES tenants(id),
-    name            TEXT NOT NULL,                  -- 展示用, 如 "Company SSO"
-    provider_type   TEXT NOT NULL DEFAULT 'oidc',   -- oidc (未来可扩 saml)
-    issuer_url      TEXT NOT NULL,                  -- IdP 的 issuer, 走 .well-known/openid-configuration 拉取其它端点
-    client_id       TEXT NOT NULL,
-    client_secret   TEXT NOT NULL,                  -- 应用层 AES 加密存储 (master key 走环境变量)
-    scopes          TEXT[] DEFAULT '{openid,email,profile}',
-    auto_create     BOOLEAN DEFAULT TRUE,           -- 未匹配用户时是否自动创建
-    default_role    TEXT DEFAULT 'member',          -- 自动创建时赋予的角色
-    enabled         BOOLEAN DEFAULT TRUE,
-    created_at      TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE UNIQUE INDEX idx_idp_tenant ON identity_providers(tenant_id, issuer_url);
-
--- Refresh Token (access_token 15min; refresh_token 可吊销)
+-- Refresh Token (access_token 15min; refresh_token 默认每次刷新轮换, 可吊销)
 CREATE TABLE refresh_tokens (
     id              BIGSERIAL PRIMARY KEY,
     user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -991,7 +992,12 @@ paths:
   # ── Auth ── (均无需 API Key / Bearer 认证, 除 /auth/me 和 /auth/logout)
   /auth/register:
     post:
-      summary: 邮箱密码注册 (单租户首用户自动 owner)
+      summary: 邮箱密码注册 (仅首次用户可注册, 自动 owner)
+      description: |
+        Phase 0 MVP 行为：
+        - 当 `users` 表为空时：接受注册，创建用户并设置 `role=owner`，该用户所在 tenant=1
+        - 当 `users` 表非空时：返回 403 REGISTRATION_CLOSED，后续新用户走邀请制（Phase 2+）
+        密码最小 8 字符、不强制复杂度混合（UX 优先，由用户自行选择强度）。
       tags: [Auth]
       security: []
       requestBody:
@@ -1010,6 +1016,8 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/TokenPair'
+        '403':
+          description: 已存在用户, 注册入口关闭 (走邀请)
         '409':
           description: email 已存在
 
@@ -2048,10 +2056,13 @@ auth:
   # JWT 签名密钥，建议 32+ 字节随机串；走环境变量 PULSE_JWT_SECRET 覆盖
   jwt_secret: "${PULSE_JWT_SECRET}"
   access_token_ttl:  15m
-  refresh_token_ttl: 168h          # 7d，可吊销
+  refresh_token_ttl: 168h                # 7d，可吊销
+  rotate_refresh_tokens: true            # 每次 /auth/refresh 吊销旧 token 并发新的
+  password_min_length: 8                 # 最小 8 字符；不强制复杂度，UX 优先
   # OIDC 回调 base URL（公网可达）；callback 路径固定 /api/v1/auth/oidc/callback
   oidc_redirect_base: "https://pulse.example.com"
   # IdP client_secret 加密的 master key（AES-256-GCM）；走环境变量 PULSE_SECRETS_KEY
+  # Phase 2+ 可替换为云 KMS（阿里云 KMS / AWS KMS）的 data-key 封装方案
   secrets_key: "${PULSE_SECRETS_KEY}"
   # 认证豁免路径（白名单），以下路由无需 JWT/API Key
   exempt_paths:
@@ -2062,7 +2073,7 @@ auth:
     - /api/v1/auth/refresh
     - /api/v1/auth/oidc/*
     - /api/v1/push/*
-    - /api/v1/edge/*               # edge 走 mTLS
+    - /api/v1/edge/*                     # edge 走 mTLS
 
 log:
   level: info
@@ -2216,8 +2227,13 @@ Request ──▶ exempt_paths? ─┤                                 ├─▶
 /auth/refresh
   │
   ├─ 校验 refresh_token（hash 查表 + 未 revoked + 未过期）
-  ├─ （可选）轮换: revoke 旧 refresh_token, 发新的
-  └─ 返回新 access_token (+ 可选新 refresh_token)
+  ├─ 轮换（默认开启, config.auth.rotate_refresh_tokens=true）:
+  │    revoke 旧 refresh_token (UPDATE revoked_at=NOW()), 签发新 refresh_token
+  └─ 返回新 access_token (+ 新 refresh_token, 若轮换开启)
+
+/auth/refresh 的防重放:
+  泄露的旧 refresh_token 被重复使用 → 查到 revoked_at IS NOT NULL →
+  视为"疑似泄露": revoke 该用户所有未过期 refresh_token + 强制重新登录 + 记审计日志
 
 /auth/logout
   └─ UPDATE refresh_tokens SET revoked_at=NOW() WHERE token_hash=...

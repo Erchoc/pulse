@@ -53,11 +53,15 @@
     - 白名单：`/healthz`、`/metrics`、`/api/v1/auth/*`、`/api/v1/push/*`、`/api/v1/edge/*`
     - 白名单未命中且两种凭证都缺/都失败 → 401
   - [ ] **本地账号流程**（`handler/auth.go`）
-    - `POST /auth/register`（首用户自动 owner；其余按默认 `member`）
+    - `POST /auth/register`
+      - `users` 表空 → 创建并设 `role=owner`
+      - 非空 → 返回 403 `REGISTRATION_CLOSED`（后续新用户走邀请制 Phase 2+）
+      - 密码最小 8 字符（`auth.password_min_length`）、不强制复杂度
     - `POST /auth/login` / `POST /auth/refresh` / `POST /auth/logout`
     - `GET /auth/me`
     - `refresh_token` 存 `refresh_tokens` 表（SHA256 hash + 显式 revoked_at）
-    - （可选）refresh 轮换：每次 refresh 吊销旧 token 发新 token
+    - **默认轮换**（`auth.rotate_refresh_tokens=true`）：每次 refresh 吊销旧 token 发新 token
+    - **防重放**：用到已 revoked 的 refresh_token → 视为泄露 → revoke 该用户所有 refresh + 记审计日志
   - [ ] **OIDC 流程**（`oidc.go` + `handler/auth.go`）
     - `GET /auth/oidc/{provider_id}/authorize` 生成 state+nonce 入 HttpOnly cookie，302 到 IdP
     - `GET /auth/oidc/callback` 校验 state → go-oidc 换 token → 验证 id_token → 按 `(oidc_provider, sub)` 查/建 user → 签 JWT → 302 到前端

@@ -240,6 +240,12 @@ Step 6: 启动后端 Phase 1（探测内核），前端同步做 P1 项
 | I | 第一版通知渠道 | ✅ Webhook + Email（P0）；Slack + PagerDuty 放 P1；钉钉/飞书视需求 | 2026-04-19 |
 | J | Public Status Page 第一版 | ✅ 单页（全局地址）；多 slug + 品牌自定义放 Phase 2 | 2026-04-19 |
 | K | PWA 离线策略 | ✅ 仅 App shell 离线；不做 Web Push | 2026-04-19 |
+| L | 首用户注册作用域 | ✅ users 表空时接受并设 owner；非空时 403（后续走邀请 Phase 2+） | 2026-04-19 |
+| M | `users.oidc_provider` 字段类型 | ✅ `BIGINT REFERENCES identity_providers(id) ON DELETE SET NULL`；严格 FK | 2026-04-19 |
+| N | refresh_token 是否轮换 | ✅ 默认轮换 + 防重放（`auth.rotate_refresh_tokens=true` 可配置） | 2026-04-19 |
+| O | 密码最小长度 | ✅ 8 字符，不强制复杂度（UX 优先，由用户自选强度） | 2026-04-19 |
+| P | IdP client_secret 加密 key 管理 | ✅ 环境变量 `PULSE_SECRETS_KEY`（AES-256-GCM）；Phase 2+ 可接云 KMS | 2026-04-19 |
+| Q | OIDC 回调 token 传递方式 | ⏳ **待定**：方案 A(URL hash) / B(HttpOnly cookie, 推荐) / C(session code) | — |
 
 ---
 
@@ -249,3 +255,4 @@ Step 6: 启动后端 Phase 1（探测内核），前端同步做 P1 项
 |------|------|--------|
 | 2026-04-19 | 初版：盘点前端现状，列出 11 个待决产品决策与 3 档优先级清单 | — |
 | 2026-04-19 | 决策 A–K 落定；§1 从"冲突表"改为"已统一规范"；新增 §10 决策记录 | — |
+| 2026-04-19 | 认证补丁: 决策 L–P 落定（首用户/FK/轮换/密码/加密）；Q 待定 OIDC token 传递方式 | — |

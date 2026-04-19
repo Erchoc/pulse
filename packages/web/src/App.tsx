@@ -154,7 +154,9 @@ const msg = {
     dnsDesc: 'DNS Lookup',
     icmpDesc: 'ICMP Ping',
     pushDesc: 'Client Push Heartbeat',
+    basicOptions: 'Basic',
     advancedOptions: 'Advanced',
+    regionRequired: 'Select at least one region',
     expectStatusCodes: 'Expected status codes',
     expectStatusCodesHint: 'Comma-separated, e.g. 200,204',
     expectKeyword: 'Keyword in response body',
@@ -441,7 +443,9 @@ const msg = {
     dnsDesc: 'DNS 解析',
     icmpDesc: 'ICMP Ping',
     pushDesc: '客户端推送心跳',
+    basicOptions: '基础配置',
     advancedOptions: '高级配置',
+    regionRequired: '至少选择一个探测区域',
     expectStatusCodes: '预期状态码',
     expectStatusCodesHint: '逗号分隔，如 200,204',
     expectKeyword: '响应体关键词',
@@ -3769,11 +3773,15 @@ function ProbeForm({ probe, onSave, onCancel }) {
     },
   )
   const upd = (k, v) => setForm((p) => ({ ...p, [k]: v }))
-  const nameError = form.name.length > 32
   const isClient = form.mode === 'client'
-  const [advOpen, setAdvOpen] = useState(false)
+  const nameError = !form.name.trim() || form.name.length > 32
+  // client (push) 模式不需要选择部署区域；server 模式必选 ≥ 1 个
+  const regionsError = !isClient && (form.regions || []).length === 0
+  // Accordion: basic vs advanced 互斥展开; 默认 basic
+  const [section, setSection] = useState<'basic' | 'advanced'>('basic')
   const supportsExpect = form.protocol === 'http' || form.protocol === 'ws'
   const supportsAuth = form.protocol === 'http'
+  const hasAdvanced = (supportsExpect || supportsAuth) && !isClient
   const expect = form.expect || {}
   const auth = form.auth || { type: 'none' }
   const updExpect = (k: string, v: unknown) =>
@@ -3782,7 +3790,7 @@ function ProbeForm({ probe, onSave, onCancel }) {
     setForm((p) => ({ ...p, auth: { ...(p.auth || { type: 'none' }), [k]: v } }))
 
   const serverTypeOpts: { value: Protocol; label: string }[] = [
-    { value: 'http', label: 'HTTP(S)' },
+    { value: 'http', label: 'HTTP/HTTPS' },
     { value: 'ws', label: 'WebSocket' },
     { value: 'tcp', label: 'TCP' },
     { value: 'dns', label: 'DNS' },
@@ -3814,475 +3822,516 @@ function ProbeForm({ probe, onSave, onCancel }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <span
+      {/* Section tab bar — 仅在支持高级配置的协议下展示；点击切换基础/高级，
+           两者互斥，避免表单高度在展开时突兀抖动 */}
+      {hasAdvanced && (
+        <div
           style={{
-            fontSize: 12,
-            color: nameError ? t.status.down : t.text.muted,
-            display: 'block',
-            marginBottom: 4,
+            display: 'flex',
+            gap: 4,
+            padding: 3,
+            backgroundColor: t.bg.input,
+            borderRadius: 8,
           }}
         >
-          {i18n.probeName}
-        </span>
-        <Input
-          value={form.name}
-          onChange={(v) => upd('name', v)}
-          placeholder={lang === 'zh' ? '测试服务' : 'Test Service'}
-          maxLength={32}
-        />
-        {nameError && (
-          <span style={{ fontSize: 11, color: t.status.down, marginTop: 4, display: 'block' }}>
-            {i18n.nameTooLong}
-          </span>
-        )}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div>
-          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
-            {i18n.probeMode}
-          </span>
-          <Select value={form.mode} onChange={handleModeChange} options={modeOpts} />
-        </div>
-        <div>
-          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
-            {i18n.probeType}
-          </span>
-          {isClient ? (
-            <div
-              style={{
-                padding: '8px 12px',
-                backgroundColor: t.bg.input,
-                border: `1px solid ${t.border}`,
-                borderRadius: 8,
-                fontSize: 13,
-                color: t.text.muted,
-                fontFamily: F.sans,
-              }}
-            >
-              Push
-            </div>
-          ) : (
-            <Select
-              value={form.protocol}
-              onChange={(v) => upd('protocol', v)}
-              options={serverTypeOpts}
-            />
-          )}
-        </div>
-      </div>
-      <div>
-        <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
-          {i18n.probeUrl}
-        </span>
-        {isClient ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            {form.push_token ? (
-              <div
-                style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  backgroundColor: t.bg.input,
-                  border: `1px solid ${t.border}`,
-                  borderRadius: 8,
-                  fontSize: 13,
-                  color: t.text.secondary,
-                  fontFamily: F.mono,
-                  userSelect: 'all',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {`${window.location.origin}/api/v1/push/${form.push_token}`}
-              </div>
-            ) : (
-              <Btn
-                variant="ghost"
-                onClick={() => {
-                  // TODO(API 对接): 调用 POST /api/v1/probes 由后端生成 push_token；
-                  // 当前前端 mock 生成一个 32 字符 token 作为占位
-                  const tok = Array.from(
-                    { length: 32 },
-                    () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)],
-                  ).join('')
-                  upd('push_token', tok)
-                  upd('target', `push://${tok}`)
-                }}
-              >
-                {lang === 'zh' ? '生成 Push Token' : 'Generate Push Token'}
-              </Btn>
-            )}
-            <a
-              href="https://www.baidu.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              title={lang === 'zh' ? '查看接入文档' : 'View integration docs'}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 32,
-                height: 32,
-                borderRadius: 6,
-                backgroundColor: t.bg.input,
-                border: `1px solid ${t.border}`,
-                color: t.text.muted,
-                textDecoration: 'none',
-                flexShrink: 0,
-                transition: 'color .15s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = t.accent
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = t.text.muted
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <title>{lang === 'zh' ? '查看接入文档' : 'View integration docs'}</title>
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <polyline points="15 3 21 3 21 9" />
-                <line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-            </a>
-          </div>
-        ) : (
-          <Input
-            value={form.target}
-            onChange={(v) => upd('target', v)}
-            placeholder={
-              form.protocol === 'ws'
-                ? 'wss://api.example.com/ws'
-                : form.protocol === 'tcp'
-                  ? 'api.example.com:3306'
-                  : form.protocol === 'dns'
-                    ? 'example.com@8.8.8.8?type=A'
-                    : 'https://api.example.com/health'
-            }
-          />
-        )}
-      </div>
-      <div>
-        <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
-          {i18n.probeInterval}
-        </span>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-          {intervalOpts.map((o) => (
+          {(['basic', 'advanced'] as const).map((s) => (
             <button
               type="button"
-              key={o.value}
-              onClick={() => upd('interval_sec', o.value)}
+              key={s}
+              onClick={() => setSection(s)}
               style={{
-                padding: '6px 0',
-                borderRadius: 6,
+                flex: 1,
+                padding: '8px 12px',
                 fontSize: 12,
-                fontFamily: F.mono,
+                fontWeight: 600,
+                fontFamily: F.sans,
                 cursor: 'pointer',
-                border: `1px solid ${o.value === form.interval_sec ? `${t.accent}55` : t.border}`,
-                backgroundColor: o.value === form.interval_sec ? t.accentMuted : 'transparent',
-                color: o.value === form.interval_sec ? t.text.primary : t.text.secondary,
+                border: 'none',
+                borderRadius: 6,
+                backgroundColor: section === s ? t.bg.card : 'transparent',
+                color: section === s ? t.text.primary : t.text.muted,
+                boxShadow: section === s ? t.shadow : 'none',
                 transition: 'all .15s',
               }}
             >
-              {o.label}
+              {s === 'basic' ? i18n.basicOptions : i18n.advancedOptions}
             </button>
           ))}
         </div>
-      </div>
-      <div>
-        <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
-          {i18n.probeRegion}
-        </span>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-          {[
-            { value: 'zhangjiakou', label: i18n.regionZjk },
-            { value: 'shenzhen', label: i18n.regionSz },
-            { value: 'shanghai', label: i18n.regionSh },
-            { value: 'hongkong', label: i18n.regionHk },
-            { value: 'sea', label: i18n.regionSea },
-            { value: 'eu', label: i18n.regionEu },
-            { value: 'us-east', label: i18n.regionUsEast },
-            { value: 'us-west', label: i18n.regionUsWest },
-          ].map((o) => {
-            const selected = (form.regions || []).includes(o.value)
-            return (
-              <button
-                type="button"
-                key={o.value}
-                onClick={() => {
-                  const cur: string[] = form.regions || []
-                  const next = selected ? cur.filter((r) => r !== o.value) : [...cur, o.value]
-                  if (next.length > 0) upd('regions', next)
-                }}
+      )}
+
+      {section === 'basic' && (
+        <>
+          <div>
+            <span
+              style={{
+                fontSize: 12,
+                color: nameError ? t.status.down : t.text.muted,
+                display: 'block',
+                marginBottom: 4,
+              }}
+            >
+              {i18n.probeName}
+            </span>
+            <Input
+              value={form.name}
+              onChange={(v) => upd('name', v)}
+              placeholder={lang === 'zh' ? '测试服务' : 'Test Service'}
+              maxLength={32}
+            />
+            {nameError && (
+              <span style={{ fontSize: 11, color: t.status.down, marginTop: 4, display: 'block' }}>
+                {i18n.nameTooLong}
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <span
+                style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}
+              >
+                {i18n.probeMode}
+              </span>
+              <Select value={form.mode} onChange={handleModeChange} options={modeOpts} />
+            </div>
+            <div>
+              <span
+                style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}
+              >
+                {i18n.probeType}
+              </span>
+              {isClient ? (
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    backgroundColor: t.bg.input,
+                    border: `1px solid ${t.border}`,
+                    borderRadius: 8,
+                    fontSize: 13,
+                    color: t.text.muted,
+                    fontFamily: F.sans,
+                  }}
+                >
+                  Push
+                </div>
+              ) : (
+                <Select
+                  value={form.protocol}
+                  onChange={(v) => upd('protocol', v)}
+                  options={serverTypeOpts}
+                />
+              )}
+            </div>
+          </div>
+          <div>
+            <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+              {i18n.probeUrl}
+            </span>
+            {isClient ? (
+              <div
                 style={{
-                  padding: '6px 0',
-                  borderRadius: 6,
-                  fontSize: 12,
-                  fontFamily: F.sans,
-                  cursor: 'pointer',
-                  border: `1px solid ${selected ? `${t.accent}55` : t.border}`,
-                  backgroundColor: selected ? t.accentMuted : 'transparent',
-                  color: selected ? t.text.primary : t.text.secondary,
-                  transition: 'all .15s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
                 }}
               >
-                {o.label}
-              </button>
-            )
-          })}
-        </div>
-        <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div
-            style={{
-              padding: '6px 10px',
-              borderRadius: 6,
-              fontSize: 11,
-              lineHeight: 1.5,
-              color: t.text.muted,
-              backgroundColor: t.bg.input,
-            }}
-          >
-            {i18n.regionDomesticHint}
-          </div>
-          {(form.regions || []).some((r) =>
-            ['hongkong', 'sea', 'eu', 'us-east', 'us-west'].includes(r),
-          ) && (
-            <div
-              style={{
-                padding: '6px 10px',
-                borderRadius: 6,
-                fontSize: 11,
-                lineHeight: 1.5,
-                color: t.status.down,
-                backgroundColor: `${t.status.down}12`,
-                border: `1px solid ${t.status.down}25`,
-              }}
-            >
-              {i18n.regionOverseasWarn}
-            </div>
-          )}
-        </div>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div>
-          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
-            {i18n.probeTimeout}
-          </span>
-          <Select
-            value={form.timeout_ms}
-            onChange={(v) => upd('timeout_ms', v)}
-            options={timeoutOpts}
-          />
-        </div>
-        <div>
-          <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
-            {i18n.slaTarget}
-          </span>
-          <Input
-            value={String(form.sla_target ?? 99)}
-            onChange={(v) => {
-              const filtered = v.replace(/[^0-9.]/g, '')
-              if (filtered.length <= 5) upd('sla_target', filtered)
-            }}
-            placeholder="99.9"
-            maxLength={5}
-          />
-        </div>
-      </div>
-
-      {(supportsExpect || supportsAuth) && !isClient && (
-        <div
-          style={{
-            border: `1px solid ${t.border}`,
-            borderRadius: 8,
-            backgroundColor: t.bg.input,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setAdvOpen((v) => !v)}
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 12,
-              fontWeight: 600,
-              color: t.text.secondary,
-              fontFamily: F.sans,
-            }}
-          >
-            <span>{i18n.advancedOptions}</span>
-            <span style={{ fontSize: 10 }}>{advOpen ? '▲' : '▼'}</span>
-          </button>
-          {advOpen && (
-            <div
-              style={{
-                padding: '12px',
-                borderTop: `1px solid ${t.border}`,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
-              }}
-            >
-              {supportsExpect && (
-                <>
-                  <div>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: t.text.muted,
-                        display: 'block',
-                        marginBottom: 4,
-                      }}
-                    >
-                      {i18n.expectStatusCodes}
-                    </span>
-                    <Input
-                      value={(expect.status_codes || []).join(',')}
-                      onChange={(v) => {
-                        const arr = v
-                          .split(',')
-                          .map((s) => Number.parseInt(s.trim(), 10))
-                          .filter((n) => Number.isFinite(n) && n > 0)
-                        updExpect('status_codes', arr)
-                      }}
-                      placeholder={i18n.expectStatusCodesHint}
-                    />
-                  </div>
-                  <div>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: t.text.muted,
-                        display: 'block',
-                        marginBottom: 4,
-                      }}
-                    >
-                      {i18n.expectKeyword}
-                    </span>
-                    <Input
-                      value={expect.keyword || ''}
-                      onChange={(v) => updExpect('keyword', v)}
-                      placeholder={i18n.expectKeywordPh}
-                    />
-                  </div>
-                  <div>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: t.text.muted,
-                        display: 'block',
-                        marginBottom: 4,
-                      }}
-                    >
-                      {i18n.expectMaxLatency}
-                    </span>
-                    <Input
-                      value={String(expect.max_latency_ms || '')}
-                      onChange={(v) => {
-                        const n = Number.parseInt(v.replace(/[^0-9]/g, ''), 10)
-                        updExpect('max_latency_ms', Number.isFinite(n) ? n : 0)
-                      }}
-                      placeholder={i18n.expectMaxLatencyHint}
-                    />
-                  </div>
-                </>
-              )}
-
-              {supportsAuth && (
-                <div>
-                  <span
+                {form.push_token ? (
+                  <div
                     style={{
-                      fontSize: 12,
-                      color: t.text.muted,
-                      display: 'block',
-                      marginBottom: 4,
+                      flex: 1,
+                      padding: '8px 12px',
+                      backgroundColor: t.bg.input,
+                      border: `1px solid ${t.border}`,
+                      borderRadius: 8,
+                      fontSize: 13,
+                      color: t.text.secondary,
+                      fontFamily: F.mono,
+                      userSelect: 'all',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
                   >
-                    {i18n.authType}
-                  </span>
-                  <Select
-                    value={auth.type || 'none'}
-                    onChange={(v) => updAuth('type', v)}
-                    options={[
-                      { value: 'none', label: i18n.authNone },
-                      { value: 'apikey', label: i18n.authApikey },
-                      { value: 'bearer', label: i18n.authBearer },
-                      { value: 'basic', label: i18n.authBasic },
-                    ]}
+                    {`${window.location.origin}/api/v1/push/${form.push_token}`}
+                  </div>
+                ) : (
+                  <Btn
+                    variant="ghost"
+                    onClick={() => {
+                      // TODO(API 对接): 调用 POST /api/v1/probes 由后端生成 push_token；
+                      // 当前前端 mock 生成一个 32 字符 token 作为占位
+                      const tok = Array.from(
+                        { length: 32 },
+                        () =>
+                          'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)],
+                      ).join('')
+                      upd('push_token', tok)
+                      upd('target', `push://${tok}`)
+                    }}
+                  >
+                    {lang === 'zh' ? '生成 Push Token' : 'Generate Push Token'}
+                  </Btn>
+                )}
+                <a
+                  href="https://www.baidu.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={lang === 'zh' ? '查看接入文档' : 'View integration docs'}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 32,
+                    height: 32,
+                    borderRadius: 6,
+                    backgroundColor: t.bg.input,
+                    border: `1px solid ${t.border}`,
+                    color: t.text.muted,
+                    textDecoration: 'none',
+                    flexShrink: 0,
+                    transition: 'color .15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = t.accent
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = t.text.muted
+                  }}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <title>{lang === 'zh' ? '查看接入文档' : 'View integration docs'}</title>
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </a>
+              </div>
+            ) : (
+              <Input
+                value={form.target}
+                onChange={(v) => upd('target', v)}
+                placeholder={
+                  form.protocol === 'ws'
+                    ? 'wss://api.example.com/ws'
+                    : form.protocol === 'tcp'
+                      ? 'api.example.com:3306'
+                      : form.protocol === 'dns'
+                        ? 'example.com@8.8.8.8?type=A'
+                        : 'https://api.example.com/health'
+                }
+              />
+            )}
+          </div>
+          <div>
+            <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+              {i18n.probeInterval}
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              {intervalOpts.map((o) => (
+                <button
+                  type="button"
+                  key={o.value}
+                  onClick={() => upd('interval_sec', o.value)}
+                  style={{
+                    padding: '6px 0',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontFamily: F.mono,
+                    cursor: 'pointer',
+                    border: `1px solid ${o.value === form.interval_sec ? `${t.accent}55` : t.border}`,
+                    backgroundColor: o.value === form.interval_sec ? t.accentMuted : 'transparent',
+                    color: o.value === form.interval_sec ? t.text.primary : t.text.secondary,
+                    transition: 'all .15s',
+                  }}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <span
+              style={{
+                fontSize: 12,
+                color: regionsError ? t.status.down : t.text.muted,
+                display: 'block',
+                marginBottom: 4,
+              }}
+            >
+              {i18n.probeRegion}
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+              {[
+                { value: 'zhangjiakou', label: i18n.regionZjk },
+                { value: 'shenzhen', label: i18n.regionSz },
+                { value: 'shanghai', label: i18n.regionSh },
+                { value: 'hongkong', label: i18n.regionHk },
+                { value: 'sea', label: i18n.regionSea },
+                { value: 'eu', label: i18n.regionEu },
+                { value: 'us-east', label: i18n.regionUsEast },
+                { value: 'us-west', label: i18n.regionUsWest },
+              ].map((o) => {
+                const selected = (form.regions || []).includes(o.value)
+                return (
+                  <button
+                    type="button"
+                    key={o.value}
+                    onClick={() => {
+                      const cur: string[] = form.regions || []
+                      const next = selected ? cur.filter((r) => r !== o.value) : [...cur, o.value]
+                      // 允许清空：由 regionsError 飘红提示用户必选
+                      upd('regions', next)
+                    }}
+                    style={{
+                      padding: '6px 0',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontFamily: F.sans,
+                      cursor: 'pointer',
+                      border: `1px solid ${selected ? `${t.accent}55` : t.border}`,
+                      backgroundColor: selected ? t.accentMuted : 'transparent',
+                      color: selected ? t.text.primary : t.text.secondary,
+                      transition: 'all .15s',
+                    }}
+                  >
+                    {o.label}
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {regionsError && (
+                <div
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    lineHeight: 1.5,
+                    color: t.status.down,
+                    backgroundColor: `${t.status.down}12`,
+                    border: `1px solid ${t.status.down}25`,
+                  }}
+                >
+                  {i18n.regionRequired}
+                </div>
+              )}
+              <div
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  lineHeight: 1.5,
+                  color: t.text.muted,
+                  backgroundColor: t.bg.input,
+                }}
+              >
+                {i18n.regionDomesticHint}
+              </div>
+              {(form.regions || []).some((r) =>
+                ['hongkong', 'sea', 'eu', 'us-east', 'us-west'].includes(r),
+              ) && (
+                <div
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    lineHeight: 1.5,
+                    color: t.status.down,
+                    backgroundColor: `${t.status.down}12`,
+                    border: `1px solid ${t.status.down}25`,
+                  }}
+                >
+                  {i18n.regionOverseasWarn}
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <span
+                style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}
+              >
+                {i18n.probeTimeout}
+              </span>
+              <Select
+                value={form.timeout_ms}
+                onChange={(v) => upd('timeout_ms', v)}
+                options={timeoutOpts}
+              />
+            </div>
+            <div>
+              <span
+                style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}
+              >
+                {i18n.slaTarget}
+              </span>
+              <Input
+                value={String(form.sla_target ?? 99)}
+                onChange={(v) => {
+                  const filtered = v.replace(/[^0-9.]/g, '')
+                  if (filtered.length <= 5) upd('sla_target', filtered)
+                }}
+                placeholder="99.9"
+                maxLength={5}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {section === 'advanced' && hasAdvanced && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          {supportsExpect && (
+            <>
+              <div>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: t.text.muted,
+                    display: 'block',
+                    marginBottom: 4,
+                  }}
+                >
+                  {i18n.expectStatusCodes}
+                </span>
+                <Input
+                  value={(expect.status_codes || []).join(',')}
+                  onChange={(v) => {
+                    const arr = v
+                      .split(',')
+                      .map((s) => Number.parseInt(s.trim(), 10))
+                      .filter((n) => Number.isFinite(n) && n > 0)
+                    updExpect('status_codes', arr)
+                  }}
+                  placeholder={i18n.expectStatusCodesHint}
+                />
+              </div>
+              <div>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: t.text.muted,
+                    display: 'block',
+                    marginBottom: 4,
+                  }}
+                >
+                  {i18n.expectKeyword}
+                </span>
+                <Input
+                  value={expect.keyword || ''}
+                  onChange={(v) => updExpect('keyword', v)}
+                  placeholder={i18n.expectKeywordPh}
+                />
+              </div>
+              <div>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: t.text.muted,
+                    display: 'block',
+                    marginBottom: 4,
+                  }}
+                >
+                  {i18n.expectMaxLatency}
+                </span>
+                <Input
+                  value={String(expect.max_latency_ms || '')}
+                  onChange={(v) => {
+                    const n = Number.parseInt(v.replace(/[^0-9]/g, ''), 10)
+                    updExpect('max_latency_ms', Number.isFinite(n) ? n : 0)
+                  }}
+                  placeholder={i18n.expectMaxLatencyHint}
+                />
+              </div>
+            </>
+          )}
+
+          {supportsAuth && (
+            <div>
+              <span
+                style={{
+                  fontSize: 12,
+                  color: t.text.muted,
+                  display: 'block',
+                  marginBottom: 4,
+                }}
+              >
+                {i18n.authType}
+              </span>
+              <Select
+                value={auth.type || 'none'}
+                onChange={(v) => updAuth('type', v)}
+                options={[
+                  { value: 'none', label: i18n.authNone },
+                  { value: 'apikey', label: i18n.authApikey },
+                  { value: 'basic', label: i18n.authBasic },
+                  { value: 'bearer', label: i18n.authBearer },
+                ]}
+              />
+              {auth.type === 'apikey' && (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 8,
+                    marginTop: 8,
+                  }}
+                >
+                  <Input
+                    value={auth.header || ''}
+                    onChange={(v) => updAuth('header', v)}
+                    placeholder={i18n.authHeader}
                   />
-                  {auth.type === 'apikey' && (
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: 8,
-                        marginTop: 8,
-                      }}
-                    >
-                      <Input
-                        value={auth.header || ''}
-                        onChange={(v) => updAuth('header', v)}
-                        placeholder={i18n.authHeader}
-                      />
-                      <Input
-                        value={auth.value || ''}
-                        onChange={(v) => updAuth('value', v)}
-                        placeholder={i18n.authValue}
-                      />
-                    </div>
-                  )}
-                  {auth.type === 'bearer' && (
-                    <div style={{ marginTop: 8 }}>
-                      <Input
-                        value={auth.token || ''}
-                        onChange={(v) => updAuth('token', v)}
-                        placeholder={i18n.authToken}
-                      />
-                    </div>
-                  )}
-                  {auth.type === 'basic' && (
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: 8,
-                        marginTop: 8,
-                      }}
-                    >
-                      <Input
-                        value={auth.username || ''}
-                        onChange={(v) => updAuth('username', v)}
-                        placeholder={i18n.authUsername}
-                      />
-                      <Input
-                        value={auth.password || ''}
-                        onChange={(v) => updAuth('password', v)}
-                        placeholder={i18n.authPassword}
-                      />
-                    </div>
-                  )}
+                  <Input
+                    value={auth.value || ''}
+                    onChange={(v) => updAuth('value', v)}
+                    placeholder={i18n.authValue}
+                  />
+                </div>
+              )}
+              {auth.type === 'bearer' && (
+                <div style={{ marginTop: 8 }}>
+                  <Input
+                    value={auth.token || ''}
+                    onChange={(v) => updAuth('token', v)}
+                    placeholder={i18n.authToken}
+                  />
+                </div>
+              )}
+              {auth.type === 'basic' && (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 8,
+                    marginTop: 8,
+                  }}
+                >
+                  <Input
+                    value={auth.username || ''}
+                    onChange={(v) => updAuth('username', v)}
+                    placeholder={i18n.authUsername}
+                  />
+                  <Input
+                    value={auth.password || ''}
+                    onChange={(v) => updAuth('password', v)}
+                    placeholder={i18n.authPassword}
+                  />
                 </div>
               )}
             </div>
@@ -4296,7 +4345,7 @@ function ProbeForm({ probe, onSave, onCancel }) {
         </Btn>
         <Btn
           variant="primary"
-          disabled={nameError || !form.name}
+          disabled={nameError || regionsError}
           onClick={() =>
             onSave({
               ...form,

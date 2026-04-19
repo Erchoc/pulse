@@ -1136,7 +1136,12 @@ paths:
             type: string
       responses:
         '302':
-          description: 302 到前端, token 通过 HttpOnly cookie 或 URL hash 返回 (见 §Auth 中间件说明)
+          description: |
+            302 到前端（`oidc_redirect_base` + query `redirect`）。
+            同时 `Set-Cookie` 签发两条 HttpOnly cookie:
+            - `pulse_at`：access_token；`HttpOnly; Secure; SameSite=Lax; Path=/`；Max-Age 同 access_token_ttl
+            - `pulse_rt`：refresh_token；`HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth`；Max-Age 同 refresh_token_ttl
+            前端读不到 cookie，通过 `GET /auth/me` 拉取用户信息。
 
   # ── Identity Providers (管理) ── (需 admin)
   /identity-providers:
@@ -2202,17 +2207,29 @@ func RunAssertions(resp *http.Response, body []byte, probe *Probe) (bool, map[st
 **双模式认证**（同一中间件，按优先级 fallback）：
 
 ```
-                           ┌─ Authorization: Bearer <jwt>? ─┐
-Request ──▶ exempt_paths? ─┤                                 ├─▶ handler
-                ▲          └─ X-API-Key: <raw>? ────────────┘         │
-                │                                                      │
+                           ┌─ Cookie pulse_at? ──────────┐
+Request ──▶ exempt_paths? ─┼─ Authorization: Bearer <jwt>? ┤─▶ handler
+                ▲          └─ X-API-Key: <raw>? ─────────┘    │
+                │                                              │
                 └── exempt 命中直通（/auth/*、/push/*、/edge/*、/healthz、/metrics）
 ```
 
-1. **JWT (Bearer)**：HS256 签名，claims `{ sub, tenant_id, role, exp, iat, jti }`，access_token TTL = 15min
-2. **API Key**：SHA256 哈希后查 `api_keys.key_hash`，命中则注入 `tenant_id`（无 user_id / role；默认 `role=admin` 或单独字段 `scopes`）
-3. **两者都缺/都失败** → `401 UNAUTHORIZED`
-4. **exempt_paths**：通过 glob 匹配（见 `config.yaml` `auth.exempt_paths`）
+**凭证来源优先级**：
+
+1. **Cookie `pulse_at`**（浏览器用户默认通道）：HttpOnly cookie 自动携带；同样解析为 JWT
+2. **`Authorization: Bearer <jwt>`**（第三方脚本、SDK、server-to-server）：手动带 header
+3. **`X-API-Key: <raw>`**（CI/CD、长期凭证）：SHA256 哈希查 `api_keys.key_hash`，命中则注入 `tenant_id`（无 user_id / role；按 `api_keys.scopes` 决定权限）
+4. **三者都缺/都失败** → `401 UNAUTHORIZED`
+5. **exempt_paths**：通过 glob 匹配（见 `config.yaml` `auth.exempt_paths`）
+
+JWT claims（cookie 和 Bearer 走同一格式）：`{ sub, tenant_id, role, exp, iat, jti }`，HS256 签名；access_token TTL = 15min。
+
+**为什么用 HttpOnly cookie 而不是 localStorage**：
+- Pulse server 通过 `embed.FS` 同时托管 SPA 和 API，二者天然同源 → cookie 无跨域成本
+- `HttpOnly` 让 token 完全不进 JS 运行时 → XSS 偷不走
+- `SameSite=Lax` 足以防御绝大多数 CSRF（`Lax` 允许顶级导航带 cookie，但 POST/PUT/DELETE 的跨站请求不带）
+- `refresh_token` 的 cookie `Path=/api/v1/auth` 进一步缩小暴露面 —— 即使 XSS 漏洞也无法向 `/probes` 等端点发起含 refresh_token 的请求
+- 前端用 fetch 时只需 `credentials: 'include'`，CORS 中间件 `AllowOrigins` 改为精确列表（不能 `*`）
 
 **Token 流程**：
 
@@ -2222,7 +2239,9 @@ Request ──▶ exempt_paths? ─┤                                 ├─▶
   ├─ 签发 access_token (JWT, 15min)
   ├─ 签发 refresh_token (32 字节随机, base64url)
   │   └─ SHA256 hash 存 refresh_tokens 表 (原值仅返回一次)
-  └─ 返回 { access_token, refresh_token, expires_in, user }
+  ├─ Set-Cookie pulse_at / pulse_rt (HttpOnly; Secure; SameSite=Lax)
+  └─ 响应 body 同时返回 { access_token, refresh_token, expires_in, user }
+     (方便 Postman / 脚本 / 非浏览器客户端直接取用 Bearer)
 
 /auth/refresh
   │
@@ -2259,8 +2278,10 @@ IdP callback
   │   ├─ 命中 → 该用户登录
   │   └─ 未命中且 IdP.auto_create=true → INSERT users (auth_source='oidc', role=IdP.default_role)
   ├─ 签发 access + refresh token
-  └─ 302 → {oidc_redirect_base}{原始 redirect}#access_token=...&refresh_token=...
-     （或改走 HttpOnly cookie，前端读 /auth/me 获取身份）
+  ├─ Set-Cookie pulse_at=<access>; HttpOnly; Secure; SameSite=Lax; Path=/
+  ├─ Set-Cookie pulse_rt=<refresh>; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth
+  └─ 302 → {oidc_redirect_base}{原始 redirect}
+     前端加载后立即调 GET /auth/me 获取用户身份 (cookie 自动携带)
 ```
 
 **密码哈希**：bcrypt cost=12（默认），注册/登录 p95 < 200ms on 2 vCPU。

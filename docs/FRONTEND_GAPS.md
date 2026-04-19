@@ -245,7 +245,7 @@ Step 6: 启动后端 Phase 1（探测内核），前端同步做 P1 项
 | N | refresh_token 是否轮换 | ✅ 默认轮换 + 防重放（`auth.rotate_refresh_tokens=true` 可配置） | 2026-04-19 |
 | O | 密码最小长度 | ✅ 8 字符，不强制复杂度（UX 优先，由用户自选强度） | 2026-04-19 |
 | P | IdP client_secret 加密 key 管理 | ✅ 环境变量 `PULSE_SECRETS_KEY`（AES-256-GCM）；Phase 2+ 可接云 KMS | 2026-04-19 |
-| Q | OIDC 回调 token 传递方式 | ⏳ **待定**：方案 A(URL hash) / B(HttpOnly cookie, 推荐) / C(session code) | — |
+| Q | OIDC 回调 token 传递方式 | ✅ **B：HttpOnly cookie**（`pulse_at` Path=/; `pulse_rt` Path=/api/v1/auth; SameSite=Lax）；前端 fetch 加 `credentials:'include'`；登录完成后调 `/auth/me` 拉身份 | 2026-04-20 |
 
 ---
 

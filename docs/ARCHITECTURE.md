@@ -234,8 +234,9 @@ if len(downReports) >= ceil(len(activeEdges)/2) {
 
 | 层 | 机制 |
 |----|------|
-| 人类用户 → API | `Authorization: Bearer <JWT>`（HS256；TTL 15min；refresh_token 7d 可吊销） |
-| CI/CD / 第三方 → API | `X-API-Key` header；SHA256 hash 存库（`api_keys.key_hash`） |
+| 浏览器用户 → API | HttpOnly cookie（`pulse_at` + `pulse_rt`；`Secure; SameSite=Lax`；refresh cookie 限 Path=/api/v1/auth）自动携带；JS 读不到 token，XSS 无法窃取 |
+| 第三方脚本 / SDK → API | `Authorization: Bearer <JWT>`（HS256；TTL 15min；refresh_token 7d 默认轮换可吊销） |
+| CI/CD / 长期凭证 → API | `X-API-Key` header；SHA256 hash 存库（`api_keys.key_hash`） |
 | 登录方式 | 本地邮箱密码（bcrypt）**或** OIDC（go-oidc + `identity_providers` 表） |
 | Push endpoint | `push_token` in URL + HMAC-SHA256 签名验证（防 token 泄露重放） |
 | Edge → API | mTLS（客户端证书）；`/api/v1/edge/*` 路由强制 TLS client cert 校验 |

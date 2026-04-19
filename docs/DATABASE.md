@@ -22,7 +22,38 @@ Pulse 的存储被抽象为 `internal/store` 接口层，允许两种后端：
 - PG 专用特性（分区、LISTEN/NOTIFY、`pg_advisory_lock`）**不写入通用 SQL**，通过 `store` 接口的 Postgres 专属方法使用
 - 迁移脚本是 PG 方言写的；SQLite 模式启动时由 store 层自动降级转换
 
-> **MVP 期建议**：开发用 SQLite，生产直接上阿里云 RDS PG 15。
+> **开发推荐**：直接用 Docker 起 PG 15（见下文 §1.1）和代码保持 PG 行为一致；
+> SQLite 模式主要为"私有化部署、单用户、低探针量"场景保留。
+
+### 1.1 本地开发起 PG（docker-compose）
+
+仓库根目录已配好 `docker-compose.yml`（含 PG 15 + Redis 7）。
+
+```bash
+# 首次启动
+cp .env.example .env
+# (修改 .env 里的 PULSE_JWT_SECRET / PULSE_SECRETS_KEY 为随机值)
+
+docker compose up -d postgres redis
+
+# 验证连通
+psql "$DATABASE_URL" -c "SELECT version();"
+# 或用仓库根部的 redis-cli 验证
+docker compose exec redis redis-cli ping   # 应返回 PONG
+
+# 跑迁移（Phase 0 交付后可用）
+make -C packages/server migrate-up
+
+# 停止但保留数据
+docker compose stop
+
+# 完全清空（包括数据卷）
+docker compose down -v
+```
+
+默认配置 `postgres://pulse:pulse_dev@localhost:5432/pulse?sslmode=disable`；数据持久化在 docker volume `pg_data`。
+
+> 参考实现：`/Users/longye/TestCode/test-pg/main.go` 用 `pgx/v5` 跑连通性 8 步测试；启动 PG 后可直接在这个目录 `go run main.go` 验证本机 PG 能否连。
 
 ---
 
@@ -305,3 +336,4 @@ Redis 挂了全链路降级为"查 PG + 计算"，只影响延迟不影响正确
 |------|------|---------|--------|
 | 2026-04-19 | 初版：整理自 IMPL_SPEC，补充迁移约定、分区、运维速查 | — | — |
 | 2026-04-19 | 认证补丁：`users` 改列（password_hash 可空 + 5 列新字段）；新增 `identity_providers`、`refresh_tokens` | 待定（Phase 0 迁移 002） | — |
+| 2026-04-20 | 决策 L-Q 固化；docker-compose 加 PG15+Redis7；新增 §1.1 本地开发启动 | — | — |

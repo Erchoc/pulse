@@ -226,6 +226,10 @@ const msg = {
     webhookNotif: 'Webhook Notification',
     apiIntegrationShort: 'API Integration',
     darkMode: 'Dark Mode',
+    themeLabel: 'Theme',
+    themeAuto: 'Auto',
+    themeDark: 'Dark',
+    themeLight: 'Light',
     logout: 'Sign Out',
     // events & push diagnostics
     eventsTitle: 'Events & Alerts',
@@ -247,6 +251,27 @@ const msg = {
     sendTestPush: 'Send Test Notification',
     testPushTitle: 'Pulse Test',
     testPushBody: 'This is a test notification from Pulse push diagnostics.',
+    testBasicBtn: 'A · Browser',
+    testBasicSent: 'Browser notification sent',
+    testSwBtn: 'B · Via Service Worker',
+    testSwBody: 'Delivered via Service Worker (required for iOS PWA).',
+    testSwSent: 'SW notification sent',
+    testStickyBtn: 'C · Sticky',
+    testStickyBody: 'Requires manual dismiss (requireInteraction=true).',
+    testStickySent: 'Sticky notification sent',
+    testSilentBtn: 'D · Silent',
+    testSilentBody: 'Silent notification (no sound / no vibrate).',
+    testSilentSent: 'Silent notification sent',
+    testRapidBtn: 'E · Rapid Fire (3× same tag)',
+    testRapidBody: 'Rapid fire test',
+    testRapidSent: 'Fired 3 notifications',
+    testFailed: 'Test failed',
+    testNoSW: 'Service Worker not supported in this browser.',
+    testRouteHint:
+      'A = window.Notification · B-E = ServiceWorker route (iOS PWA only supports B+).',
+    swActive: 'Service Worker active',
+    swPending: 'Service Worker registering…',
+    swNone: 'Service Worker unavailable',
     pushSent: 'Notification sent!',
     pushBlocked: 'Permission denied.',
     pushNotSupported: 'Push notifications are not supported in this browser/mode.',
@@ -515,6 +540,10 @@ const msg = {
     webhookNotif: 'Webhook 通知',
     apiIntegrationShort: 'API 接入',
     darkMode: '深色模式',
+    themeLabel: '主题',
+    themeAuto: '跟随系统',
+    themeDark: '深色',
+    themeLight: '浅色',
     logout: '退出登录',
     // events & push diagnostics
     eventsTitle: '事件告警',
@@ -536,6 +565,26 @@ const msg = {
     sendTestPush: '发送测试通知',
     testPushTitle: 'Pulse 测试',
     testPushBody: '这是一条来自 Pulse 推送诊断的测试通知。',
+    testBasicBtn: 'A · 浏览器',
+    testBasicSent: '浏览器通知已发送',
+    testSwBtn: 'B · Service Worker',
+    testSwBody: '通过 Service Worker 发送 (iOS PWA 必走此路径)。',
+    testSwSent: 'SW 通知已发送',
+    testStickyBtn: 'C · 常驻',
+    testStickyBody: '需要手动关闭 (requireInteraction=true)。',
+    testStickySent: '常驻通知已发送',
+    testSilentBtn: 'D · 静默',
+    testSilentBody: '静默通知 (无声 / 无震动)。',
+    testSilentSent: '静默通知已发送',
+    testRapidBtn: 'E · 连发 (3 条同 tag)',
+    testRapidBody: '连发测试',
+    testRapidSent: '已连发 3 条',
+    testFailed: '测试失败',
+    testNoSW: '当前浏览器不支持 Service Worker。',
+    testRouteHint: 'A = window.Notification 传统路径；B–E 走 Service Worker。iOS PWA 只认 B 起。',
+    swActive: 'Service Worker 已激活',
+    swPending: 'Service Worker 注册中…',
+    swNone: 'Service Worker 不可用',
     pushSent: '通知已发送！',
     pushBlocked: '权限被拒绝。',
     pushNotSupported: '当前浏览器/模式不支持推送通知。',
@@ -4927,18 +4976,110 @@ function EventsPage({ isPWA }: { isPWA: boolean }) {
     }
   }, [hasNotifAPI, flash, i18n.pushNotSupported, i18n.pushBlocked])
 
+  // SW 状态检测: iOS PWA 必须走 SW 才能弹通知
+  const [swState, setSwState] = useState<'none' | 'pending' | 'active'>(() =>
+    'serviceWorker' in navigator ? 'pending' : 'none',
+  )
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    let active = true
+    navigator.serviceWorker.ready
+      .then(() => active && setSwState('active'))
+      .catch(() => active && setSwState('none'))
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const canNotify = hasNotifAPI && Notification.permission === 'granted'
+
+  // 路径 A: window.Notification (传统浏览器; iOS PWA 下会静默失败)
   const handleTestPush = useCallback(() => {
-    if (!hasNotifAPI || Notification.permission !== 'granted') {
+    if (!canNotify) {
       flash(permission === 'denied' ? i18n.pushBlocked : i18n.pushNotSupported)
       return
     }
-    new Notification(i18n.testPushTitle, {
-      body: i18n.testPushBody,
+    try {
+      new Notification(i18n.testPushTitle, {
+        body: i18n.testPushBody,
+        icon: '/icon-192.png',
+        badge: '/favicon.png',
+      })
+      flash(i18n.testBasicSent)
+    } catch (err) {
+      flash(`${i18n.testFailed}: ${(err as Error).message}`)
+    }
+  }, [canNotify, permission, flash, i18n])
+
+  // 路径 B: Service Worker registration.showNotification — iOS PWA 必走;
+  // Chrome/Firefox/Safari 通用最稳路径
+  const runSwNotification = useCallback(
+    async (title: string, options: NotificationOptions) => {
+      if (!canNotify) {
+        flash(permission === 'denied' ? i18n.pushBlocked : i18n.pushNotSupported)
+        return
+      }
+      if (!('serviceWorker' in navigator)) {
+        flash(i18n.testNoSW)
+        return
+      }
+      try {
+        const reg = await navigator.serviceWorker.ready
+        await reg.showNotification(title, options)
+      } catch (err) {
+        flash(`${i18n.testFailed}: ${(err as Error).message}`)
+      }
+    },
+    [canNotify, permission, flash, i18n],
+  )
+
+  const handleTestSwPush = useCallback(() => {
+    runSwNotification(i18n.testPushTitle, {
+      body: i18n.testSwBody,
       icon: '/icon-192.png',
       badge: '/favicon.png',
     })
-    flash(i18n.pushSent)
-  }, [hasNotifAPI, permission, flash, i18n])
+    flash(i18n.testSwSent)
+  }, [runSwNotification, flash, i18n])
+
+  // 路径 C: SW + requireInteraction (不自动消失, 需用户手动关闭)
+  const handleTestSticky = useCallback(() => {
+    runSwNotification(i18n.testPushTitle, {
+      body: i18n.testStickyBody,
+      icon: '/icon-192.png',
+      badge: '/favicon.png',
+      requireInteraction: true,
+      tag: 'pulse-sticky',
+    })
+    flash(i18n.testStickySent)
+  }, [runSwNotification, flash, i18n])
+
+  // 路径 D: SW + silent (静默不震动/不响)
+  const handleTestSilent = useCallback(() => {
+    runSwNotification(i18n.testPushTitle, {
+      body: i18n.testSilentBody,
+      icon: '/icon-192.png',
+      badge: '/favicon.png',
+      silent: true,
+    })
+    flash(i18n.testSilentSent)
+  }, [runSwNotification, flash, i18n])
+
+  // 路径 E: 连发 3 条 + 同 tag + renotify, 验证折叠/重通知行为
+  const handleTestRapid = useCallback(async () => {
+    for (let i = 1; i <= 3; i++) {
+      await runSwNotification(i18n.testPushTitle, {
+        body: `${i18n.testRapidBody} (${i}/3)`,
+        icon: '/icon-192.png',
+        badge: '/favicon.png',
+        tag: 'pulse-rapid',
+        // @ts-expect-error renotify 不在标准 TS 类型里但主流浏览器都支持
+        renotify: true,
+      })
+      await new Promise((r) => setTimeout(r, 400))
+    }
+    flash(i18n.testRapidSent)
+  }, [runSwNotification, flash, i18n])
 
   // Permission color mapping
   const permColor =
@@ -5157,13 +5298,61 @@ function EventsPage({ isPWA }: { isPWA: boolean }) {
               {permission === 'default' && (
                 <Btn onClick={handleRequestPermission}>{i18n.requestPermission}</Btn>
               )}
-              <Btn
-                variant={permission === 'granted' ? 'default' : 'ghost'}
-                onClick={handleTestPush}
-                disabled={permission !== 'granted'}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 6,
+                }}
               >
-                {i18n.sendTestPush}
-              </Btn>
+                <Btn
+                  variant={canNotify ? 'default' : 'ghost'}
+                  onClick={handleTestPush}
+                  disabled={!canNotify}
+                >
+                  {i18n.testBasicBtn}
+                </Btn>
+                <Btn
+                  variant={canNotify ? 'default' : 'ghost'}
+                  onClick={handleTestSwPush}
+                  disabled={!canNotify || swState !== 'active'}
+                >
+                  {i18n.testSwBtn}
+                </Btn>
+                <Btn
+                  variant="ghost"
+                  onClick={handleTestSticky}
+                  disabled={!canNotify || swState !== 'active'}
+                >
+                  {i18n.testStickyBtn}
+                </Btn>
+                <Btn
+                  variant="ghost"
+                  onClick={handleTestSilent}
+                  disabled={!canNotify || swState !== 'active'}
+                >
+                  {i18n.testSilentBtn}
+                </Btn>
+                <Btn
+                  variant="ghost"
+                  onClick={handleTestRapid}
+                  disabled={!canNotify || swState !== 'active'}
+                  style={{ gridColumn: 'span 2' }}
+                >
+                  {i18n.testRapidBtn}
+                </Btn>
+              </div>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: t.text.muted,
+                  lineHeight: 1.5,
+                  fontFamily: F.mono,
+                  paddingTop: 4,
+                }}
+              >
+                {i18n.testRouteHint}
+              </div>
             </div>
           </div>
 
@@ -5202,6 +5391,18 @@ function EventsPage({ isPWA }: { isPWA: boolean }) {
               t={t}
             />
             <PushCapRow label="Platform" value={platformLabel} ok t={t} />
+            <PushCapRow
+              label="SW"
+              value={
+                swState === 'active'
+                  ? i18n.swActive
+                  : swState === 'pending'
+                    ? i18n.swPending
+                    : i18n.swNone
+              }
+              ok={swState === 'active'}
+              t={t}
+            />
 
             <div
               style={{
@@ -6132,6 +6333,7 @@ function TimeRangeSelector({ value, onChange }: { value: string; onChange: (v: s
 
 function Header({
   theme,
+  themeMode,
   toggleTheme,
   lang,
   toggleLang,
@@ -6224,7 +6426,20 @@ function Header({
           type="button"
           className="hide-mobile"
           onClick={toggleTheme}
-          aria-label="Toggle theme"
+          aria-label={`Theme: ${themeMode} (click to cycle)`}
+          title={
+            themeMode === 'auto'
+              ? lang === 'zh'
+                ? '跟随系统'
+                : 'Follow system'
+              : themeMode === 'dark'
+                ? lang === 'zh'
+                  ? '深色'
+                  : 'Dark'
+                : lang === 'zh'
+                  ? '浅色'
+                  : 'Light'
+          }
           style={{
             background: t.bg.card,
             border: `1px solid ${t.border}`,
@@ -6240,10 +6455,11 @@ function Header({
             transition: 'all .2s',
           }}
         >
-          {theme === 'dark' ? '☀️' : '🌙'}
+          {themeMode === 'auto' ? '🌓' : themeMode === 'dark' ? '🌙' : '☀️'}
         </button>
         <UserMenu
           theme={theme}
+          themeMode={themeMode}
           toggleTheme={toggleTheme}
           onOpenWebhook={onOpenWebhook}
           onOpenApiKey={onOpenApiKey}
@@ -6255,11 +6471,13 @@ function Header({
 
 function UserMenu({
   theme,
+  themeMode,
   toggleTheme,
   onOpenWebhook,
   onOpenApiKey,
 }: {
   theme: string
+  themeMode: 'auto' | 'dark' | 'light'
   toggleTheme: () => void
   onOpenWebhook: () => void
   onOpenApiKey: () => void
@@ -6442,6 +6660,7 @@ function UserMenu({
                 padding: '10px 16px',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'space-between',
                 gap: 10,
                 background: 'none',
                 border: 'none',
@@ -6450,33 +6669,17 @@ function UserMenu({
                 fontSize: 13,
               }}
             >
-              {/* Toggle track */}
-              <div
-                style={{
-                  width: 36,
-                  height: 20,
-                  borderRadius: 10,
-                  backgroundColor: theme === 'dark' ? t.accent : t.border,
-                  position: 'relative',
-                  transition: 'background-color .2s',
-                  flexShrink: 0,
-                }}
-              >
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 3,
-                    left: theme === 'dark' ? 18 : 3,
-                    width: 14,
-                    height: 14,
-                    borderRadius: '50%',
-                    backgroundColor: '#fff',
-                    transition: 'left .2s',
-                  }}
-                />
-              </div>
-              <span>{theme === 'dark' ? '🌙' : '☀️'}</span>
-              <span>{i18n.darkMode}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>{themeMode === 'auto' ? '🌓' : themeMode === 'dark' ? '🌙' : '☀️'}</span>
+                <span>{i18n.themeLabel}</span>
+              </span>
+              <span style={{ color: t.text.muted, fontSize: 12 }}>
+                {themeMode === 'auto'
+                  ? i18n.themeAuto
+                  : themeMode === 'dark'
+                    ? i18n.themeDark
+                    : i18n.themeLight}
+              </span>
             </button>
           </div>
 
@@ -6921,13 +7124,29 @@ export default function App() {
     if (typeof Notification === 'undefined') return false
     return Notification.permission !== 'granted'
   })
-  const [theme, setTheme] = useState(() => {
+  // 主题三态: auto = 跟随系统; dark/light = 用户显式选择 (写 localStorage)
+  const [themeMode, setThemeMode] = useState<'auto' | 'dark' | 'light'>(() => {
     try {
-      return (localStorage.getItem('pulse-theme') as 'dark' | 'light') || 'dark'
+      const saved = localStorage.getItem('pulse-theme')
+      if (saved === 'dark' || saved === 'light' || saved === 'auto') return saved
     } catch {
-      return 'dark'
+      /* noop */
     }
+    return 'auto'
   })
+  const [systemDark, setSystemDark] = useState(
+    () =>
+      typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
+  )
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = (e: MediaQueryListEvent) => setSystemDark(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  // 派生出实际渲染的主题 (dark | light), 给 themes 对象取色用
+  const theme: 'dark' | 'light' = themeMode === 'auto' ? (systemDark ? 'dark' : 'light') : themeMode
   const [lang, setLang] = useState(() => {
     try {
       return (localStorage.getItem('pulse-lang') as 'en' | 'zh') || 'zh'
@@ -7004,9 +7223,11 @@ export default function App() {
     )
   }, [])
 
+  // 循环: auto → light → dark → auto (auto 跟随系统; 用户第一次点从跟随切显式)
   const toggleTheme = useCallback(() => {
-    setTheme((p) => {
-      const next = p === 'dark' ? 'light' : 'dark'
+    setThemeMode((p) => {
+      const next: 'auto' | 'dark' | 'light' =
+        p === 'auto' ? 'light' : p === 'light' ? 'dark' : 'auto'
       try {
         localStorage.setItem('pulse-theme', next)
       } catch {
@@ -7215,6 +7436,7 @@ export default function App() {
           >
             <Header
               theme={theme}
+              themeMode={themeMode}
               toggleTheme={toggleTheme}
               lang={lang}
               toggleLang={toggleLang}

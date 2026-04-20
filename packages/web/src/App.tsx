@@ -190,6 +190,13 @@ const msg = {
     authToken: 'Token',
     authUsername: 'Username',
     authPassword: 'Password',
+    filterByService: 'Service',
+    allServices: 'All services',
+    unassigned: 'Unassigned',
+    probeServiceLabel: 'Linked service',
+    probeServiceNone: 'No service (unassigned)',
+    linkedProbes: 'Linked probes',
+    linkedProbesEmpty: 'No probes linked to this service yet.',
     addService: 'Add Service',
     editService: 'Edit Service',
     deleteService: 'Delete Service',
@@ -534,6 +541,13 @@ const msg = {
     authToken: 'Token',
     authUsername: '用户名',
     authPassword: '密码',
+    filterByService: '服务',
+    allServices: '全部服务',
+    unassigned: '未关联',
+    probeServiceLabel: '关联服务',
+    probeServiceNone: '无（不关联任何服务）',
+    linkedProbes: '关联探针',
+    linkedProbesEmpty: '该服务还没有关联任何探针',
     addService: '添加服务',
     editService: '编辑服务',
     deleteService: '删除服务',
@@ -854,6 +868,7 @@ const _initProbes = [
     desc: 'http',
     mode: 'server',
     status: 'up',
+    service_id: 'api-gw',
   },
   {
     id: 'p2',
@@ -865,6 +880,7 @@ const _initProbes = [
     desc: 'ws',
     mode: 'server',
     status: 'up',
+    service_id: 'ws-broker',
   },
   {
     id: 'p3',
@@ -876,6 +892,7 @@ const _initProbes = [
     desc: 'tcp',
     mode: 'server',
     status: 'up',
+    service_id: 'db',
   },
   {
     id: 'p4',
@@ -887,6 +904,7 @@ const _initProbes = [
     desc: 'http',
     mode: 'server',
     status: 'up',
+    service_id: 'cdn',
   },
   {
     id: 'p5',
@@ -898,6 +916,7 @@ const _initProbes = [
     desc: 'http',
     mode: 'server',
     status: 'down',
+    service_id: 'search',
   },
   {
     id: 'p6',
@@ -909,6 +928,7 @@ const _initProbes = [
     desc: 'push',
     mode: 'client',
     status: 'up',
+    service_id: 'api-gw',
   },
   {
     id: 'p7',
@@ -920,6 +940,7 @@ const _initProbes = [
     desc: 'push',
     mode: 'client',
     status: 'up',
+    service_id: 'notif-hub',
   },
 ]
 
@@ -1357,6 +1378,7 @@ function genMockProbes(n = 110) {
       desc: isClient ? 'push' : types[i % types.length],
       mode: isClient ? 'client' : 'server',
       status: statuses[Math.floor(Math.random() * statuses.length)],
+      service_id: `svc-${i % 30}`,
     }
   })
 }
@@ -3059,6 +3081,91 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance, onEditSvc, onDel
           <IncidentTimeline data={svc.bar} maxItems={3} />
         </div>
       )}
+
+      {/* 关联探针 (1 服务 → N 探针; mock 数据从模块常量过滤, 接真实 API 后改拉) */}
+      {(() => {
+        const linked = allProbes.filter((p) => p.service_id === svc.id)
+        return (
+          <div style={{ marginBottom: 24 }}>
+            <div
+              style={{
+                fontSize: 10,
+                textTransform: 'uppercase',
+                fontWeight: 600,
+                color: t.text.muted,
+                letterSpacing: '.08em',
+                marginBottom: 10,
+                fontFamily: F.mono,
+              }}
+            >
+              {i18n.linkedProbes} ({linked.length})
+            </div>
+            {linked.length === 0 ? (
+              <div
+                style={{
+                  padding: '16px 14px',
+                  fontSize: 12,
+                  color: t.text.muted,
+                  textAlign: 'center',
+                  borderRadius: R.sm,
+                  border: `1px dashed ${t.border}`,
+                }}
+              >
+                {i18n.linkedProbesEmpty}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {linked.map((p) => {
+                  const pc = typeColors[p.protocol as Protocol] || t.text.secondary
+                  return (
+                    <div
+                      key={p.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '8px 12px',
+                        borderRadius: R.sm,
+                        border: `1px solid ${t.border}`,
+                        backgroundColor: t.bg.input,
+                      }}
+                    >
+                      <StatusDot status={p.status} size={7} pulse={false} />
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: t.text.primary,
+                          flex: 1,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {p.name}
+                      </span>
+                      <Badge color={pc} bg={`${pc}18`}>
+                        {p.protocol}
+                      </Badge>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: t.text.muted,
+                          fontFamily: F.mono,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {fmtInterval(p.interval_sec)}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       <Modal
         open={latencyOpen}
         onClose={() => setLatencyOpen(false)}
@@ -3873,7 +3980,7 @@ function ProbeCard({ probe, onEdit, onDuplicate, onDelete }) {
   )
 }
 
-function ProbeForm({ probe, onSave, onCancel }) {
+function ProbeForm({ probe, svcs, onSave, onCancel }) {
   const { t, i18n, lang } = useApp()
   const [form, setForm] = useState(
     probe || {
@@ -3886,6 +3993,7 @@ function ProbeForm({ probe, onSave, onCancel }) {
       desc: '',
       mode: 'server' as ProbeMode,
       sla_target: 99,
+      service_id: '',
       expect: {
         status_codes: [200] as number[],
         keyword: '',
@@ -4044,6 +4152,23 @@ function ProbeForm({ probe, onSave, onCancel }) {
                 />
               )}
             </div>
+          </div>
+          {/* 关联服务 (1 个探针 → 1 个服务; 一个服务下可以有多个探针) */}
+          <div>
+            <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
+              {i18n.probeServiceLabel}
+            </span>
+            <Select
+              value={form.service_id || ''}
+              onChange={(v) => upd('service_id', v)}
+              options={[
+                { value: '', label: i18n.probeServiceNone },
+                ...svcs.map((s) => ({
+                  value: s.id,
+                  label: lang === 'zh' ? s.nameZh || s.name : s.name,
+                })),
+              ]}
+            />
           </div>
           <div>
             <span style={{ fontSize: 12, color: t.text.muted, display: 'block', marginBottom: 4 }}>
@@ -4585,22 +4710,31 @@ function ServiceForm({
   )
 }
 
-function ProbesPage() {
-  const { t, i18n } = useApp()
+function ProbesPage({ svcs }) {
+  const { t, i18n, lang } = useApp()
   const [probes, setProbes] = useState(allProbes)
   const [modal, setModal] = useState<{ type: string; probe?: (typeof allProbes)[number] } | null>(
     null,
   )
   const [delConfirm, setDelConfirm] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  // 按服务过滤: 'all' = 全部, 'unassigned' = 未关联, 其他 = 具体服务 id
+  const [svcFilter, setSvcFilter] = useState<string>('all')
 
   const flash = (msg) => {
     setToast(msg)
     setTimeout(() => setToast(null), 2000)
   }
 
-  const serverProbes = probes.filter((p) => p.mode === 'server')
-  const clientProbes = probes.filter((p) => p.mode === 'client')
+  // 先按服务过滤, 再按 server/client mode 分
+  const byService =
+    svcFilter === 'all'
+      ? probes
+      : svcFilter === 'unassigned'
+        ? probes.filter((p) => !p.service_id)
+        : probes.filter((p) => p.service_id === svcFilter)
+  const serverProbes = byService.filter((p) => p.mode === 'server')
+  const clientProbes = byService.filter((p) => p.mode === 'client')
 
   const handleSave = (form) => {
     if (modal?.type === 'edit') {
@@ -4687,6 +4821,7 @@ function ProbesPage() {
                       desc: '',
                       mode: 'client' as ProbeMode,
                       status: 'up',
+                      service_id: '',
                     }
                   : undefined,
             })
@@ -4694,6 +4829,36 @@ function ProbesPage() {
         >
           + {i18n.addProbe}
         </Btn>
+      </div>
+
+      {/* 按服务过滤 (配合 Services tab 语义: 服务-探针 1:N) */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <span style={{ fontSize: 11, color: t.text.muted, fontFamily: F.mono }}>
+          {i18n.filterByService}:
+        </span>
+        <Select
+          value={svcFilter}
+          onChange={(v) => {
+            setSvcFilter(v)
+            setProbePage(1)
+          }}
+          options={[
+            { value: 'all', label: i18n.allServices },
+            { value: 'unassigned', label: i18n.unassigned },
+            ...svcs.map((s) => ({
+              value: s.id,
+              label: lang === 'zh' ? s.nameZh || s.name : s.name,
+            })),
+          ]}
+        />
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -4736,6 +4901,7 @@ function ProbesPage() {
         {modal && (
           <ProbeForm
             probe={modal.probe || null}
+            svcs={svcs}
             onSave={handleSave}
             onCancel={() => setModal(null)}
           />
@@ -8161,7 +8327,7 @@ export default function App() {
             {/* ──── PROBES ──── */}
             {tab === 'probes' && (
               <div style={{ paddingBottom: isPWA ? 32 : 0 }}>
-                <ProbesPage />
+                <ProbesPage svcs={allSvcs} />
               </div>
             )}
 

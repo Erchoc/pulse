@@ -7646,7 +7646,7 @@ export default function App() {
   const [svcToast, setSvcToast] = useState<string | null>(null)
   const svcFlash = (m: string) => {
     setSvcToast(m)
-    setTimeout(() => setSvcToast(null), 1800)
+    setTimeout(() => setSvcToast(null), 2500)
   }
   const handleSvcSave = (form: Record<string, unknown>) => {
     if (svcModal?.mode === 'edit' && form.id) {
@@ -8259,13 +8259,15 @@ export default function App() {
                 left: '50%',
                 transform: 'translateX(-50%)',
                 padding: '10px 20px',
-                backgroundColor: t.bg.card,
-                border: `1px solid ${t.border}`,
-                borderRadius: 8,
-                color: t.text.primary,
+                backgroundColor: t.status.up,
+                borderRadius: 10,
+                color: '#fff',
                 fontSize: 13,
+                fontWeight: 600,
                 zIndex: 10000,
-                boxShadow: t.shadow,
+                boxShadow: '0 8px 24px rgba(0,0,0,.3)',
+                animation: 'fadeSlide .25s ease',
+                fontFamily: F.sans,
               }}
             >
               {svcToast}

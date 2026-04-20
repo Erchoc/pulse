@@ -59,8 +59,8 @@ const msg = {
       'PWA features need HTTPS or localhost. Current origin is not a secure context.',
     versionInfo: 'Version',
     versionInfoHint: 'Helpful when reporting issues.',
-    buildVersion: 'Build',
-    builtAt: 'Built at',
+    buildVersion: 'Release',
+    builtAt: 'Released at',
     siteNotification: 'Site Notification',
     siteNotifHint: 'Send a notification banner to all users visiting this page.',
     notifMessage: 'Message',
@@ -411,8 +411,8 @@ const msg = {
     updateNeedHttps: 'PWA 功能需要 HTTPS 或 localhost, 当前非安全上下文',
     versionInfo: '版本',
     versionInfoHint: '反馈问题时告诉我们这两个值。',
-    buildVersion: '构建',
-    builtAt: '构建时间',
+    buildVersion: '发布版本',
+    builtAt: '发布时间',
     siteNotification: '本站通知',
     siteNotifHint: '向所有访问本页的用户发送通知横幅。',
     notifMessage: '消息内容',
@@ -6139,7 +6139,13 @@ function SettingsPage({ projectName, setProjectName, siteNotif, onNotifChange, i
             <div>
               <span style={{ color: t.text.muted }}>{i18n.builtAt}: </span>
               <span style={{ color: t.text.primary }}>
-                {new Date(__BUILD_TIME__).toLocaleString()}
+                {new Date(__BUILD_TIME__).toLocaleString([], {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </span>
             </div>
           </div>

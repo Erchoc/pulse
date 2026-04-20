@@ -147,6 +147,25 @@ Service (服务) ─── 业务单元，用户关心的监控对象
 **正确做法**: git 操作失败后等 1-2 秒再重试，让 RTK 进程自然释放 lock。只有确认没有其他 git 进程运行时才 `rm -f`。
 **教训**: 不只是 `git add && git commit` 会冲突，任何两个紧密连续的 git 写操作都可能撞 lock，包括两次 `git add`。
 
+### 14. iOS PWA 下 Select 下拉 + 卡片 hover 直接改 DOM style 引发抖动
+**现象**: PWA（不是 H5）下点击 Header 的时间选择器选项，下拉菜单关闭瞬间，**下拉菜单覆盖区下方的 OverviewCards 卡片**出现肉眼难辨的 1px 级整体抖动。
+**错误假设 (连错两轮)**:
+1. `rangeLabel` 污染 `AppCtx` → 拆成独立 `RangeCtx` 让 ServiceRow 不被波及 —— 没用
+2. 卡片列表 `key={c.label}` 的 label 含 `rangeLabel` → 改 `key={c.id}` 稳定化避免 unmount/remount —— 没用
+**真正根因**: OverviewCards 卡片用 `onMouseEnter/Leave` **直接操作 DOM inline style** 写 `transform: translateY(-1px)` + `borderColor`，配合 style 里的 `transition: 'border-color .2s,transform .2s'`。iOS PWA 在 `position: fixed` 下拉菜单 unmount 的瞬间，会根据**触摸点当前屏幕坐标**对应的 DOM 重新派发 mouseenter（到下方暴露出来的卡片），手指一抬又派发 mouseleave，transform 从 `none` 开始过渡被打断再回退 —— 就是那个 sub-pixel 抖动。
+**为什么 H5 不复现**: 桌面 H5 是真鼠标没有 touch→mouse 模拟派发的那条路径；移动 H5 Safari 普通 tab 下的 timing 也不一样。
+**方案**: 删除 OverviewCards 卡片的 `onMouseEnter/Leave` + style 里的 `transition`，卡片本来就不可点击，hover 动效纯装饰。ServiceRow 用的是 React state `hov` 驱动的受控 hover，没这个问题。
+**教训**:
+- 在 inline style + transition 的组合里，**不要用 `onMouseEnter/Leave` 直接改 DOM style**。要么用 CSS `:hover` 伪类（配合 `@media (hover: hover)` 关掉触屏），要么用 React state 驱动。
+- 两端 (PWA/H5) 表现不同的 bug，根因多半在 **PWA 独有路径**（iOS touch event 模拟、compositor layer、safe-area-inset 等），别在两端都会走的 React 渲染路径上钻牛角尖。
+- 连续 2 次 fix 没中时立即停止猜测、加诊断/重新收集证据，别凭惯性继续猜（systematic-debugging 的 iron law）。
+
+### 15. H5 也弹 PWA 版本更新 banner
+**问题**: 用户在 H5 下选"稍后更新"后，每次刷新页面顶部版本提示都会闪一下（SW 就绪后 `needRefresh` 从 false → true 触发 banner 重新出现）。
+**原因**: banner 的渲染条件只判断 `needRefresh`，没判断运行模式。H5 刷新一次浏览器就拿到新代码，根本不需要这个提示。
+**方案**: banner 加 `{isPWA && needRefresh && ...}`；UserMenu 里"检查更新"菜单项也加 `{isPWA && ...}` 包裹。
+**教训**: 凡是为 PWA 缓存管理设计的 UI（强制更新、清缓存、离线提示等），渲染前必须检查 `isPWA`，不能默认"PC + PWA 通用"。
+
 ## 文档维护
 
 - **SWAGGER_OPENAPI.md**: API 接口文档（参数、响应、mock 示例），每次改动服务端接口必须同步更新

@@ -791,10 +791,14 @@ interface AppContextValue {
   i18n: (typeof msg)['en']
   lang: string
   theme: string
-  rangeLabel: string
 }
 const AppCtx = createContext<AppContextValue | null>(null)
 const useApp = () => useContext(AppCtx) as AppContextValue
+
+/* rangeLabel 单独一层 context: timeRange 切换只扇出到真正要显示它的组件
+   (OverviewCards / DetailPanel / ListHeader 等), 不再波及 ServiceRow 整个列表 */
+const RangeCtx = createContext<string>('')
+const useRangeLabel = () => useContext(RangeCtx)
 
 /* ================================================================
    Mock Data
@@ -2321,7 +2325,8 @@ function Toast({ message, visible }) {
    Overview Cards
    ================================================================ */
 function OverviewCards({ svcs }) {
-  const { t, i18n, rangeLabel } = useApp()
+  const { t, i18n } = useApp()
+  const rangeLabel = useRangeLabel()
   const S = svcs
   const total = S.length
   const up = S.filter((s) => s.status === 'up').length
@@ -2332,6 +2337,7 @@ function OverviewCards({ svcs }) {
   const breach = S.filter((s) => s.current_sla < s.sla_target).length
   const cards = [
     {
+      id: 'sla',
       label: i18n.overallSLA,
       value: fmtSLA(avg),
       sub: i18n.breaching.replace('{n}', String(breach)),
@@ -2339,6 +2345,7 @@ function OverviewCards({ svcs }) {
       icon: '◎',
     },
     {
+      id: 'up',
       label: i18n.servicesUp,
       value: `${up}/${total}`,
       sub: i18n.degradedDown.replace('{d}', String(deg)).replace('{x}', String(dn)),
@@ -2346,6 +2353,7 @@ function OverviewCards({ svcs }) {
       icon: '△',
     },
     {
+      id: 'latency',
       label: i18n.avgLatency,
       value: `${avgLat}ms`,
       sub: i18n.p50All,
@@ -2353,6 +2361,9 @@ function OverviewCards({ svcs }) {
       icon: '⟡',
     },
     {
+      id: 'probes',
+      // label 含 rangeLabel, 但 key 用 id 保持稳定, 避免 React 把整张卡 unmount+remount
+      // (PWA 下 compositor 重排会引起肉眼可见的轻微抖动)
       label: i18n.probesSec.replace('{r}', rangeLabel),
       value: String(
         S.reduce((sum, s) => {
@@ -2374,8 +2385,11 @@ function OverviewCards({ svcs }) {
       }}
     >
       {cards.map((c) => (
+        // 卡片不可点击, 移除了 hover 装饰 (translateY + border-color).
+        // 原因: iOS PWA 下 Select 下拉菜单 unmount 瞬间, 触摸点落到下方卡片上
+        // 会派发 mouseenter+mouseleave, 配合 transition 产生 sub-pixel 整体抖动.
         <div
-          key={c.label}
+          key={c.id}
           style={{
             backgroundColor: t.bg.card,
             borderRadius: R.md,
@@ -2383,17 +2397,8 @@ function OverviewCards({ svcs }) {
             border: `1px solid ${t.border}`,
             position: 'relative',
             overflow: 'hidden',
-            transition: 'border-color .2s,transform .2s',
             boxShadow: t.shadow,
             cursor: 'default',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = `${c.color}33`
-            e.currentTarget.style.transform = 'translateY(-1px)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = t.border
-            e.currentTarget.style.transform = 'none'
           }}
         >
           <div
@@ -2552,7 +2557,8 @@ function ServiceRow({ svc, selected, onSelect }: { svc; selected: boolean; onSel
 }
 
 function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance, onEditSvc, onDeleteSvc }) {
-  const { t, i18n, lang, rangeLabel } = useApp()
+  const { t, i18n, lang } = useApp()
+  const rangeLabel = useRangeLabel()
   const [latencyOpen, setLatencyOpen] = useState(false)
   const [availOpen, setAvailOpen] = useState(false)
   const [incidentOpen, setIncidentOpen] = useState(false)
@@ -2848,20 +2854,27 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance, onEditSvc, onDel
         }}
       >
         {[
-          { l: i18n.uptime90.replace('{n}', rangeLabel), v: fmtSLA(svc.current_sla), cl: c },
           {
+            id: 'sla',
+            l: i18n.uptime90.replace('{n}', rangeLabel),
+            v: fmtSLA(svc.current_sla),
+            cl: c,
+          },
+          {
+            id: 'downtime',
             l: i18n.estDowntime,
             v: downStr,
             cl: downTotalMin > 60 ? t.status.down : t.text.primary,
           },
           {
+            id: 'latency',
             l: i18n.avgLat,
             v: `${svc.latency}ms`,
             cl: svc.latency > 100 ? t.status.degraded : t.text.primary,
           },
         ].map((s) => (
           <div
-            key={s.l}
+            key={s.id}
             style={{ backgroundColor: t.bg.input, borderRadius: R.sm, padding: '12px 14px' }}
           >
             <div
@@ -3275,7 +3288,8 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance, onEditSvc, onDel
 }
 
 function LatencyDetailModal({ data, color }) {
-  const { t, i18n, rangeLabel } = useApp()
+  const { t, i18n } = useApp()
+  const rangeLabel = useRangeLabel()
   const vals = data.map((d) => d.v)
   const p95s = data.map((d) => d.p95)
   const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
@@ -3597,7 +3611,8 @@ function IncidentTimeline({ data, maxItems = 4 }) {
 }
 
 function AvailabilityDetailModal({ data, sla, target }) {
-  const { t, i18n, rangeLabel } = useApp()
+  const { t, i18n } = useApp()
+  const rangeLabel = useRangeLabel()
   const upDays = data.filter((d) => (typeof d === 'string' ? d : d.status) === 'up').length
   const degradedDays = data.filter(
     (d) => (typeof d === 'string' ? d : d.status) === 'degraded',
@@ -3749,7 +3764,8 @@ function AvailabilityDetailModal({ data, sla, target }) {
 }
 
 function IncidentDetailModal({ data }) {
-  const { t, i18n, rangeLabel } = useApp()
+  const { t, i18n } = useApp()
+  const rangeLabel = useRangeLabel()
   const [showCount, setShowCount] = useState(5)
   const incidents: {
     start: number
@@ -6885,6 +6901,7 @@ function UserMenu({
   onNavDiagnostics?: () => void
 }) {
   const { t, i18n } = useApp()
+  const isPWA = useIsPWA()
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const user = { name: 'Admin', email: 'admin@example.com' }
@@ -7043,30 +7060,33 @@ function UserMenu({
               }}
               t={t}
             />
-            <MenuItem
-              icon={
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={t.text.muted}
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <title>Check for update</title>
-                  <polyline points="23 4 23 10 17 10" />
-                  <path d="M20.49 15A9 9 0 1 1 20 8.3L23 10" />
-                </svg>
-              }
-              label={i18n.checkUpdate}
-              onClick={() => {
-                onCheckUpdate()
-                setOpen(false)
-              }}
-              t={t}
-            />
+            {/* "检查更新" 仅 PWA 需要: H5 刷新即更新 */}
+            {isPWA && (
+              <MenuItem
+                icon={
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke={t.text.muted}
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <title>Check for update</title>
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15A9 9 0 1 1 20 8.3L23 10" />
+                  </svg>
+                }
+                label={i18n.checkUpdate}
+                onClick={() => {
+                  onCheckUpdate()
+                  setOpen(false)
+                }}
+                t={t}
+              />
+            )}
             {isAdmin && onNavDiagnostics && (
               <MenuItem
                 icon={
@@ -7506,7 +7526,8 @@ function SortableHeader({
 }
 
 function ListHeader({ sort, onSort }: { sort: string; onSort: (s: string) => void }) {
-  const { t, i18n, rangeLabel } = useApp()
+  const { t, i18n } = useApp()
+  const rangeLabel = useRangeLabel()
   return (
     <div
       className="svc-row"
@@ -7751,10 +7772,7 @@ export default function App() {
     // 保险: 同时刷 <html> 背景色 (和 inline script 对齐)
     document.documentElement.style.backgroundColor = t.bg.base
   }, [themeMode, t.bg.base])
-  const ctx = useMemo(
-    () => ({ t, i18n, lang, theme, rangeLabel }),
-    [t, i18n, lang, theme, rangeLabel],
-  )
+  const ctx = useMemo(() => ({ t, i18n, lang, theme }), [t, i18n, lang, theme])
 
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState('sla-asc')
@@ -7898,21 +7916,22 @@ export default function App() {
 
   return (
     <AppCtx.Provider value={ctx}>
-      {isStatusPage ? (
-        <StatusPage services={allSvcs} projectName={projectName} t={t} i18n={i18n} lang={lang} />
-      ) : (
-        <div
-          className={isPWA ? 'pwa-safe-top' : undefined}
-          style={{
-            minHeight: '100vh',
-            backgroundColor: t.bg.base,
-            color: t.text.primary,
-            fontFamily: F.sans,
-            WebkitFontSmoothing: 'antialiased',
-            transition: 'background-color .3s,color .3s',
-          }}
-        >
-          <style>{`
+      <RangeCtx.Provider value={rangeLabel}>
+        {isStatusPage ? (
+          <StatusPage services={allSvcs} projectName={projectName} t={t} i18n={i18n} lang={lang} />
+        ) : (
+          <div
+            className={isPWA ? 'pwa-safe-top' : undefined}
+            style={{
+              minHeight: '100vh',
+              backgroundColor: t.bg.base,
+              color: t.text.primary,
+              fontFamily: F.sans,
+              WebkitFontSmoothing: 'antialiased',
+              transition: 'background-color .3s,color .3s',
+            }}
+          >
+            <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
         html,body{overscroll-behavior:none;-webkit-overflow-scrolling:touch}
@@ -7933,583 +7952,588 @@ export default function App() {
         @media(max-width:960px){.show-mobile-only{display:flex!important}}
       `}</style>
 
-          {/* 发现新版本 SW 的强制更新 banner (PC + PWA 通用)
-              优先级高于 siteNotification, 出现在页面最顶部 */}
-          {needRefresh && (
-            <div
-              style={{
-                backgroundColor: t.accent,
-                color: '#fff',
-                fontSize: 12,
-                fontWeight: 500,
-                fontFamily: F.sans,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '8px 16px',
-                flexWrap: 'wrap',
-                justifyContent: 'center',
-              }}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span role="img" aria-label="rocket">
-                  🚀
+            {/* 发现新版本 SW 的强制更新 banner (仅 PWA)
+              H5 刷新页面时会自然拿到新代码, 不需要提示打扰; PWA 因为要激活
+              新 SW 清理缓存, 必须显式触发. */}
+            {isPWA && needRefresh && (
+              <div
+                style={{
+                  backgroundColor: t.accent,
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  fontFamily: F.sans,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '8px 16px',
+                  flexWrap: 'wrap',
+                  justifyContent: 'center',
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span role="img" aria-label="rocket">
+                    🚀
+                  </span>
+                  <span>{i18n.updateAvailable}</span>
                 </span>
-                <span>{i18n.updateAvailable}</span>
-              </span>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => updateServiceWorker(true)}
-                  style={{
-                    padding: '4px 12px',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    borderRadius: 6,
-                    border: 'none',
-                    backgroundColor: '#fff',
-                    color: t.accent,
-                    cursor: 'pointer',
-                    fontFamily: F.sans,
-                  }}
-                >
-                  {i18n.updateNow}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNeedRefresh(false)}
-                  style={{
-                    padding: '4px 12px',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    borderRadius: 6,
-                    border: '1px solid rgba(255,255,255,.35)',
-                    backgroundColor: 'transparent',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    fontFamily: F.sans,
-                  }}
-                >
-                  {i18n.updateLater}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {siteNotif &&
-            !notifDismissed &&
-            (() => {
-              const colors = {
-                info: { bg: '#3b82f6', text: '#fff' },
-                warning: { bg: '#f59e0b', text: '#000' },
-                critical: { bg: '#ef4444', text: '#fff' },
-              }
-              const c = colors[siteNotif.type]
-              return (
-                <div
-                  style={{
-                    backgroundColor: c.bg,
-                    color: c.text,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    fontFamily: F.sans,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    padding: '6px 16px',
-                    position: 'relative',
-                  }}
-                >
-                  <span style={{ flex: 1, textAlign: 'center' }}>{siteNotif.message}</span>
+                <div style={{ display: 'flex', gap: 6 }}>
                   <button
                     type="button"
-                    onClick={() => setNotifDismissed(true)}
+                    onClick={() => updateServiceWorker(true)}
                     style={{
-                      background: 'none',
+                      padding: '4px 12px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      borderRadius: 6,
                       border: 'none',
+                      backgroundColor: '#fff',
+                      color: t.accent,
                       cursor: 'pointer',
-                      color: c.text,
-                      opacity: 0.7,
-                      padding: 4,
-                      lineHeight: 1,
-                      fontSize: 16,
-                      fontWeight: 700,
-                      position: 'absolute',
-                      right: 8,
+                      fontFamily: F.sans,
                     }}
                   >
-                    ×
+                    {i18n.updateNow}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNeedRefresh(false)}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      borderRadius: 6,
+                      border: '1px solid rgba(255,255,255,.35)',
+                      backgroundColor: 'transparent',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontFamily: F.sans,
+                    }}
+                  >
+                    {i18n.updateLater}
                   </button>
                 </div>
-              )
-            })()}
+              </div>
+            )}
 
-          <div
-            style={{
-              maxWidth: 1400,
-              margin: '0 auto',
-              padding: isPWA ? '0 24px 80px' : '0 24px 24px',
-            }}
-          >
-            <Header
-              theme={theme}
-              themeMode={themeMode}
-              toggleTheme={toggleTheme}
-              lang={lang}
-              toggleLang={toggleLang}
-              projectName={projectName}
-              timeRange={timeRange}
-              onTimeRangeChange={setTimeRange}
-              onOpenWebhook={() => setWebhookModalOpen(true)}
-              onOpenApiKey={() => setApiKeyModalOpen(true)}
-              onCheckUpdate={handleCheckUpdate}
-              isAdmin={isAdmin}
-              onNavDiagnostics={() => setTab('diagnostics')}
-            />
-            {!isPWA && <TabNav active={tab} onChange={setTab} isAdmin={isAdmin} />}
+            {siteNotif &&
+              !notifDismissed &&
+              (() => {
+                const colors = {
+                  info: { bg: '#3b82f6', text: '#fff' },
+                  warning: { bg: '#f59e0b', text: '#000' },
+                  critical: { bg: '#ef4444', text: '#fff' },
+                }
+                const c = colors[siteNotif.type]
+                return (
+                  <div
+                    style={{
+                      backgroundColor: c.bg,
+                      color: c.text,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      fontFamily: F.sans,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      padding: '6px 16px',
+                      position: 'relative',
+                    }}
+                  >
+                    <span style={{ flex: 1, textAlign: 'center' }}>{siteNotif.message}</span>
+                    <button
+                      type="button"
+                      onClick={() => setNotifDismissed(true)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: c.text,
+                        opacity: 0.7,
+                        padding: 4,
+                        lineHeight: 1,
+                        fontSize: 16,
+                        fontWeight: 700,
+                        position: 'absolute',
+                        right: 8,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )
+              })()}
 
-            {/* ──── OVERVIEW & SERVICES ────
+            <div
+              style={{
+                maxWidth: 1400,
+                margin: '0 auto',
+                padding: isPWA ? '0 24px 80px' : '0 24px 24px',
+              }}
+            >
+              <Header
+                theme={theme}
+                themeMode={themeMode}
+                toggleTheme={toggleTheme}
+                lang={lang}
+                toggleLang={toggleLang}
+                projectName={projectName}
+                timeRange={timeRange}
+                onTimeRangeChange={setTimeRange}
+                onOpenWebhook={() => setWebhookModalOpen(true)}
+                onOpenApiKey={() => setApiKeyModalOpen(true)}
+                onCheckUpdate={handleCheckUpdate}
+                isAdmin={isAdmin}
+                onNavDiagnostics={() => setTab('diagnostics')}
+              />
+              {!isPWA && <TabNav active={tab} onChange={setTab} isAdmin={isAdmin} />}
+
+              {/* ──── OVERVIEW & SERVICES ────
                  两个 tab 暂时共享同一视图（服务列表 + 详情 + 统计卡）。
                  后续计划：Overview 保留 4 张统计卡 + Top N 异常服务快照；
                  Services 承载完整的服务列表/CRUD/详情。F6 会拆分。 */}
-            {(tab === 'overview' || tab === 'services') && (
-              <>
-                <OverviewCards svcs={allSvcs} />
-                {isAdmin && (
+              {(tab === 'overview' || tab === 'services') && (
+                <>
+                  <OverviewCards svcs={allSvcs} />
+                  {isAdmin && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        margin: '20px 0 -8px',
+                      }}
+                    >
+                      <Btn variant="primary" onClick={() => setSvcModal({ mode: 'add' })}>
+                        + {i18n.addService}
+                      </Btn>
+                    </div>
+                  )}
+                  <div
+                    className="filter-bar"
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '20px 0 12px' }}
+                  >
+                    <div
+                      className="filter-chips"
+                      style={{ display: 'flex', gap: 6, flexShrink: 0 }}
+                    >
+                      {[
+                        { id: 'all', label: i18n.all, count: allSvcs.length, tip: '' },
+                        {
+                          id: 'up',
+                          label: i18n.operational,
+                          count: allSvcs.filter((s) => s.status === 'up').length,
+                          tip: '',
+                        },
+                        {
+                          id: 'degraded',
+                          label: i18n.degraded,
+                          count: allSvcs.filter((s) => s.status === 'degraded').length,
+                          tip: i18n.tipDegraded,
+                        },
+                        {
+                          id: 'down',
+                          label: i18n.down,
+                          count: allSvcs.filter((s) => s.status === 'down').length,
+                          tip: i18n.tipDown,
+                        },
+                        ...(allSvcs.some((s) => s.status === 'maintenance')
+                          ? [
+                              {
+                                id: 'maintenance',
+                                label: i18n.maintenance,
+                                count: allSvcs.filter((s) => s.status === 'maintenance').length,
+                                tip: i18n.tipMaintenance,
+                              },
+                            ]
+                          : []),
+                      ].map((f) => (
+                        <Tooltip key={f.id} text={f.tip}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFilter(f.id)
+                              setSvcPage(1)
+                            }}
+                            style={{
+                              background: filter === f.id ? t.accentMuted : 'transparent',
+                              border: `1px solid ${filter === f.id ? `${t.accent}44` : t.border}`,
+                              borderRadius: 8,
+                              padding: '6px 14px',
+                              cursor: 'pointer',
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: filter === f.id ? t.text.primary : t.text.secondary,
+                              transition: 'all .15s',
+                              fontFamily: F.sans,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            {f.id !== 'all' && (
+                              <span
+                                style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: '50%',
+                                  backgroundColor: t.status[f.id],
+                                }}
+                              />
+                            )}
+                            {f.label}
+                            <span
+                              style={{
+                                fontFamily: F.mono,
+                                fontSize: 11,
+                                color: t.text.muted,
+                                marginLeft: 2,
+                              }}
+                            >
+                              {f.count}
+                            </span>
+                          </button>
+                        </Tooltip>
+                      ))}
+                    </div>
+                    {allSvcs.length > PAGE_SIZE && (
+                      <div
+                        className="search-box"
+                        style={{
+                          position: 'relative',
+                          minWidth: 0,
+                          maxWidth: 280,
+                          marginLeft: 'auto',
+                          width: 280,
+                        }}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke={t.text.muted}
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          style={{
+                            position: 'absolute',
+                            left: 10,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          <title>search</title>
+                          <circle cx="11" cy="11" r="8" />
+                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                        <input
+                          ref={searchRef}
+                          value={search}
+                          onChange={(e) => {
+                            setSearch(e.target.value)
+                            setSvcPage(1)
+                          }}
+                          placeholder={i18n.search}
+                          style={{
+                            width: '100%',
+                            padding: '7px 48px 7px 32px',
+                            backgroundColor: t.bg.input,
+                            border: `1px solid ${t.border}`,
+                            borderRadius: 8,
+                            color: t.text.primary,
+                            fontSize: 12,
+                            fontFamily: F.sans,
+                            outline: 'none',
+                            transition: 'border-color .2s',
+                          }}
+                          onFocus={(e) => {
+                            e.target.style.borderColor = `${t.accent}66`
+                          }}
+                          onBlur={(e) => {
+                            e.target.style.borderColor = t.border
+                          }}
+                        />
+                        <kbd
+                          style={{
+                            position: 'absolute',
+                            right: 8,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            fontSize: 10,
+                            fontFamily: F.mono,
+                            color: t.text.muted,
+                            backgroundColor: t.bg.card,
+                            border: `1px solid ${t.border}`,
+                            pointerEvents: 'none',
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          ⌘K
+                        </kbd>
+                      </div>
+                    )}
+                  </div>
+                  <div
+                    className="main-grid"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 380px',
+                      gap: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        backgroundColor: t.bg.card,
+                        borderRadius: R.lg,
+                        border: `1px solid ${t.border}`,
+                        overflow: 'hidden',
+                        boxShadow: t.shadow,
+                      }}
+                    >
+                      <ListHeader
+                        sort={sort}
+                        onSort={(s) => {
+                          setSort(s)
+                          setSvcPage(1)
+                        }}
+                      />
+                      <div style={{ borderTop: `1px solid ${t.borderSubtle}` }}>
+                        {pagedSvcs.map((s) => (
+                          <ServiceRow
+                            key={s.id}
+                            svc={s}
+                            selected={selectedId === s.id}
+                            onSelect={setSelectedId}
+                          />
+                        ))}
+                        {filtered.length === 0 && (
+                          <div
+                            style={{
+                              padding: 40,
+                              textAlign: 'center',
+                              color: t.text.muted,
+                              fontSize: 13,
+                            }}
+                          >
+                            —
+                          </div>
+                        )}
+                        <Pagination
+                          total={filtered.length}
+                          page={svcPage}
+                          pageSize={PAGE_SIZE}
+                          onPageChange={setSvcPage}
+                        />
+                      </div>
+                    </div>
+                    <div
+                      className="detail-scroll"
+                      style={{
+                        backgroundColor: t.bg.card,
+                        borderRadius: R.lg,
+                        border: `1px solid ${t.border}`,
+                        overflowY: 'auto',
+                        overflowX: 'hidden',
+                        minHeight: 420,
+                        boxShadow: t.shadow,
+                      }}
+                    >
+                      <DetailPanel
+                        svc={selectedSvc}
+                        totalSvcs={allSvcs.length}
+                        onToggleMaintenance={toggleMaintenance}
+                        onEditSvc={(s) => setSvcModal({ mode: 'edit', svc: s })}
+                        onDeleteSvc={(id) => setSvcDelConfirm(id)}
+                      />
+                    </div>
+                  </div>
                   <div
                     style={{
                       display: 'flex',
-                      justifyContent: 'flex-end',
-                      margin: '20px 0 -8px',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '16px 0',
+                      marginTop: 16,
+                      borderTop: `1px solid ${t.border}`,
+                      fontSize: 11,
+                      color: t.text.muted,
+                      flexWrap: 'wrap',
+                      gap: 8,
                     }}
                   >
-                    <Btn variant="primary" onClick={() => setSvcModal({ mode: 'add' })}>
-                      + {i18n.addService}
-                    </Btn>
-                  </div>
-                )}
-                <div
-                  className="filter-bar"
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '20px 0 12px' }}
-                >
-                  <div className="filter-chips" style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    {[
-                      { id: 'all', label: i18n.all, count: allSvcs.length, tip: '' },
-                      {
-                        id: 'up',
-                        label: i18n.operational,
-                        count: allSvcs.filter((s) => s.status === 'up').length,
-                        tip: '',
-                      },
-                      {
-                        id: 'degraded',
-                        label: i18n.degraded,
-                        count: allSvcs.filter((s) => s.status === 'degraded').length,
-                        tip: i18n.tipDegraded,
-                      },
-                      {
-                        id: 'down',
-                        label: i18n.down,
-                        count: allSvcs.filter((s) => s.status === 'down').length,
-                        tip: i18n.tipDown,
-                      },
-                      ...(allSvcs.some((s) => s.status === 'maintenance')
-                        ? [
-                            {
-                              id: 'maintenance',
-                              label: i18n.maintenance,
-                              count: allSvcs.filter((s) => s.status === 'maintenance').length,
-                              tip: i18n.tipMaintenance,
-                            },
-                          ]
-                        : []),
-                    ].map((f) => (
-                      <Tooltip key={f.id} text={f.tip}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFilter(f.id)
-                            setSvcPage(1)
-                          }}
-                          style={{
-                            background: filter === f.id ? t.accentMuted : 'transparent',
-                            border: `1px solid ${filter === f.id ? `${t.accent}44` : t.border}`,
-                            borderRadius: 8,
-                            padding: '6px 14px',
-                            cursor: 'pointer',
-                            fontSize: 12,
-                            fontWeight: 500,
-                            color: filter === f.id ? t.text.primary : t.text.secondary,
-                            transition: 'all .15s',
-                            fontFamily: F.sans,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                          }}
-                        >
-                          {f.id !== 'all' && (
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                      {[
+                        { s: 'up', l: i18n.operational, tip: '' },
+                        { s: 'degraded', l: i18n.degraded, tip: i18n.tipDegraded },
+                        { s: 'down', l: i18n.down, tip: i18n.tipDown },
+                        { s: 'maintenance', l: i18n.maintenance, tip: i18n.tipMaintenance },
+                      ].map((x) => (
+                        <Tooltip key={x.s} text={x.tip}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                             <span
                               style={{
-                                width: 6,
-                                height: 6,
-                                borderRadius: '50%',
-                                backgroundColor: t.status[f.id],
+                                width: 8,
+                                height: 8,
+                                borderRadius: 2,
+                                backgroundColor: t.status[x.s],
                               }}
                             />
-                          )}
-                          {f.label}
-                          <span
-                            style={{
-                              fontFamily: F.mono,
-                              fontSize: 11,
-                              color: t.text.muted,
-                              marginLeft: 2,
-                            }}
-                          >
-                            {f.count}
+                            {x.l}
                           </span>
-                        </button>
-                      </Tooltip>
-                    ))}
-                  </div>
-                  {allSvcs.length > PAGE_SIZE && (
-                    <div
-                      className="search-box"
-                      style={{
-                        position: 'relative',
-                        minWidth: 0,
-                        maxWidth: 280,
-                        marginLeft: 'auto',
-                        width: 280,
-                      }}
-                    >
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke={t.text.muted}
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        style={{
-                          position: 'absolute',
-                          left: 10,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          pointerEvents: 'none',
-                        }}
-                      >
-                        <title>search</title>
-                        <circle cx="11" cy="11" r="8" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                      </svg>
-                      <input
-                        ref={searchRef}
-                        value={search}
-                        onChange={(e) => {
-                          setSearch(e.target.value)
-                          setSvcPage(1)
-                        }}
-                        placeholder={i18n.search}
-                        style={{
-                          width: '100%',
-                          padding: '7px 48px 7px 32px',
-                          backgroundColor: t.bg.input,
-                          border: `1px solid ${t.border}`,
-                          borderRadius: 8,
-                          color: t.text.primary,
-                          fontSize: 12,
-                          fontFamily: F.sans,
-                          outline: 'none',
-                          transition: 'border-color .2s',
-                        }}
-                        onFocus={(e) => {
-                          e.target.style.borderColor = `${t.accent}66`
-                        }}
-                        onBlur={(e) => {
-                          e.target.style.borderColor = t.border
-                        }}
-                      />
-                      <kbd
-                        style={{
-                          position: 'absolute',
-                          right: 8,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          fontSize: 10,
-                          fontFamily: F.mono,
-                          color: t.text.muted,
-                          backgroundColor: t.bg.card,
-                          border: `1px solid ${t.border}`,
-                          pointerEvents: 'none',
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        ⌘K
-                      </kbd>
-                    </div>
-                  )}
-                </div>
-                <div
-                  className="main-grid"
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 380px',
-                    gap: 16,
-                  }}
-                >
-                  <div
-                    style={{
-                      backgroundColor: t.bg.card,
-                      borderRadius: R.lg,
-                      border: `1px solid ${t.border}`,
-                      overflow: 'hidden',
-                      boxShadow: t.shadow,
-                    }}
-                  >
-                    <ListHeader
-                      sort={sort}
-                      onSort={(s) => {
-                        setSort(s)
-                        setSvcPage(1)
-                      }}
-                    />
-                    <div style={{ borderTop: `1px solid ${t.borderSubtle}` }}>
-                      {pagedSvcs.map((s) => (
-                        <ServiceRow
-                          key={s.id}
-                          svc={s}
-                          selected={selectedId === s.id}
-                          onSelect={setSelectedId}
-                        />
+                        </Tooltip>
                       ))}
-                      {filtered.length === 0 && (
-                        <div
-                          style={{
-                            padding: 40,
-                            textAlign: 'center',
-                            color: t.text.muted,
-                            fontSize: 13,
-                          }}
-                        >
-                          —
-                        </div>
-                      )}
-                      <Pagination
-                        total={filtered.length}
-                        page={svcPage}
-                        pageSize={PAGE_SIZE}
-                        onPageChange={setSvcPage}
-                      />
                     </div>
+                    <span style={{ fontFamily: F.mono, fontFeatureSettings: "'tnum'" }}>
+                      {timeRange === 'today' ? i18n.realtime : `${i18n.cached} (T+1)`}
+                    </span>
                   </div>
-                  <div
-                    className="detail-scroll"
-                    style={{
-                      backgroundColor: t.bg.card,
-                      borderRadius: R.lg,
-                      border: `1px solid ${t.border}`,
-                      overflowY: 'auto',
-                      overflowX: 'hidden',
-                      minHeight: 420,
-                      boxShadow: t.shadow,
-                    }}
-                  >
-                    <DetailPanel
-                      svc={selectedSvc}
-                      totalSvcs={allSvcs.length}
-                      onToggleMaintenance={toggleMaintenance}
-                      onEditSvc={(s) => setSvcModal({ mode: 'edit', svc: s })}
-                      onDeleteSvc={(id) => setSvcDelConfirm(id)}
-                    />
-                  </div>
+                </>
+              )}
+
+              {/* ──── PROBES ──── */}
+              {tab === 'probes' && (
+                <div style={{ paddingBottom: isPWA ? 32 : 0 }}>
+                  <ProbesPage svcs={allSvcs} />
                 </div>
+              )}
+
+              {/* ──── INCIDENTS ──── (F3 未启动；仅占位文案) */}
+              {tab === 'incidents' && (
                 <div
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '16px 0',
-                    marginTop: 16,
-                    borderTop: `1px solid ${t.border}`,
-                    fontSize: 11,
+                    padding: '48px 24px',
+                    textAlign: 'center',
                     color: t.text.muted,
-                    flexWrap: 'wrap',
-                    gap: 8,
+                    fontSize: 14,
                   }}
                 >
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                    {[
-                      { s: 'up', l: i18n.operational, tip: '' },
-                      { s: 'degraded', l: i18n.degraded, tip: i18n.tipDegraded },
-                      { s: 'down', l: i18n.down, tip: i18n.tipDown },
-                      { s: 'maintenance', l: i18n.maintenance, tip: i18n.tipMaintenance },
-                    ].map((x) => (
-                      <Tooltip key={x.s} text={x.tip}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <span
-                            style={{
-                              width: 8,
-                              height: 8,
-                              borderRadius: 2,
-                              backgroundColor: t.status[x.s],
-                            }}
-                          />
-                          {x.l}
-                        </span>
-                      </Tooltip>
-                    ))}
-                  </div>
-                  <span style={{ fontFamily: F.mono, fontFeatureSettings: "'tnum'" }}>
-                    {timeRange === 'today' ? i18n.realtime : `${i18n.cached} (T+1)`}
-                  </span>
+                  {i18n.incidentsComingSoon}
                 </div>
-              </>
-            )}
+              )}
 
-            {/* ──── PROBES ──── */}
-            {tab === 'probes' && (
-              <div style={{ paddingBottom: isPWA ? 32 : 0 }}>
-                <ProbesPage svcs={allSvcs} />
-              </div>
-            )}
-
-            {/* ──── INCIDENTS ──── (F3 未启动；仅占位文案) */}
-            {tab === 'incidents' && (
-              <div
-                style={{
-                  padding: '48px 24px',
-                  textAlign: 'center',
-                  color: t.text.muted,
-                  fontSize: 14,
-                }}
-              >
-                {i18n.incidentsComingSoon}
-              </div>
-            )}
-
-            {/* ──── ALERTS ──── (F4 未启动；仅显示占位文案) */}
-            {tab === 'alerts' && (
-              <div
-                style={{
-                  padding: '48px 24px',
-                  textAlign: 'center',
-                  color: t.text.muted,
-                  fontSize: 14,
-                }}
-              >
-                {i18n.alertsComingSoon}
-              </div>
-            )}
-
-            {/* ──── DIAGNOSTICS ──── (admin 专属, 从用户菜单进; 内容 = 推送通知诊断) */}
-            {tab === 'diagnostics' && isAdmin && <EventsPage isPWA={isPWA} />}
-
-            {/* ──── SETTINGS ──── */}
-            {tab === 'settings' && (
-              <SettingsPage
-                projectName={projectName}
-                setProjectName={setProjectName}
-                siteNotif={siteNotif}
-                onNotifChange={(n) => {
-                  setSiteNotif(n)
-                  setNotifDismissed(false)
-                }}
-                isPWA={isPWA}
-              />
-            )}
-          </div>
-          <WebhookModal open={webhookModalOpen} onClose={() => setWebhookModalOpen(false)} />
-          <ApiKeyModal open={apiKeyModalOpen} onClose={() => setApiKeyModalOpen(false)} />
-
-          {/* Service CRUD modals (F6) */}
-          <Modal
-            open={!!svcModal}
-            onClose={() => setSvcModal(null)}
-            title={svcModal?.mode === 'edit' ? i18n.editService : i18n.addService}
-            width={560}
-          >
-            {svcModal && (
-              <ServiceForm
-                svc={svcModal.svc}
-                onSave={handleSvcSave}
-                onCancel={() => setSvcModal(null)}
-              />
-            )}
-          </Modal>
-          <Modal
-            open={!!svcDelConfirm}
-            onClose={() => setSvcDelConfirm(null)}
-            title={i18n.deleteService}
-            width={420}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ fontSize: 13, color: t.text.secondary, lineHeight: 1.6 }}>
-                {i18n.confirmDeleteService}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <Btn variant="ghost" onClick={() => setSvcDelConfirm(null)}>
-                  {i18n.cancel}
-                </Btn>
-                <Btn
-                  variant="danger"
-                  onClick={() => svcDelConfirm && handleSvcDelete(svcDelConfirm)}
+              {/* ──── ALERTS ──── (F4 未启动；仅显示占位文案) */}
+              {tab === 'alerts' && (
+                <div
+                  style={{
+                    padding: '48px 24px',
+                    textAlign: 'center',
+                    color: t.text.muted,
+                    fontSize: 14,
+                  }}
                 >
-                  {i18n.delete}
-                </Btn>
+                  {i18n.alertsComingSoon}
+                </div>
+              )}
+
+              {/* ──── DIAGNOSTICS ──── (admin 专属, 从用户菜单进; 内容 = 推送通知诊断) */}
+              {tab === 'diagnostics' && isAdmin && <EventsPage isPWA={isPWA} />}
+
+              {/* ──── SETTINGS ──── */}
+              {tab === 'settings' && (
+                <SettingsPage
+                  projectName={projectName}
+                  setProjectName={setProjectName}
+                  siteNotif={siteNotif}
+                  onNotifChange={(n) => {
+                    setSiteNotif(n)
+                    setNotifDismissed(false)
+                  }}
+                  isPWA={isPWA}
+                />
+              )}
+            </div>
+            <WebhookModal open={webhookModalOpen} onClose={() => setWebhookModalOpen(false)} />
+            <ApiKeyModal open={apiKeyModalOpen} onClose={() => setApiKeyModalOpen(false)} />
+
+            {/* Service CRUD modals (F6) */}
+            <Modal
+              open={!!svcModal}
+              onClose={() => setSvcModal(null)}
+              title={svcModal?.mode === 'edit' ? i18n.editService : i18n.addService}
+              width={560}
+            >
+              {svcModal && (
+                <ServiceForm
+                  svc={svcModal.svc}
+                  onSave={handleSvcSave}
+                  onCancel={() => setSvcModal(null)}
+                />
+              )}
+            </Modal>
+            <Modal
+              open={!!svcDelConfirm}
+              onClose={() => setSvcDelConfirm(null)}
+              title={i18n.deleteService}
+              width={420}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ fontSize: 13, color: t.text.secondary, lineHeight: 1.6 }}>
+                  {i18n.confirmDeleteService}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <Btn variant="ghost" onClick={() => setSvcDelConfirm(null)}>
+                    {i18n.cancel}
+                  </Btn>
+                  <Btn
+                    variant="danger"
+                    onClick={() => svcDelConfirm && handleSvcDelete(svcDelConfirm)}
+                  >
+                    {i18n.delete}
+                  </Btn>
+                </div>
               </div>
-            </div>
-          </Modal>
-          {svcToast && (
-            <div
-              style={{
-                position: 'fixed',
-                bottom: isPWA ? 88 : 24,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                padding: '10px 20px',
-                backgroundColor: t.status.up,
-                borderRadius: 10,
-                color: '#fff',
-                fontSize: 13,
-                fontWeight: 600,
-                zIndex: 10000,
-                boxShadow: '0 8px 24px rgba(0,0,0,.3)',
-                animation: 'fadeSlide .25s ease',
-                fontFamily: F.sans,
-              }}
-            >
-              {svcToast}
-            </div>
-          )}
-          {updateToast && (
-            <div
-              style={{
-                position: 'fixed',
-                bottom: isPWA ? 88 : 24,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                padding: '10px 20px',
-                backgroundColor: t.bg.card,
-                border: `1px solid ${t.border}`,
-                borderRadius: 8,
-                color: t.text.primary,
-                fontSize: 13,
-                zIndex: 10000,
-                boxShadow: t.shadow,
-              }}
-            >
-              {updateToast}
-            </div>
-          )}
-          {showPushPrompt && <PushPermissionPrompt onDismiss={() => setShowPushPrompt(false)} />}
-          {isPWA && <TabNav active={tab} onChange={setTab} pwa isAdmin={isAdmin} />}
-        </div>
-      )}
+            </Modal>
+            {svcToast && (
+              <div
+                style={{
+                  position: 'fixed',
+                  bottom: isPWA ? 88 : 24,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  padding: '10px 20px',
+                  backgroundColor: t.status.up,
+                  borderRadius: 10,
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  zIndex: 10000,
+                  boxShadow: '0 8px 24px rgba(0,0,0,.3)',
+                  animation: 'fadeSlide .25s ease',
+                  fontFamily: F.sans,
+                }}
+              >
+                {svcToast}
+              </div>
+            )}
+            {updateToast && (
+              <div
+                style={{
+                  position: 'fixed',
+                  bottom: isPWA ? 88 : 24,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  padding: '10px 20px',
+                  backgroundColor: t.bg.card,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 8,
+                  color: t.text.primary,
+                  fontSize: 13,
+                  zIndex: 10000,
+                  boxShadow: t.shadow,
+                }}
+              >
+                {updateToast}
+              </div>
+            )}
+            {showPushPrompt && <PushPermissionPrompt onDismiss={() => setShowPushPrompt(false)} />}
+            {isPWA && <TabNav active={tab} onChange={setTab} pwa isAdmin={isAdmin} />}
+          </div>
+        )}
+      </RangeCtx.Provider>
     </AppCtx.Provider>
   )
 }

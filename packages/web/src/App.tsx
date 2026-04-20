@@ -286,6 +286,16 @@ const msg = {
     testNoSW: 'Service Worker not supported in this browser.',
     testRouteHint:
       'A = window.Notification · B-E = ServiceWorker route (iOS PWA only supports B+).',
+    testResultSent: 'Notification dispatched and verified in SW queue.',
+    testResultBlocked: 'Notification was sent via API but the OS swallowed it (no system popup).',
+    testGuideMacOS:
+      'macOS: System Settings → Notifications → Chrome/Pulse → allow. Check Do Not Disturb / Focus mode too.',
+    testGuideIOS:
+      'iOS: Settings → Pulse → Notifications → Allow. Also disable Focus mode if active.',
+    testGuideWindows:
+      'Windows: Settings → System → Notifications → Chrome/Pulse → on. Turn off Focus Assist.',
+    testGuideGeneric:
+      'Check your OS notification settings and make sure this app/browser is allowed to send notifications.',
     swActive: 'Service Worker active',
     swPending: 'Service Worker registering…',
     swNone: 'Service Worker unavailable',
@@ -614,6 +624,13 @@ const msg = {
     testFailed: '测试失败',
     testNoSW: '当前浏览器不支持 Service Worker。',
     testRouteHint: 'A = window.Notification 传统路径；B–E 走 Service Worker。iOS PWA 只认 B 起。',
+    testResultSent: '通知已发送并在 SW 队列验证成功',
+    testResultBlocked: '通知已通过 API 发出, 但系统层面没弹出横幅',
+    testGuideMacOS:
+      'macOS: 系统设置 → 通知 → Chrome/Pulse → 允许。同时检查"专注模式"是否开启并吞掉了通知。',
+    testGuideIOS: 'iOS: 设置 → Pulse → 通知 → 允许。同时关闭"专注模式"。',
+    testGuideWindows: 'Windows: 设置 → 系统 → 通知 → Chrome/Pulse → 开启。关闭"专注助手"。',
+    testGuideGeneric: '请检查当前操作系统的通知设置, 确保本应用/浏览器被允许发送通知。',
     swActive: 'Service Worker 已激活',
     swPending: 'Service Worker 注册中…',
     swNone: 'Service Worker 不可用',
@@ -2247,12 +2264,14 @@ function Modal({ open, onClose, title, children, width = 480 }) {
    ================================================================ */
 function Toast({ message, visible }) {
   const { t } = useApp()
+  // PWA 模式下抬高避开底部 TabBar (约 60px + safe-area)
+  const isPWA = useIsPWA()
   if (!visible) return null
   return (
     <div
       style={{
         position: 'fixed',
-        bottom: 24,
+        bottom: isPWA ? 88 : 24,
         left: '50%',
         transform: 'translateX(-50%)',
         padding: '10px 20px',
@@ -5055,64 +5074,95 @@ function EventsPage({ isPWA }: { isPWA: boolean }) {
     }
   }, [canNotify, permission, flash, i18n])
 
+  // 测试结果状态 - 用于在按钮下方展示平台级的详细指引
+  // 'sent'    = 通过 getNotifications 验证到通知确实进了队列
+  // 'blocked' = showNotification 没 throw 但 getNotifications 返回空, 说明
+  //             系统级 (macOS 系统设置 / iOS 勿扰) 把通知吞了
+  // 'error'   = API throw, 通常是权限或 SW 异常
+  const [testResult, setTestResult] = useState<{
+    kind: 'sent' | 'blocked' | 'error'
+    detail?: string
+  } | null>(null)
+  useEffect(() => {
+    if (!testResult) return
+    const timer = setTimeout(() => setTestResult(null), 8000)
+    return () => clearTimeout(timer)
+  }, [testResult])
+
   // 路径 B: Service Worker registration.showNotification — iOS PWA 必走;
   // Chrome/Firefox/Safari 通用最稳路径
   const runSwNotification = useCallback(
-    async (title: string, options: NotificationOptions) => {
+    async (
+      title: string,
+      options: NotificationOptions,
+    ): Promise<'sent' | 'blocked' | 'error' | 'skip'> => {
       if (!canNotify) {
         flash(permission === 'denied' ? i18n.pushBlocked : i18n.pushNotSupported)
-        return
+        return 'skip'
       }
       if (!('serviceWorker' in navigator)) {
         flash(i18n.testNoSW)
-        return
+        return 'skip'
       }
       try {
         const reg = await navigator.serviceWorker.ready
         await reg.showNotification(title, options)
+        // Post-check: 通知是否真的进了 SW 队列. 如果 API 层面成功但队列空,
+        // 说明系统把通知吞了 (macOS 通知权限关闭 / 勿扰 / iOS 专注模式).
+        const notes = await reg.getNotifications(options.tag ? { tag: options.tag } : undefined)
+        if (notes.length === 0) {
+          setTestResult({ kind: 'blocked' })
+          return 'blocked'
+        }
+        setTestResult({ kind: 'sent' })
+        return 'sent'
       } catch (err) {
-        flash(`${i18n.testFailed}: ${(err as Error).message}`)
+        const msg = (err as Error).message
+        setTestResult({ kind: 'error', detail: msg })
+        flash(`${i18n.testFailed}: ${msg}`)
+        return 'error'
       }
     },
     [canNotify, permission, flash, i18n],
   )
 
-  const handleTestSwPush = useCallback(() => {
-    runSwNotification(i18n.testPushTitle, {
+  const handleTestSwPush = useCallback(async () => {
+    const r = await runSwNotification(i18n.testPushTitle, {
       body: i18n.testSwBody,
       icon: '/icon-192.png',
       badge: '/favicon.png',
     })
-    flash(i18n.testSwSent)
+    if (r === 'sent') flash(i18n.testSwSent)
   }, [runSwNotification, flash, i18n])
 
   // 路径 C: SW + requireInteraction (不自动消失, 需用户手动关闭)
-  const handleTestSticky = useCallback(() => {
-    runSwNotification(i18n.testPushTitle, {
+  const handleTestSticky = useCallback(async () => {
+    const r = await runSwNotification(i18n.testPushTitle, {
       body: i18n.testStickyBody,
       icon: '/icon-192.png',
       badge: '/favicon.png',
       requireInteraction: true,
       tag: 'pulse-sticky',
     })
-    flash(i18n.testStickySent)
+    if (r === 'sent') flash(i18n.testStickySent)
   }, [runSwNotification, flash, i18n])
 
   // 路径 D: SW + silent (静默不震动/不响)
-  const handleTestSilent = useCallback(() => {
-    runSwNotification(i18n.testPushTitle, {
+  const handleTestSilent = useCallback(async () => {
+    const r = await runSwNotification(i18n.testPushTitle, {
       body: i18n.testSilentBody,
       icon: '/icon-192.png',
       badge: '/favicon.png',
       silent: true,
     })
-    flash(i18n.testSilentSent)
+    if (r === 'sent') flash(i18n.testSilentSent)
   }, [runSwNotification, flash, i18n])
 
   // 路径 E: 连发 3 条 + 同 tag + renotify, 验证折叠/重通知行为
   const handleTestRapid = useCallback(async () => {
+    let lastResult: 'sent' | 'blocked' | 'error' | 'skip' = 'skip'
     for (let i = 1; i <= 3; i++) {
-      await runSwNotification(i18n.testPushTitle, {
+      lastResult = await runSwNotification(i18n.testPushTitle, {
         body: `${i18n.testRapidBody} (${i}/3)`,
         icon: '/icon-192.png',
         badge: '/favicon.png',
@@ -5120,9 +5170,10 @@ function EventsPage({ isPWA }: { isPWA: boolean }) {
         // @ts-expect-error renotify 不在标准 TS 类型里但主流浏览器都支持
         renotify: true,
       })
+      if (lastResult !== 'sent') break
       await new Promise((r) => setTimeout(r, 400))
     }
-    flash(i18n.testRapidSent)
+    if (lastResult === 'sent') flash(i18n.testRapidSent)
   }, [runSwNotification, flash, i18n])
 
   // Permission color mapping
@@ -5397,6 +5448,61 @@ function EventsPage({ isPWA }: { isPWA: boolean }) {
               >
                 {i18n.testRouteHint}
               </div>
+
+              {/* 测试结果 panel - 按钮按下后展示平台级的详细反馈 */}
+              {testResult && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    padding: '10px 12px',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    lineHeight: 1.6,
+                    backgroundColor:
+                      testResult.kind === 'sent'
+                        ? `${t.status.up}10`
+                        : testResult.kind === 'blocked'
+                          ? `${t.status.degraded}12`
+                          : `${t.status.down}12`,
+                    border: `1px solid ${
+                      testResult.kind === 'sent'
+                        ? `${t.status.up}30`
+                        : testResult.kind === 'blocked'
+                          ? `${t.status.degraded}30`
+                          : `${t.status.down}30`
+                    }`,
+                    color:
+                      testResult.kind === 'sent'
+                        ? t.status.up
+                        : testResult.kind === 'blocked'
+                          ? t.status.degraded
+                          : t.status.down,
+                  }}
+                >
+                  {testResult.kind === 'sent' && <div>✓ {i18n.testResultSent}</div>}
+                  {testResult.kind === 'blocked' && (
+                    <>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        ⚠ {i18n.testResultBlocked}
+                      </div>
+                      <div style={{ color: t.text.secondary, fontSize: 10 }}>
+                        {isIOS
+                          ? i18n.testGuideIOS
+                          : /Mac/.test(navigator.userAgent)
+                            ? i18n.testGuideMacOS
+                            : /Win/.test(navigator.userAgent)
+                              ? i18n.testGuideWindows
+                              : i18n.testGuideGeneric}
+                      </div>
+                    </>
+                  )}
+                  {testResult.kind === 'error' && (
+                    <div style={{ wordBreak: 'break-word' }}>
+                      ✗ {testResult.detail || i18n.testFailed}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -8149,7 +8255,7 @@ export default function App() {
             <div
               style={{
                 position: 'fixed',
-                bottom: 24,
+                bottom: isPWA ? 88 : 24,
                 left: '50%',
                 transform: 'translateX(-50%)',
                 padding: '10px 20px',

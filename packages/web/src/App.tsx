@@ -7252,11 +7252,50 @@ export default function App() {
   const i18n = msg[lang]
   const rangeLabel = rangeDaysLabel(timeRange, lang)
 
-  // Sync theme-color meta for PWA status bar
+  // Sync theme-color meta for PWA window bar / mobile URL bar.
+  // themeMode = 'auto' 时保留 HTML 的两条 media meta 让浏览器自动选;
+  // themeMode = 'dark'/'light' 时移除 media meta, 写一条无 media 的强制 meta.
   useEffect(() => {
-    const meta = document.querySelector('meta[name="theme-color"]')
-    if (meta) meta.setAttribute('content', t.bg.base)
-  }, [t.bg.base])
+    const head = document.head
+    const metas = head.querySelectorAll('meta[name="theme-color"]')
+    if (themeMode === 'auto') {
+      // 确保两条 media meta 齐全 (应由 HTML 已提供, 这里兜底)
+      const hasLight = Array.from(metas).some(
+        (m) => m.getAttribute('media') === '(prefers-color-scheme: light)',
+      )
+      const hasDark = Array.from(metas).some(
+        (m) => m.getAttribute('media') === '(prefers-color-scheme: dark)',
+      )
+      const hasForced = Array.from(metas).some((m) => !m.getAttribute('media'))
+      // 如果有无 media 的 meta (上一轮显式模式遗留), 移除
+      if (hasForced) {
+        for (const m of metas) if (!m.getAttribute('media')) m.remove()
+      }
+      if (!hasLight) {
+        const m = document.createElement('meta')
+        m.setAttribute('name', 'theme-color')
+        m.setAttribute('media', '(prefers-color-scheme: light)')
+        m.setAttribute('content', '#f8f9fc')
+        head.appendChild(m)
+      }
+      if (!hasDark) {
+        const m = document.createElement('meta')
+        m.setAttribute('name', 'theme-color')
+        m.setAttribute('media', '(prefers-color-scheme: dark)')
+        m.setAttribute('content', '#0a0e1a')
+        head.appendChild(m)
+      }
+    } else {
+      // 显式模式: 清掉所有 theme-color meta, 写一条无 media 的强制值
+      for (const m of metas) m.remove()
+      const m = document.createElement('meta')
+      m.setAttribute('name', 'theme-color')
+      m.setAttribute('content', t.bg.base)
+      head.appendChild(m)
+    }
+    // 保险: 同时刷 <html> 背景色 (和 inline script 对齐)
+    document.documentElement.style.backgroundColor = t.bg.base
+  }, [themeMode, t.bg.base])
   const ctx = useMemo(
     () => ({ t, i18n, lang, theme, rangeLabel }),
     [t, i18n, lang, theme, rangeLabel],

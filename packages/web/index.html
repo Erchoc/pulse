@@ -5,7 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#0a0e1a" />
+    <!-- 声明支持两种主题: 让浏览器表单控件/滚动条也跟随切换 -->
+    <meta name="color-scheme" content="light dark" />
+    <!-- 默认按系统偏好选 theme-color (Chrome PWA 窗口栏 / 移动浏览器 URL 条背景) -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8f9fc" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0e1a" />
+    <!--
+      Blocking inline script: 在 React bundle 加载前读 localStorage 覆盖 meta,
+      否则用户手动选了"浅色"后刷新, Chrome PWA 还是会按 media meta 闪一下暗色窗口栏.
+      必须放在 theme-color meta 之后、任何 script 之前, 且同步执行.
+    -->
+    <script>
+      (function () {
+        try {
+          var mode = localStorage.getItem('pulse-theme');
+          if (mode !== 'dark' && mode !== 'light' && mode !== 'auto') mode = 'auto';
+          var prefersDark =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = mode === 'dark' || (mode === 'auto' && prefersDark);
+          var bg = isDark ? '#0a0e1a' : '#f8f9fc';
+          // 显式模式下, 用单条无 media 的 meta 覆盖 (移除 media meta)
+          if (mode !== 'auto') {
+            var metas = document.querySelectorAll('meta[name="theme-color"]');
+            for (var i = 0; i < metas.length; i++) metas[i].parentNode.removeChild(metas[i]);
+            var m = document.createElement('meta');
+            m.setAttribute('name', 'theme-color');
+            m.setAttribute('content', bg);
+            document.head.appendChild(m);
+          }
+          // 预涂 <html> 背景, 避免首屏白/黑闪烁
+          document.documentElement.style.backgroundColor = bg;
+        } catch (e) {
+          /* storage denied / matchMedia missing → 继续使用 media meta */
+        }
+      })();
+    </script>
     <title>Pulse — SLA Monitoring</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

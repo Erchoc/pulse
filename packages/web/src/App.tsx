@@ -123,6 +123,8 @@ const msg = {
     nMore: '+{n} more',
     dUnit: 'd',
     loadMore: 'Load more events',
+    moreN: '+{n} more',
+    collapse: 'Collapse',
     ago72: '{n} ago',
     now: 'now',
     ago90: '{n} ago',
@@ -475,6 +477,8 @@ const msg = {
     nMore: '+{n} 更多',
     dUnit: '天',
     loadMore: '加载更多事件',
+    moreN: '+{n} 更多',
+    collapse: '收起',
     ago72: '{n}前',
     now: '现在',
     ago90: '{n}前',
@@ -1389,7 +1393,7 @@ const allProbes = isMockPage ? genMockProbes() : _initProbes
 /* ================================================================
    Helpers
    ================================================================ */
-const PAGE_SIZE = 10
+const PAGE_SIZE = 12
 
 /* Tab 路由白名单 (放模块级避免每次渲染重建引用, 干扰 useCallback 依赖) */
 const VALID_TABS = [
@@ -2555,6 +2559,14 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance, onEditSvc, onDel
   const [maintModalOpen, setMaintModalOpen] = useState(false)
   const [endMaintConfirm, setEndMaintConfirm] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
+  // 关联探针默认折叠到 3 条; 切换服务时重置 (React "prev prop" 模式)
+  const [showAllLinkedProbes, setShowAllLinkedProbes] = useState(false)
+  const [prevSvcIdForProbes, setPrevSvcIdForProbes] = useState(svc?.id)
+  if (prevSvcIdForProbes !== svc?.id) {
+    setPrevSvcIdForProbes(svc?.id)
+    setShowAllLinkedProbes(false)
+  }
+  const LINKED_PROBES_PREVIEW = 3
   if (!svc)
     return (
       <div
@@ -3043,62 +3055,52 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance, onEditSvc, onDel
           </div>
         </div>
       </div>
-      {totalSvcs > PAGE_SIZE && (
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              color: t.text.muted,
-              fontWeight: 500,
-              marginBottom: 10,
-              textTransform: 'uppercase',
-              letterSpacing: '.04em',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            {i18n.incidentHistory.replace('{n}', rangeLabel)}
-            <button
-              type="button"
-              onClick={() => setIncidentOpen(true)}
-              style={{
-                background: 'none',
-                border: `1px solid ${t.border}`,
-                borderRadius: 6,
-                padding: '2px 8px',
-                fontSize: 10,
-                color: t.text.secondary,
-                cursor: 'pointer',
-                fontFamily: F.sans,
-                textTransform: 'none',
-                letterSpacing: 0,
-              }}
-            >
-              {i18n.details}
-            </button>
-          </div>
-          <IncidentTimeline data={svc.bar} maxItems={3} />
-        </div>
-      )}
-
-      {/* 关联探针 (1 服务 → N 探针; mock 数据从模块常量过滤, 接真实 API 后改拉) */}
+      {/* 关联探针 (1 服务 → N 探针; 默认显示前 3 条, 超过带折叠按钮)
+           放在事件历史上方, 视觉上"先看组成再看历史". */}
       {(() => {
         const linked = allProbes.filter((p) => p.service_id === svc.id)
+        const displayed = showAllLinkedProbes ? linked : linked.slice(0, LINKED_PROBES_PREVIEW)
+        const overflow = linked.length - LINKED_PROBES_PREVIEW
         return (
           <div style={{ marginBottom: 24 }}>
             <div
               style={{
-                fontSize: 10,
-                textTransform: 'uppercase',
-                fontWeight: 600,
+                fontSize: 11,
                 color: t.text.muted,
-                letterSpacing: '.08em',
+                fontWeight: 500,
                 marginBottom: 10,
-                fontFamily: F.mono,
+                textTransform: 'uppercase',
+                letterSpacing: '.04em',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
               }}
             >
-              {i18n.linkedProbes} ({linked.length})
+              <span>
+                {i18n.linkedProbes} ({linked.length})
+              </span>
+              {overflow > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllLinkedProbes((v) => !v)}
+                  style={{
+                    background: 'none',
+                    border: `1px solid ${t.border}`,
+                    borderRadius: 6,
+                    padding: '2px 8px',
+                    fontSize: 10,
+                    color: t.text.secondary,
+                    cursor: 'pointer',
+                    fontFamily: F.sans,
+                    textTransform: 'none',
+                    letterSpacing: 0,
+                  }}
+                >
+                  {showAllLinkedProbes
+                    ? i18n.collapse
+                    : i18n.moreN.replace('{n}', String(overflow))}
+                </button>
+              )}
             </div>
             {linked.length === 0 ? (
               <div
@@ -3115,7 +3117,7 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance, onEditSvc, onDel
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {linked.map((p) => {
+                {displayed.map((p) => {
                   const pc = typeColors[p.protocol as Protocol] || t.text.secondary
                   return (
                     <div
@@ -3165,6 +3167,45 @@ function DetailPanel({ svc, totalSvcs = 0, onToggleMaintenance, onEditSvc, onDel
           </div>
         )
       })()}
+
+      {totalSvcs > PAGE_SIZE && (
+        <div style={{ marginBottom: 24 }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: t.text.muted,
+              fontWeight: 500,
+              marginBottom: 10,
+              textTransform: 'uppercase',
+              letterSpacing: '.04em',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            {i18n.incidentHistory.replace('{n}', rangeLabel)}
+            <button
+              type="button"
+              onClick={() => setIncidentOpen(true)}
+              style={{
+                background: 'none',
+                border: `1px solid ${t.border}`,
+                borderRadius: 6,
+                padding: '2px 8px',
+                fontSize: 10,
+                color: t.text.secondary,
+                cursor: 'pointer',
+                fontFamily: F.sans,
+                textTransform: 'none',
+                letterSpacing: 0,
+              }}
+            >
+              {i18n.details}
+            </button>
+          </div>
+          <IncidentTimeline data={svc.bar} maxItems={3} />
+        </div>
+      )}
 
       <Modal
         open={latencyOpen}

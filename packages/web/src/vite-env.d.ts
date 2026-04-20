@@ -1,0 +1,6 @@
+/// <reference types="vite/client" />
+/// <reference types="vite-plugin-pwa/react" />
+
+// 构建时注入 (vite.config.ts define)
+declare const __BUILD_VERSION__: string
+declare const __BUILD_TIME__: string

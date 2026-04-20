@@ -1,12 +1,39 @@
+import { execSync } from 'node:child_process'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+/**
+ * 构建版本号：优先 CI 注入，回落 git SHA，最后 'dev'
+ * - CI/Dockerfile 传 GIT_SHA 时用那个
+ * - 本地/含 git 的构建机读 git HEAD
+ * - 什么都没有就 'dev'
+ */
+const buildVersion = (() => {
+  if (process.env.GIT_SHA) return process.env.GIT_SHA.slice(0, 12)
+  try {
+    return execSync('git rev-parse --short=12 HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim()
+  } catch {
+    return 'dev'
+  }
+})()
+const buildTime = new Date().toISOString()
+
 export default defineConfig({
+  define: {
+    __BUILD_VERSION__: JSON.stringify(buildVersion),
+    __BUILD_TIME__: JSON.stringify(buildTime),
+  },
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt' 模式: SW 后台下载到 waiting 状态后, 通过 useRegisterSW 的
+      // onNeedRefresh 回调暴露给前端 UI, 由用户主动点"立即更新"才激活.
+      registerType: 'prompt',
+      // 用 virtual:pwa-register/react 的 hook 手动控制注册, 避免重复注册.
+      injectRegister: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}'],
         runtimeCaching: [

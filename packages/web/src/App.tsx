@@ -1,3 +1,4 @@
+import { useRegisterSW } from 'virtual:pwa-register/react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import StatusPage from './StatusPage'
 
@@ -46,6 +47,17 @@ const msg = {
     alertsComingSoon: 'Alert rules coming soon',
     incidentsComingSoon: 'Incident timeline coming soon',
     systemDiagnostics: 'System Diagnostics',
+    checkUpdate: 'Check for Update',
+    updateChecking: 'Checking for update…',
+    upToDate: 'You are on the latest version',
+    updateAvailable: 'A new version is available.',
+    updateNow: 'Update now',
+    updateLater: 'Later',
+    updateNoSW: 'Service Worker not registered yet. Try again in a moment.',
+    versionInfo: 'Version',
+    versionInfoHint: 'Helpful when reporting issues.',
+    buildVersion: 'Build',
+    builtAt: 'Built at',
     siteNotification: 'Site Notification',
     siteNotifHint: 'Send a notification banner to all users visiting this page.',
     notifMessage: 'Message',
@@ -368,6 +380,17 @@ const msg = {
     alertsComingSoon: '告警规则即将推出',
     incidentsComingSoon: '事件时间线即将推出',
     systemDiagnostics: '系统诊断',
+    checkUpdate: '检查更新',
+    updateChecking: '正在检查更新…',
+    upToDate: '已是最新版本',
+    updateAvailable: '发现新版本',
+    updateNow: '立即更新',
+    updateLater: '稍后',
+    updateNoSW: 'Service Worker 尚未注册, 稍后再试',
+    versionInfo: '版本',
+    versionInfoHint: '反馈问题时告诉我们这两个值。',
+    buildVersion: '构建',
+    builtAt: '构建时间',
     siteNotification: '本站通知',
     siteNotifHint: '向所有访问本页的用户发送通知横幅。',
     notifMessage: '消息内容',
@@ -5819,6 +5842,33 @@ function SettingsPage({ projectName, setProjectName, siteNotif, onNotifChange, i
         isPWA={isPWA}
       />
 
+      {/* Version Info (只读, 给远程支持报版本号用) */}
+      <SettingsSection t={t}>
+        <SettingsRow label={i18n.versionInfo} hint={i18n.versionInfoHint}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              fontFamily: F.mono,
+              fontSize: 12,
+              color: t.text.secondary,
+            }}
+          >
+            <div>
+              <span style={{ color: t.text.muted }}>{i18n.buildVersion}: </span>
+              <span style={{ color: t.text.primary }}>{__BUILD_VERSION__}</span>
+            </div>
+            <div>
+              <span style={{ color: t.text.muted }}>{i18n.builtAt}: </span>
+              <span style={{ color: t.text.primary }}>
+                {new Date(__BUILD_TIME__).toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </SettingsRow>
+      </SettingsSection>
+
       {/* Save button */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, marginBottom: 24 }}>
         <button
@@ -6358,6 +6408,7 @@ function Header({
   onTimeRangeChange,
   onOpenWebhook,
   onOpenApiKey,
+  onCheckUpdate,
   isAdmin,
   onNavDiagnostics,
 }) {
@@ -6481,6 +6532,7 @@ function Header({
           toggleTheme={toggleTheme}
           onOpenWebhook={onOpenWebhook}
           onOpenApiKey={onOpenApiKey}
+          onCheckUpdate={onCheckUpdate}
           isAdmin={isAdmin}
           onNavDiagnostics={onNavDiagnostics}
         />
@@ -6495,6 +6547,7 @@ function UserMenu({
   toggleTheme,
   onOpenWebhook,
   onOpenApiKey,
+  onCheckUpdate,
   isAdmin,
   onNavDiagnostics,
 }: {
@@ -6503,6 +6556,7 @@ function UserMenu({
   toggleTheme: () => void
   onOpenWebhook: () => void
   onOpenApiKey: () => void
+  onCheckUpdate: () => void
   isAdmin?: boolean
   onNavDiagnostics?: () => void
 }) {
@@ -6661,6 +6715,30 @@ function UserMenu({
               label={i18n.apiIntegrationShort}
               onClick={() => {
                 onOpenApiKey()
+                setOpen(false)
+              }}
+              t={t}
+            />
+            <MenuItem
+              icon={
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={t.text.muted}
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <title>Check for update</title>
+                  <polyline points="23 4 23 10 17 10" />
+                  <path d="M20.49 15A9 9 0 1 1 20 8.3L23 10" />
+                </svg>
+              }
+              label={i18n.checkUpdate}
+              onClick={() => {
+                onCheckUpdate()
                 setOpen(false)
               }}
               t={t}
@@ -7384,6 +7462,53 @@ export default function App() {
   const pagedSvcs = filtered.slice((svcPage - 1) * PAGE_SIZE, svcPage * PAGE_SIZE)
   const selectedSvc = allSvcs.find((s) => s.id === selectedId) || null
 
+  /* ──── PWA 自动更新检测 ──── */
+  const swRegistrationRef = useRef<ServiceWorkerRegistration | undefined>(undefined)
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegisteredSW: (_url, reg) => {
+      swRegistrationRef.current = reg
+    },
+  })
+  const needRefreshRef = useRef(false)
+  useEffect(() => {
+    needRefreshRef.current = needRefresh
+  }, [needRefresh])
+
+  const [updateToast, setUpdateToast] = useState<string | null>(null)
+  const flashUpdate = useCallback((m: string) => {
+    setUpdateToast(m)
+    setTimeout(() => setUpdateToast(null), 2500)
+  }, [])
+  // 防止连续点击 "检查更新" 导致多次 toast
+  const checkingRef = useRef(false)
+  const handleCheckUpdate = useCallback(async () => {
+    if (checkingRef.current) return
+    checkingRef.current = true
+    const reg = swRegistrationRef.current
+    if (!reg) {
+      flashUpdate(i18n.updateNoSW)
+      checkingRef.current = false
+      return
+    }
+    flashUpdate(i18n.updateChecking)
+    try {
+      await reg.update()
+    } catch {
+      /* 网络问题: 下次轮询会重试 */
+    }
+    // 给 SW 发现新版本 → 进 waiting 留一点时间
+    await new Promise((r) => setTimeout(r, 1500))
+    if (needRefreshRef.current || reg.waiting) {
+      // banner 会自动出现, 不再额外 toast
+    } else {
+      flashUpdate(i18n.upToDate)
+    }
+    checkingRef.current = false
+  }, [flashUpdate, i18n.updateNoSW, i18n.updateChecking, i18n.upToDate])
+
   /* ──── Services CRUD (F6) ──── */
   const [svcModal, setSvcModal] = useState<{
     mode: 'add' | 'edit'
@@ -7467,6 +7592,69 @@ export default function App() {
         @media(max-width:960px){.show-mobile-only{display:flex!important}}
       `}</style>
 
+          {/* 发现新版本 SW 的强制更新 banner (PC + PWA 通用)
+              优先级高于 siteNotification, 出现在页面最顶部 */}
+          {needRefresh && (
+            <div
+              style={{
+                backgroundColor: t.accent,
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 500,
+                fontFamily: F.sans,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '8px 16px',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span role="img" aria-label="rocket">
+                  🚀
+                </span>
+                <span>{i18n.updateAvailable}</span>
+              </span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => updateServiceWorker(true)}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 6,
+                    border: 'none',
+                    backgroundColor: '#fff',
+                    color: t.accent,
+                    cursor: 'pointer',
+                    fontFamily: F.sans,
+                  }}
+                >
+                  {i18n.updateNow}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNeedRefresh(false)}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    borderRadius: 6,
+                    border: '1px solid rgba(255,255,255,.35)',
+                    backgroundColor: 'transparent',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontFamily: F.sans,
+                  }}
+                >
+                  {i18n.updateLater}
+                </button>
+              </div>
+            </div>
+          )}
+
           {siteNotif &&
             !notifDismissed &&
             (() => {
@@ -7534,6 +7722,7 @@ export default function App() {
               onTimeRangeChange={setTimeRange}
               onOpenWebhook={() => setWebhookModalOpen(true)}
               onOpenApiKey={() => setApiKeyModalOpen(true)}
+              onCheckUpdate={handleCheckUpdate}
               isAdmin={isAdmin}
               onNavDiagnostics={() => setTab('diagnostics')}
             />
@@ -7952,6 +8141,26 @@ export default function App() {
               }}
             >
               {svcToast}
+            </div>
+          )}
+          {updateToast && (
+            <div
+              style={{
+                position: 'fixed',
+                bottom: isPWA ? 88 : 24,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                padding: '10px 20px',
+                backgroundColor: t.bg.card,
+                border: `1px solid ${t.border}`,
+                borderRadius: 8,
+                color: t.text.primary,
+                fontSize: 13,
+                zIndex: 10000,
+                boxShadow: t.shadow,
+              }}
+            >
+              {updateToast}
             </div>
           )}
           {showPushPrompt && <PushPermissionPrompt onDismiss={() => setShowPushPrompt(false)} />}

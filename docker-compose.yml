@@ -1,7 +1,7 @@
 services:
-  # 本地开发用 PostgreSQL (生产用阿里云 RDS, 详见 docs/DATABASE.md §1)
+  # 本地开发用 PostgreSQL 18 (服务器端一致, 详见 docs/DATABASE.md §1)
   postgres:
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     container_name: pulse-pg
     restart: unless-stopped
     environment:

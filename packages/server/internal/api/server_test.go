@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -360,5 +362,79 @@ func TestWebhookTestInvalidHost(t *testing.T) {
 	}
 	if body["error"] == nil || body["error"] == "" {
 		t.Error("expected error message for invalid host")
+	}
+}
+
+func TestAttachWebRoot_ServesIndexAndSPAFallback(t *testing.T) {
+	dir := t.TempDir()
+	indexHTML := "<!doctype html><title>pulse</title><div id=app></div>"
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte(indexHTML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	assetDir := filepath.Join(dir, "assets")
+	if err := os.MkdirAll(assetDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(assetDir, "main.js"), []byte("console.log(1)"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := NewServer()
+	AttachWebRoot(srv, dir)
+
+	cases := []struct {
+		name     string
+		path     string
+		wantCode int
+		wantBody string // substring
+	}{
+		{"root serves index.html", "/", http.StatusOK, "pulse"},
+		{"asset served from disk", "/assets/main.js", http.StatusOK, "console.log"},
+		{"SPA fallback for client route", "/services", http.StatusOK, "pulse"},
+		{"SPA fallback for nested", "/services/42", http.StatusOK, "pulse"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			rec := httptest.NewRecorder()
+			srv.ServeHTTP(rec, req)
+			if rec.Code != tc.wantCode {
+				t.Fatalf("status=%d want %d body=%q", rec.Code, tc.wantCode, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), tc.wantBody) {
+				t.Fatalf("body missing %q, got %q", tc.wantBody, rec.Body.String())
+			}
+		})
+	}
+
+	// API + healthz 不应被 SPA fallback 吞掉
+	t.Run("api unknown still 404", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/nonexistent", nil)
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("status=%d want 404", rec.Code)
+		}
+	})
+	t.Run("healthz still works", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status=%d want 200", rec.Code)
+		}
+	})
+}
+
+func TestAttachWebRoot_EmptyDirSkips(t *testing.T) {
+	srv := NewServer()
+	AttachWebRoot(srv, "") // should not panic, should not break routes
+	AttachWebRoot(srv, "/nonexistent/path/pulse-test")
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("healthz broken after no-op AttachWebRoot, got %d", rec.Code)
 	}
 }

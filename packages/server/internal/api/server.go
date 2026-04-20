@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -60,6 +63,40 @@ func NewServer() *echo.Echo {
 	v1.GET("/status/:slug", getStatusBySlug)
 
 	return e
+}
+
+// AttachWebRoot 挂载前端静态产物到根路径 /，并为 SPA 路由（client-side router）
+// 提供 fallback：任何非 API、非 /healthz 的 404 都回到 index.html。
+// 传入目录不存在则静默跳过（纯 API 部署场景）。
+func AttachWebRoot(e *echo.Echo, dir string) {
+	if dir == "" {
+		return
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return
+	}
+	if info, err := os.Stat(abs); err != nil || !info.IsDir() {
+		return
+	}
+	indexPath := filepath.Join(abs, "index.html")
+
+	// 把 Static 作为 middleware 挂到根，命中磁盘文件直接服务
+	e.Use(middleware.StaticWithConfig(middleware.StaticConfig{
+		Root:   abs,
+		Index:  "index.html",
+		HTML5:  false, // 我们自己处理 fallback，避免吞掉 API 404
+		Browse: false,
+	}))
+
+	// SPA fallback: 非 API / 非 /healthz 的路径没有对应文件时返回 index.html
+	e.Any("/*", func(c echo.Context) error {
+		p := c.Request().URL.Path
+		if strings.HasPrefix(p, "/api/") || p == "/healthz" || p == "/metrics" {
+			return echo.ErrNotFound
+		}
+		return c.File(indexPath)
+	})
 }
 
 // Stub handlers — to be implemented with real storage layer

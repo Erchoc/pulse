@@ -15,19 +15,19 @@ Pulse 的存储被抽象为 `internal/store` 接口层，允许两种后端：
 | 模式 | `STORAGE_MODE` | 适用场景 | 限制 |
 |------|---------------|---------|------|
 | 嵌入式 | `embedded` | 开发、< 50 探针私有化部署 | 无分区、无 NOTIFY、单实例 |
-| PostgreSQL | `postgres` | 生产、多实例、> 50 探针 | 需 PG 15+ |
+| PostgreSQL | `postgres` | 生产、多实例、> 50 探针 | 需 PG 18（本地/生产一致） |
 
 **统一约束**：
 - 所有 SQL 必须兼容 PG 语法（SQLite 跑时由 store 层做少量转换：`BIGSERIAL → INTEGER PRIMARY KEY AUTOINCREMENT`、`TIMESTAMPTZ → TEXT ISO8601`、`JSONB → JSON TEXT`）
 - PG 专用特性（分区、LISTEN/NOTIFY、`pg_advisory_lock`）**不写入通用 SQL**，通过 `store` 接口的 Postgres 专属方法使用
 - 迁移脚本是 PG 方言写的；SQLite 模式启动时由 store 层自动降级转换
 
-> **开发推荐**：直接用 Docker 起 PG 15（见下文 §1.1）和代码保持 PG 行为一致；
+> **开发推荐**：直接用 Docker 起 PG 18（见下文 §1.1）和服务器一致；
 > SQLite 模式主要为"私有化部署、单用户、低探针量"场景保留。
 
 ### 1.1 本地开发起 PG（docker-compose）
 
-仓库根目录已配好 `docker-compose.yml`（含 PG 15 + Redis 7）。
+仓库根目录已配好 `docker-compose.yml`（含 PG 18 + Redis 7）。
 
 ```bash
 # 首次启动

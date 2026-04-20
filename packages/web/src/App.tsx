@@ -273,6 +273,11 @@ const msg = {
     pushPromptBody:
       'Get instant alerts when your services go down or recover. You can change this anytime in settings.',
     pushPromptAllow: 'Enable Notifications',
+    pushPromptLater: 'Maybe later',
+    pushPromptDeniedTitle: 'Notifications Blocked',
+    pushPromptDeniedBody:
+      'Notifications were blocked for this site. Please enable them in your browser settings (click the lock icon in the address bar) and then reload the page.',
+    pushPromptGotIt: 'Got it',
     setMaintenance: 'Set Maintenance',
     endMaintenance: 'End Maintenance',
     maintenanceReason: 'Reason',
@@ -552,6 +557,11 @@ const msg = {
     pushPromptTitle: '保持知情',
     pushPromptBody: '服务宕机或恢复时即时收到告警通知。你随时可以在设置中更改。',
     pushPromptAllow: '开启通知',
+    pushPromptLater: '稍后再说',
+    pushPromptDeniedTitle: '通知已被阻止',
+    pushPromptDeniedBody:
+      '浏览器已阻止本站通知。请点击地址栏左侧锁图标进入站点设置，将通知权限改为"允许"后刷新页面。',
+    pushPromptGotIt: '我知道了',
     setMaintenance: '设置维护',
     endMaintenance: '结束维护',
     maintenanceReason: '维护原因',
@@ -4686,9 +4696,17 @@ function PushCapRow({
 function PushPermissionPrompt({ onDismiss }: { onDismiss: () => void }) {
   const { t, i18n } = useApp()
   const hasNotifAPI = typeof Notification !== 'undefined'
+  // denied: 浏览器已记住用户拒绝，requestPermission() 不会再弹系统授权框；
+  //         只能引导用户去浏览器设置手动改。
+  const isDenied = hasNotifAPI && Notification.permission === 'denied'
 
   const handleAllow = useCallback(async () => {
     if (!hasNotifAPI) {
+      onDismiss()
+      return
+    }
+    if (isDenied) {
+      // 已被拒绝，关闭弹窗即可。文案已经引导用户去浏览器设置。
       onDismiss()
       return
     }
@@ -4701,7 +4719,7 @@ function PushPermissionPrompt({ onDismiss }: { onDismiss: () => void }) {
         badge: '/favicon.png',
       })
     }
-  }, [hasNotifAPI, onDismiss, i18n.testPushTitle, i18n.pushSent])
+  }, [hasNotifAPI, isDenied, onDismiss, i18n.testPushTitle, i18n.pushSent])
 
   return (
     <div
@@ -4781,7 +4799,7 @@ function PushPermissionPrompt({ onDismiss }: { onDismiss: () => void }) {
             letterSpacing: '-.02em',
           }}
         >
-          {i18n.pushPromptTitle}
+          {isDenied ? i18n.pushPromptDeniedTitle : i18n.pushPromptTitle}
         </h3>
         <p
           style={{
@@ -4791,28 +4809,49 @@ function PushPermissionPrompt({ onDismiss }: { onDismiss: () => void }) {
             margin: '0 0 24px',
           }}
         >
-          {i18n.pushPromptBody}
+          {isDenied ? i18n.pushPromptDeniedBody : i18n.pushPromptBody}
         </p>
 
-        <button
-          type="button"
-          onClick={handleAllow}
-          style={{
-            width: '100%',
-            padding: '12px 20px',
-            borderRadius: 10,
-            fontSize: 14,
-            fontWeight: 600,
-            fontFamily: F.sans,
-            cursor: 'pointer',
-            border: 'none',
-            backgroundColor: t.accent,
-            color: '#fff',
-            transition: 'opacity .15s',
-          }}
-        >
-          {i18n.pushPromptAllow}
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button
+            type="button"
+            onClick={handleAllow}
+            style={{
+              width: '100%',
+              padding: '12px 20px',
+              borderRadius: 10,
+              fontSize: 14,
+              fontWeight: 600,
+              fontFamily: F.sans,
+              cursor: 'pointer',
+              border: 'none',
+              backgroundColor: t.accent,
+              color: '#fff',
+              transition: 'opacity .15s',
+            }}
+          >
+            {isDenied ? i18n.pushPromptGotIt : i18n.pushPromptAllow}
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            style={{
+              width: '100%',
+              padding: '10px 20px',
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 500,
+              fontFamily: F.sans,
+              cursor: 'pointer',
+              border: 'none',
+              background: 'none',
+              color: t.text.muted,
+              transition: 'color .15s',
+            }}
+          >
+            {i18n.pushPromptLater}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -6876,14 +6915,11 @@ export default function App() {
   })
   const [webhookModalOpen, setWebhookModalOpen] = useState(false)
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false)
+  // 只要通知未开启 (default 或 denied) 就在每次页面加载时弹提示；
+  // 用户点"稍后再说"只在本次会话内关闭，刷新页面会重新出现。
   const [showPushPrompt, setShowPushPrompt] = useState(() => {
     if (typeof Notification === 'undefined') return false
-    if (Notification.permission !== 'default') return false
-    try {
-      return !sessionStorage.getItem('pulse-push-prompted')
-    } catch {
-      return false
-    }
+    return Notification.permission !== 'granted'
   })
   const [theme, setTheme] = useState(() => {
     try {
@@ -7591,18 +7627,7 @@ export default function App() {
               {svcToast}
             </div>
           )}
-          {showPushPrompt && (
-            <PushPermissionPrompt
-              onDismiss={() => {
-                setShowPushPrompt(false)
-                try {
-                  sessionStorage.setItem('pulse-push-prompted', '1')
-                } catch {
-                  /* noop */
-                }
-              }}
-            />
-          )}
+          {showPushPrompt && <PushPermissionPrompt onDismiss={() => setShowPushPrompt(false)} />}
           {isPWA && <TabNav active={tab} onChange={setTab} pwa isAdmin={isAdmin} />}
         </div>
       )}

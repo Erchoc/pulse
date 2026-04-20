@@ -54,6 +54,9 @@ const msg = {
     updateNow: 'Update now',
     updateLater: 'Later',
     updateNoSW: 'Service Worker not registered yet. Try again in a moment.',
+    updateDevMode: 'Dev mode: Service Worker disabled. Test on production build.',
+    updateNeedHttps:
+      'PWA features need HTTPS or localhost. Current origin is not a secure context.',
     versionInfo: 'Version',
     versionInfoHint: 'Helpful when reporting issues.',
     buildVersion: 'Build',
@@ -387,6 +390,8 @@ const msg = {
     updateNow: '立即更新',
     updateLater: '稍后',
     updateNoSW: 'Service Worker 尚未注册, 稍后再试',
+    updateDevMode: '开发模式下 Service Worker 已禁用, 请在生产构建中测试',
+    updateNeedHttps: 'PWA 功能需要 HTTPS 或 localhost, 当前非安全上下文',
     versionInfo: '版本',
     versionInfoHint: '反馈问题时告诉我们这两个值。',
     buildVersion: '构建',
@@ -7248,8 +7253,11 @@ export default function App() {
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false)
   // 只要通知未开启 (default 或 denied) 就在每次页面加载时弹提示；
   // 用户点"稍后再说"只在本次会话内关闭，刷新页面会重新出现。
+  // 非 secure context (http 局域网 IP 等) Chrome 硬禁用 Notification API,
+  // 用户在浏览器设置里也打不开, 此场景下直接不弹避免骚扰.
   const [showPushPrompt, setShowPushPrompt] = useState(() => {
     if (typeof Notification === 'undefined') return false
+    if (typeof window !== 'undefined' && !window.isSecureContext) return false
     return Notification.permission !== 'granted'
   })
   // 主题三态: auto = 跟随系统; dark/light = 用户显式选择 (写 localStorage)
@@ -7489,7 +7497,14 @@ export default function App() {
     checkingRef.current = true
     const reg = swRegistrationRef.current
     if (!reg) {
-      flashUpdate(i18n.updateNoSW)
+      // SW 拿不到时给出精确原因, 避免让用户困惑
+      let reason = i18n.updateNoSW
+      if (import.meta.env.DEV) {
+        reason = i18n.updateDevMode
+      } else if (typeof window !== 'undefined' && !window.isSecureContext) {
+        reason = i18n.updateNeedHttps
+      }
+      flashUpdate(reason)
       checkingRef.current = false
       return
     }
@@ -7507,7 +7522,14 @@ export default function App() {
       flashUpdate(i18n.upToDate)
     }
     checkingRef.current = false
-  }, [flashUpdate, i18n.updateNoSW, i18n.updateChecking, i18n.upToDate])
+  }, [
+    flashUpdate,
+    i18n.updateNoSW,
+    i18n.updateDevMode,
+    i18n.updateNeedHttps,
+    i18n.updateChecking,
+    i18n.upToDate,
+  ])
 
   /* ──── Services CRUD (F6) ──── */
   const [svcModal, setSvcModal] = useState<{

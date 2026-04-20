@@ -44,6 +44,8 @@ const msg = {
     events: 'Events & Alerts',
     eventsShort: 'Events',
     alertsComingSoon: 'Alert rules coming soon',
+    incidentsComingSoon: 'Incident timeline coming soon',
+    systemDiagnostics: 'System Diagnostics',
     siteNotification: 'Site Notification',
     siteNotifHint: 'Send a notification banner to all users visiting this page.',
     notifMessage: 'Message',
@@ -364,6 +366,8 @@ const msg = {
     events: '事件告警',
     eventsShort: '事件',
     alertsComingSoon: '告警规则即将推出',
+    incidentsComingSoon: '事件时间线即将推出',
+    systemDiagnostics: '系统诊断',
     siteNotification: '本站通知',
     siteNotifHint: '向所有访问本页的用户发送通知横幅。',
     notifMessage: '消息内容',
@@ -1319,6 +1323,18 @@ const allProbes = isMockPage ? genMockProbes() : _initProbes
    Helpers
    ================================================================ */
 const PAGE_SIZE = 10
+
+/* Tab 路由白名单 (放模块级避免每次渲染重建引用, 干扰 useCallback 依赖) */
+const VALID_TABS = [
+  'overview',
+  'services',
+  'probes',
+  'incidents',
+  'alerts',
+  'settings',
+  'diagnostics',
+] as const
+const ADMIN_ONLY_TABS = new Set(['settings', 'diagnostics'])
 
 const fmtSLA = (v) => `${v.toFixed(2)}%`
 const slaColor = (sla, tgt, t) =>
@@ -6342,6 +6358,8 @@ function Header({
   onTimeRangeChange,
   onOpenWebhook,
   onOpenApiKey,
+  isAdmin,
+  onNavDiagnostics,
 }) {
   const { t, i18n } = useApp()
   const brandDisplay = projectName || i18n.brand
@@ -6463,6 +6481,8 @@ function Header({
           toggleTheme={toggleTheme}
           onOpenWebhook={onOpenWebhook}
           onOpenApiKey={onOpenApiKey}
+          isAdmin={isAdmin}
+          onNavDiagnostics={onNavDiagnostics}
         />
       </div>
     </header>
@@ -6475,12 +6495,16 @@ function UserMenu({
   toggleTheme,
   onOpenWebhook,
   onOpenApiKey,
+  isAdmin,
+  onNavDiagnostics,
 }: {
   theme: string
   themeMode: 'auto' | 'dark' | 'light'
   toggleTheme: () => void
   onOpenWebhook: () => void
   onOpenApiKey: () => void
+  isAdmin?: boolean
+  onNavDiagnostics?: () => void
 }) {
   const { t, i18n } = useApp()
   const [open, setOpen] = useState(false)
@@ -6641,6 +6665,32 @@ function UserMenu({
               }}
               t={t}
             />
+            {isAdmin && onNavDiagnostics && (
+              <MenuItem
+                icon={
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke={t.text.muted}
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <title>System Diagnostics</title>
+                    <path d="M9 12l2 2 4-4" />
+                    <path d="M12 3a9 9 0 100 18 9 9 0 000-18z" />
+                  </svg>
+                }
+                label={i18n.systemDiagnostics}
+                onClick={() => {
+                  onNavDiagnostics()
+                  setOpen(false)
+                }}
+                t={t}
+              />
+            )}
           </div>
 
           {/* Theme toggle (mobile only) */}
@@ -7155,7 +7205,7 @@ export default function App() {
     }
   })
   const [selectedId, setSelectedId] = useState(null)
-  const validTabs = ['overview', 'services', 'probes', 'incidents', 'alerts', 'settings']
+  // 六个主 tab + 一个隐藏的 admin 专属 'diagnostics' (从用户菜单进入, 不出现在导航栏)
   const parseTabFromHash = useCallback(() => {
     const raw = window.location.hash.replace(/^#/, '').trim()
     // 兼容旧 URL（tab=N 数字索引）: tab=1→overview, 2→probes, 3→events(→incidents), 4→settings
@@ -7164,11 +7214,11 @@ export default function App() {
       const idx = Number(legacy[1]) - 1
       const legacyMap = ['overview', 'probes', 'incidents', 'settings']
       const parsed = legacyMap[idx] || 'overview'
-      if (parsed === 'settings' && !isAdmin) return 'overview'
+      if (ADMIN_ONLY_TABS.has(parsed) && !isAdmin) return 'overview'
       return parsed
     }
-    if (validTabs.includes(raw)) {
-      if (raw === 'settings' && !isAdmin) return 'overview'
+    if ((VALID_TABS as readonly string[]).includes(raw)) {
+      if (ADMIN_ONLY_TABS.has(raw) && !isAdmin) return 'overview'
       return raw
     }
     return 'overview'
@@ -7176,7 +7226,7 @@ export default function App() {
   const [tab, setTabState] = useState(parseTabFromHash)
   const setTab = useCallback(
     (id: string) => {
-      if (id === 'settings' && !isAdmin) {
+      if (ADMIN_ONLY_TABS.has(id) && !isAdmin) {
         setTabState('overview')
         window.location.hash = ''
         return
@@ -7484,6 +7534,8 @@ export default function App() {
               onTimeRangeChange={setTimeRange}
               onOpenWebhook={() => setWebhookModalOpen(true)}
               onOpenApiKey={() => setApiKeyModalOpen(true)}
+              isAdmin={isAdmin}
+              onNavDiagnostics={() => setTab('diagnostics')}
             />
             {!isPWA && <TabNav active={tab} onChange={setTab} isAdmin={isAdmin} />}
 
@@ -7796,8 +7848,19 @@ export default function App() {
               </div>
             )}
 
-            {/* ──── INCIDENTS ──── (F3 未启动；目前复用 EventsPage 的推送诊断占位) */}
-            {tab === 'incidents' && <EventsPage isPWA={isPWA} />}
+            {/* ──── INCIDENTS ──── (F3 未启动；仅占位文案) */}
+            {tab === 'incidents' && (
+              <div
+                style={{
+                  padding: '48px 24px',
+                  textAlign: 'center',
+                  color: t.text.muted,
+                  fontSize: 14,
+                }}
+              >
+                {i18n.incidentsComingSoon}
+              </div>
+            )}
 
             {/* ──── ALERTS ──── (F4 未启动；仅显示占位文案) */}
             {tab === 'alerts' && (
@@ -7812,6 +7875,9 @@ export default function App() {
                 {i18n.alertsComingSoon}
               </div>
             )}
+
+            {/* ──── DIAGNOSTICS ──── (admin 专属, 从用户菜单进; 内容 = 推送通知诊断) */}
+            {tab === 'diagnostics' && isAdmin && <EventsPage isPWA={isPWA} />}
 
             {/* ──── SETTINGS ──── */}
             {tab === 'settings' && (
